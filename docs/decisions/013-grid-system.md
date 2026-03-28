@@ -89,9 +89,24 @@ AI: Places component at x=32, y=0, width=remaining, height=8 (64px)
 - Components can overlap (z-index ordering via layer panel, future feature)
 - AI can auto-arrange components to avoid overlaps when requested
 
-### Responsive Considerations (Future)
+### Canvas Size & Virtualization
 
-For v1, the grid is absolute positioning within the Slate tab. Future versions may add:
-- Breakpoint-based layout switching
-- Auto-reflow for different window sizes
-- Container queries for component-level responsiveness
+**Canvas limits (v1):**
+- Maximum canvas size: 10,000 × 10,000 grid units (80,000 × 80,000 pixels)
+- Default canvas: 160 × 120 units (1,280 × 960 pixels — matches common desktop resolution)
+- Canvas scrolls when content exceeds viewport — no pagination
+
+**Canvas virtualization:**
+- Components outside the visible viewport are unmounted from the sandbox iframe (React virtualization)
+- Virtualization threshold: components more than 2 viewport heights outside the visible area are unmounted
+- Unmounted components retain their state in the host Zustand store
+- Re-mounting is instant (state is already present)
+- This allows canvases with 100+ components without performance degradation
+
+**Why this matters:** Without virtualization, a canvas with 50 components would run 50 React component trees simultaneously in the sandbox iframe. With virtualization, only ~10-15 visible components are active at any time.
+
+### v1 vs. Future Layout
+
+**v1:** Absolute positioning within fixed canvas bounds. No responsive breakpoints. Components stay where placed regardless of window size (canvas scrolls). This is a deliberate simplification — see Decision 002.
+
+**v2+:** Breakpoint-based layout switching, container queries, auto-reflow for window resize.

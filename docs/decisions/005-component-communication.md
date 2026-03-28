@@ -71,8 +71,8 @@ interface ComponentManifest {
     }
   };
 
-  defaultSize: { cols: number; rows: number };
-  minSize?: { cols: number; rows: number };
+  defaultSize: { width: number; height: number };
+  minSize?: { width: number; height: number };
 }
 ```
 
@@ -98,7 +98,7 @@ Single Zustand store per Slate (tab), optional app-level store for cross-tab sta
 **State is scoped:**
 - **Tab-scoped**: Each Slate tab has its own store instance
 - **App-scoped**: Cross-tab state (user prefs, auth, shared data) in a separate store
-- **Namespaced**: Keys follow `componentName.keyName` convention to prevent conflicts
+- **Namespaced**: Keys are **instance-prefixed**: `instanceId.keyName` (e.g., `comp_abc123.todoList`). Each component instance gets a unique prefix auto-assigned at placement time. Prevents collisions when multiple instances of the same component type share a canvas.
 
 ### Layer 3: Typed Event Bus (Notifications & Actions)
 
@@ -135,3 +135,5 @@ const slateEvents = createEventBus<{
 | ToolJet | Page/app variables | Event-driven actions | Component config |
 | Retool | State + queries | Event handlers | Component schema |
 | **CSlate** | **Zustand store** | **Typed event bus** | **Component manifest** |
+
+**Note:** The Zustand store lives in the **host renderer**, not inside the sandbox. Components read/write state via the host bridge — they never have direct store access.

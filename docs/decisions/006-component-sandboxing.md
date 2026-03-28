@@ -21,14 +21,14 @@ CSlate renders AI-generated and community-sourced React components on a canvas. 
 - Zero overhead, fine-grained control
 - **Rejected alone:** Running untrusted code in the host renderer is one misconfiguration from disaster. Needs a hard boundary.
 
-### Single Sandbox iframe + SES Compartments (Selected)
+### Single Sandbox iframe with Hardened Isolation (Selected)
 - One iframe = one hard security boundary (performance-friendly)
 - SES Compartments inside = per-component isolation (defense-in-depth)
-- **Selected:** Best balance of security and performance
+- **Selected:** Best balance of security and performance. SES Compartments and near-membrane deferred to v2 — v1 achieves strong isolation via hardened iframe without them.
 
 ## Decision
 
-**"Single Sandbox iframe + SES Compartments" architecture**
+**"Single Sandbox iframe with Hardened Isolation" architecture**
 
 ```
 +------------------------------------------------------------------+
@@ -54,6 +54,48 @@ CSlate renders AI-generated and community-sourced React components on a canvas. 
 |  - NO access to Node.js, Electron APIs, fetch, localStorage      |
 +------------------------------------------------------------------+
 ```
+
+## v1: Hardened iframe (Hardened, No SES Required)
+
+For v1, we implement a "hardened iframe" that provides strong isolation without SES Compartments:
+
+### Hardening Steps (applied at iframe boot)
+
+1. **Freeze JS prototypes** — prevent prototype pollution across all components:
+   ```javascript
+   [Object, Array, Function, String, Number, Boolean, Symbol].forEach(c => {
+     Object.freeze(c.prototype);
+   });
+   ```
+
+2. **Shadow DOM per component** — each component gets a ShadowRoot, preventing CSS leakage and DOM access between components:
+   ```javascript
+   const shadow = rootDiv.attachShadow({ mode: 'closed' });
+   // Component renders into shadow, cannot access sibling roots
+   ```
+
+3. **Per-component MessagePorts** — each component communicates on its own dedicated `MessagePort`, not a shared broadcast channel. Component A cannot intercept Component B's messages.
+
+4. **Scoped bridge instances** — each component receives a bridge object bound only to its own manifest-declared sources. It cannot call bridge methods for other components' sources.
+
+5. **CSP header on iframe** — `Content-Security-Policy: default-src 'none'; script-src 'unsafe-eval'` (eval needed for dynamic component loading, all network blocked).
+
+### What v1 Hardened iframe Prevents
+
+| Attack | Prevention |
+|---|---|
+| Prototype pollution | Frozen prototypes |
+| Component A reads Component B's DOM | Shadow DOM (closed) |
+| Component hijacks global postMessage | Dedicated MessagePorts |
+| Component calls bridge for unauthorized source | Scoped bridge instances |
+| Component loads external scripts | CSP: no external script-src |
+| Cross-component state access | All state in host, not sandbox |
+
+### v2: SES + near-membrane (Deferred)
+
+- `lockdown()` + Compartments for complete JS isolation between components
+- near-membrane proxy-based DOM scoping (replaces Shadow DOM approach)
+- Per-component API allowlisting at runtime
 
 ## Security Layers
 
@@ -130,12 +172,13 @@ This prevents components from directly accessing each other while enabling rich 
 
 ## Key Libraries
 
-| Library | Purpose | Maturity |
-|---|---|---|
-| `@endo/ses` | lockdown() + Compartment | Production (Agoric, MetaMask) |
-| `near-membrane` | Proxy-based DOM scoping | Production (Salesforce LWC) |
-| React 18+ | Shared render tree in sandbox | Production |
-| MessageChannel API | Host ↔ sandbox communication | Web standard |
+| Library | Purpose | Maturity | Version |
+|---|---|---|---|
+| Shadow DOM | Closed shadow roots for per-component DOM isolation | Web standard | v1 |
+| MessageChannel API | Per-component dedicated ports | Web standard | v1 |
+| React 18+ | Shared render tree in sandbox | Production | v1 |
+| `@endo/ses` | lockdown() + Compartment (deferred) | Production (Agoric, MetaMask) | v2 |
+| `near-membrane` | Proxy-based DOM scoping (deferred) | Production (Salesforce LWC) | v2 |
 
 ## Critical Rules
 
@@ -147,7 +190,8 @@ This prevents components from directly accessing each other while enabling rich 
 
 ## Implementation Phases
 
-1. **Phase 1:** Sandbox iframe + basic isolation + postMessage protocol
-2. **Phase 2:** SES lockdown + Compartments per component
-3. **Phase 3:** near-membrane DOM scoping
-4. **Phase 4:** Performance optimization (virtualization, batched updates)
+1. **Phase 1 (v1):** Sandbox iframe + hardened isolation (frozen prototypes, Shadow DOM, per-component MessagePorts, scoped bridge, CSP)
+2. **Phase 2 (v1):** postMessage/MessageChannel communication protocol — host routes all inter-component communication
+3. **Phase 3 (v2):** SES lockdown + Compartments per component
+4. **Phase 4 (v2):** near-membrane DOM scoping
+5. **Phase 5 (v2+):** Performance optimization (virtualization, batched updates)

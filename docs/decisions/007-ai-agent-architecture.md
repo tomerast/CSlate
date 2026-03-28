@@ -7,6 +7,34 @@
 
 CSlate needs a local AI agent that helps users build components via natural language. Users provide their own LLM configuration (API keys, model choice). CSlate provides the agent's skills, workflows, memory, and core identity.
 
+## v0.1: Simplified Agent (Starting Point)
+
+The full orchestrator + skills + memory + workflows architecture is the **target**. For v0.1 (inner MVP), we start much simpler:
+
+**v0.1 agent = a single LLM call with a carefully crafted system prompt.**
+
+```
+const response = await llm.complete({
+  system: CSLATE_SYSTEM_PROMPT,  // ~2000 tokens: platform rules, manifest format, examples
+  messages: conversationHistory,
+  tools: [renderComponent, readManifest, searchComponents]  // 3-5 tools only
+});
+```
+
+**Why start simple:**
+- Get the core loop working: describe → generate → render → iterate
+- Discover what skills are actually needed vs. hypothetical
+- Avoid building a system that's never exercised
+- A well-crafted system prompt with 3-5 tools can do 80% of what the full system does
+
+**v0.1 scope:**
+- One LLM call per user turn (no orchestration)
+- 3-5 hard-coded tools (renderComponent, searchBlueprints, readProjectContext)
+- No skill dispatch, no memory system, no sub-agents
+- Conversation history as context (no external memory)
+
+**Migration path:** The full skills/memory/workflows system is designed to be extracted from what v0.1 teaches us. The interface definitions below are the target — we build toward them.
+
 ## Decision
 
 **Orchestrator + specialized sub-agents, modeled after Claude Code's architecture.**

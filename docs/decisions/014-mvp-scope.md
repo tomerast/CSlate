@@ -7,6 +7,33 @@
 
 CSlate has a large design surface. To ship, we need a tight MVP scope that delivers the core value loop: describe → generate → render → iterate → share.
 
+## v0.1: Inner MVP (Pre-v1)
+
+Before v1, ship the smallest thing that demonstrates the core value: describe → generate → render → iterate.
+
+**v0.1 scope (macOS only):**
+
+| Area | v0.1 |
+|---|---|
+| Platform | macOS only (single build target) |
+| LLM | Single provider (Anthropic Claude API) |
+| Agent | Single LLM call + system prompt (no skills/memory system) |
+| Canvas | Fixed single slate (no tabs) |
+| Components | Single-file (ui.tsx + manifest.json only) |
+| Sandboxing | Basic iframe sandbox (no SES, no hardening) |
+| Persistence | Local filesystem only (no cloud sync, no checkpoints) |
+| Community | No upload, no search, no server integration |
+| Styling | Tailwind + tokens (but no enforcement) |
+| Auth | None (no server) |
+
+**v0.1 success criteria:**
+1. User opens app, presses `Cmd+K`, describes a component, sees it rendered
+2. User can give feedback and see it updated in real-time
+3. At least 5 different component types work correctly (form, chart, table, ticker, calendar)
+4. Zero crashes on a 30-minute continuous session
+
+**Why v0.1 matters:** 26 systems in the full v1 spec is too large to start. v0.1 validates the core hypothesis (AI → component → canvas) before building the surrounding platform. Each v1 feature is added after v0.1 proves the loop works.
+
 ## v1 — MVP Scope
 
 ### Core Experience
@@ -32,11 +59,11 @@ CSlate has a large design surface. To ship, we need a tight MVP scope that deliv
 - AI-powered component wiring (manifest-based input↔output matching)
 
 ### Sandboxing
-- Phase 1 sandboxing: single sandbox iframe with `sandbox="allow-scripts"`
+- Hardened iframe: single sandbox iframe + frozen prototypes + Shadow DOM per component + per-component MessagePorts + scoped bridge + CSP
 - Null origin, no Node.js access, no fetch
 - postMessage/MessageChannel communication protocol
-- Component isolation via separate DOM subtrees (div per component)
-- SES/Compartments deferred to v2
+- Component isolation via Shadow DOM (closed) per component
+- SES Compartments and near-membrane deferred to v2
 
 ### Data & Persistence
 - Local filesystem project storage (cslate.json, tabs/, components/)

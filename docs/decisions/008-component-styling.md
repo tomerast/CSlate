@@ -114,7 +114,19 @@ The agent's component-builder skill includes these styling rules:
 - Use semantic token colors (`bg-primary`, `text-muted`) not raw colors (`bg-blue-500`)
 - Use token radii (`rounded-md`) and shadows (`shadow-sm`) for consistency
 - Use the spacing scale (`p-4`, `gap-3`) not arbitrary values
-- Responsive by default: use Tailwind breakpoint prefixes when needed
+- No responsive breakpoints in v1 (canvas uses absolute positioning). Components fill their fixed grid slot.
+
+### Token Enforcement
+
+AI-generated components must use semantic tokens, not raw Tailwind color/spacing utilities. We enforce this at multiple layers:
+
+1. **Post-generation lint (client-side):** After the LLM generates component code, a static regex pass flags hardcoded colors like `bg-blue-500`, `text-gray-900`, `border-red-400`. The agent is instructed to fix violations before rendering.
+
+2. **Server hard reject:** The server review pipeline (stage: quality_review) rejects components that use raw color utilities. Rejected components are NOT cataloged. The rejection reason is returned to the client so the user can regenerate.
+
+3. **Runtime fallback:** If a component somehow renders with unmapped token classes, the CSS variable resolves to a sensible default (not broken). The sandbox iframe's Tailwind config maps all `bg-primary`, `text-muted` etc. to CSS variables with fallback values.
+
+**Enforcement priority:** Server rejection is the hard gate. Client lint is the early warning. Runtime fallback is the safety net.
 
 ### Theming for Users
 

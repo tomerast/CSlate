@@ -41,4 +41,4 @@ When users place components on the Slate, we need a strategy for how components 
 - Grid should be fine-grained enough that users feel unrestricted
 - Grid cells should be dynamic — resizable and mergeable
 - Components should be able to span multiple grid cells
-- Layout should be responsive by default
+- **v1: absolute positioning within fixed canvas bounds. Responsive layouts deferred to v2.**

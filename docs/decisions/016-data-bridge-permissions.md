@@ -70,7 +70,7 @@ interface ComponentManifest {
   // ... existing fields ...
 
   // NEW: External data sources this component needs
-  dataSources: {
+  dataSources?: {
     [sourceId: string]: {
       description: string;          // Human-readable: "Live stock prices from Yahoo Finance"
       type: 'rest-api' | 'websocket' | 'graphql';
@@ -99,7 +99,7 @@ interface ComponentManifest {
   };
 
   // NEW: User-configurable parameters (stripped on community upload)
-  userConfig: {
+  userConfig?: {
     [key: string]: {
       type: 'string' | 'number' | 'boolean' | 'string[]' | 'object';
       description: string;          // "Your stock symbols to track"
@@ -111,6 +111,8 @@ interface ComponentManifest {
   };
 }
 ```
+
+**Limit:** A component may declare a maximum of **5 data sources**. This prevents components that are effectively API aggregators from being registered as single components, and limits permission prompt complexity.
 
 ### Permission System
 
@@ -140,6 +142,34 @@ When a component is placed on the Slate and declares data sources, the user sees
 - Denied permissions = component renders without that data (graceful degradation)
 - User can revoke permissions anytime (right-click component → Permissions)
 - Sensitive userConfig fields (API keys) are stored in Electron safeStorage, never in project files
+
+### Tiered Permissions (Reducing Permission Fatigue)
+
+A single permission prompt per data source is fine. But if a component has 4 data sources, showing 4 sequential blocking modals is UX poison. We use a tiered approach:
+
+**Tier 1 — Auto-approve with toast (low risk):**
+- Read-only, public APIs (no auth required)
+- Rate limit ≤ 60 req/min
+- No user config needed
+- Example: public weather API, public exchange rates
+
+*Behavior:* Component auto-connects, a toast shows "Connected to OpenWeatherMap (public)". User can revoke in component settings.
+
+**Tier 2 — Non-blocking inline prompt (medium risk):**
+- APIs requiring user config (but no credentials)
+- Example: stock ticker with user-provided symbols
+
+*Behavior:* Component renders a "Configure" state (not blocked), sidebar slides in with config fields. User fills in values, component activates. No modal.
+
+**Tier 3 — Blocking modal (high risk):**
+- APIs requiring credentials or sensitive keys
+- Write operations
+- Webhooks
+- Example: GitHub API with personal access token
+
+*Behavior:* Show the blocking permission modal. User must explicitly approve before component loads.
+
+**Rule:** Never show more than 2 blocking Tier 3 modals back-to-back. If a component requires 3+ sensitive sources, batch them into one consolidated modal.
 
 ### Permission Storage
 
@@ -228,6 +258,41 @@ async function handleBridgeFetch(request: BridgeRequest): Promise<BridgeResponse
   return { data: await response.json() };
 }
 ```
+
+### Client-Side URL Validation
+
+Before making any bridge.fetch request, the host validates the target URL client-side:
+
+```typescript
+function validateBridgeUrl(url: string, manifest: ComponentManifest, sourceId: string): ValidationResult {
+  const source = manifest.dataSources?.[sourceId];
+  if (!source) return { valid: false, reason: 'UNDECLARED_SOURCE' };
+
+  // 1. Parse the URL — reject malformed URLs
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return { valid: false, reason: 'INVALID_URL' }; }
+
+  // 2. Reject non-HTTPS (no HTTP allowed)
+  if (parsed.protocol !== 'https:') return { valid: false, reason: 'INSECURE_PROTOCOL' };
+
+  // 3. Reject private/internal IP ranges
+  const hostname = parsed.hostname;
+  if (isPrivateIP(hostname) || isLoopback(hostname)) return { valid: false, reason: 'PRIVATE_IP' };
+
+  // 4. Validate against manifest baseUrl (constructed URL must start with declared base)
+  if (!url.startsWith(source.baseUrl)) return { valid: false, reason: 'URL_NOT_IN_MANIFEST' };
+
+  return { valid: true };
+}
+```
+
+**Why client-side validation:**
+- Catches obvious attacks before they hit the network
+- Private IP blocking prevents SSRF attacks (component trying to reach internal services)
+- `URL_NOT_IN_MANIFEST` prevents components from making undeclared requests
+- Complements server-side URL allowlist (see server API contract) — defense in depth
+
+**The server still validates:** Client validation is an early warning. The server's allowlist is the hard gate.
 
 ### Community Upload: Stripping User Data
 

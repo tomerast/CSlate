@@ -1,7 +1,7 @@
 # CSlate Server API Contract
 
 **Date:** 2026-03-28
-**Version:** 2.0 (Aligned)
+**Version:** 3.0 (Post Critical Review)
 **Owner:** CSlate Client ↔ CSlate Server
 
 ---
@@ -41,9 +41,9 @@ Authorization: ApiKey <api_key>
 ```
 
 ```
-POST   /api/auth/register      // Create account, returns API key
-POST   /api/auth/regenerate     // Invalidate old key, get new one
-DELETE /api/auth/account        // Delete account + all data
+POST   /api/v1/auth/register      // Create account, returns API key
+POST   /api/v1/auth/regenerate     // Invalidate old key, get new one
+DELETE /api/v1/auth/account        // Delete account + all data
 ```
 
 ---
@@ -114,8 +114,8 @@ interface ComponentManifest {
     similarTo?: string[];
   };
 
-  defaultSize: { cols: number; rows: number };
-  minSize?: { cols: number; rows: number };
+  defaultSize: { width: number; height: number };  // grid units
+  minSize?: { width: number; height: number };      // grid units
 }
 ```
 
@@ -134,7 +134,7 @@ interface ComponentPackage {
     "ui.tsx": "import React from 'react';\n...",
     "logic.ts": "export function useTodoLogic() {...}",
     "types.ts": "export interface TodoItem {...}",
-    "context.md": "## Decisions\n- User wanted drag-and-drop..."
+    "context.md": "## Decisions\n- User wanted drag-and-drop..."   // AI-generated clean summary of the build conversation (not raw chat). Generated locally by client before upload. Max 2,000 chars.
   }
 }
 ```
@@ -147,6 +147,9 @@ interface ComponentPackage {
 | Total package | 2 MB |
 | Manifest | 50 KB |
 
+**Manifest validation notes:**
+- Maximum 5 `dataSources` per component manifest. Manifests with more are rejected with `TOO_MANY_DATA_SOURCES`.
+
 ---
 
 ## API Endpoints
@@ -154,15 +157,15 @@ interface ComponentPackage {
 ### Component Search & Retrieval
 
 ```
-GET  /api/components/search?q={query}&tags={tags}&category={cat}&limit={n}
-GET  /api/components/:id
-GET  /api/components/:id/source         // Returns full package (files + manifest)
-GET  /api/components/:id/versions       // Version history for a component
-GET  /api/components/trending?period=week&limit=20
-GET  /api/components/popular?limit=20
-GET  /api/components/tags
-GET  /api/components/categories
-POST /api/components/:id/rate           // { rating: 1-5, comment?: string }
+GET  /api/v1/components/search?q={query}&tags={tags}&category={cat}&limit={n}
+GET  /api/v1/components/:id
+GET  /api/v1/components/:id/source         // Returns full package (files + manifest)
+GET  /api/v1/components/:id/versions       // Version history for a component
+GET  /api/v1/components/trending?period=week&limit=20
+GET  /api/v1/components/popular?limit=20
+GET  /api/v1/components/tags
+GET  /api/v1/components/categories
+POST /api/v1/components/:id/rate           // { rating: 1-5, comment?: string }
 ```
 
 ### Search Request/Response
@@ -202,12 +205,12 @@ interface SearchResponse {
 ### Component Upload (Community)
 
 ```
-POST /api/components/upload
+POST /api/v1/components/upload
 Body: { manifest: ComponentManifest, files: Record<string, string> }
 Response: 202 { uploadId: string, status: "pending_review" }
 
-GET  /api/components/upload/:id/status   // Poll
-GET  /api/components/upload/:id/stream   // SSE (Day 1)
+GET  /api/v1/components/upload/:id/status   // Poll
+GET  /api/v1/components/upload/:id/stream   // SSE (Day 1)
 ```
 
 Same-name uploads by same author create new versions.
@@ -215,7 +218,7 @@ Same-name uploads by same author create new versions.
 ### SSE Review Stream
 
 ```
-GET /api/components/upload/:id/stream
+GET /api/v1/components/upload/:id/stream
 Content-Type: text/event-stream
 
 data: { "stage": "manifest_validation", "status": "in_progress" }
@@ -238,23 +241,58 @@ type ReviewStage =
   | 'embedding';
 ```
 
+**Quality review — Tailwind token enforcement:** Components using raw color utilities (`bg-blue-500`, `text-gray-900`) instead of semantic tokens (`bg-primary`, `text-muted`) are **hard rejected**. Rejection message: `STYLING_TOKEN_VIOLATION`. Client receives this and can regenerate.
+
 ### Checkpoint Backup (Private)
 
 ```
-POST   /api/checkpoints
+POST   /api/v1/checkpoints
        Body: { projectId, componentLocalId, componentName, version, files: Record<string, string>, manifest, description, trigger }
-GET    /api/checkpoints/:componentLocalId?projectId={pid}
-GET    /api/checkpoints/:componentLocalId/:version?projectId={pid}
-DELETE /api/checkpoints/:componentLocalId/:version?projectId={pid}
+GET    /api/v1/checkpoints/:componentLocalId?projectId={pid}
+GET    /api/v1/checkpoints/:componentLocalId/:version?projectId={pid}
+DELETE /api/v1/checkpoints/:componentLocalId/:version?projectId={pid}
 ```
+
+### Component Revocation
+
+When the server determines a component must be removed (security issue, abuse report, legal):
+
+```
+POST /api/v1/components/:id/revoke        // Server-initiated, marks component as revoked
+```
+
+Revocation is included in the `check-updates` response:
+
+```typescript
+interface CheckUpdatesResponse {
+  updates: {
+    id: string;
+    currentVersion: string;
+    latestVersion: string;
+    changelog?: string;
+  }[];
+  revocations: {
+    id: string;                        // Component to remove
+    reason: 'security' | 'abuse' | 'legal' | 'author-request';
+    message?: string;                  // Human-readable message shown to user
+  }[];
+}
+```
+
+**Client behavior on revocation:**
+- Show notification: "Component [name] has been removed from CSlate community. [Learn More]"
+- Component remains functional locally (does not auto-delete from user's project)
+- Component is removed from search results and blueprint recommendations
+- Cloud checkpoint backups are retained (user's private data)
+- User can choose to keep using locally or delete — it's their choice
 
 ### User
 
 ```
-GET   /api/users/me
-GET   /api/users/me/components
-GET   /api/users/me/checkpoints
-PATCH /api/users/me
+GET   /api/v1/users/me
+GET   /api/v1/users/me/components
+GET   /api/v1/users/me/checkpoints
+PATCH /api/v1/users/me
 ```
 
 ---

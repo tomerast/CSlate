@@ -1,59 +1,116 @@
-# Decision 015: Community Sharing is Default-On
+# Decision 015: Community Sharing is Opt-In (With Strong Nudge)
 
 **Date:** 2026-03-28
-**Status:** Accepted
+**Status:** Accepted (Amended — replaces default-on sharing)
 
 ## Context
 
-CSlate's core value proposition includes the self-improving community component library. The more components shared, the better the platform becomes for everyone.
+CSlate's core value proposition includes a self-improving community component library. Original design made sharing default-on. Critical review identified this as a GDPR risk: EU/California residents have the right not to have their data shared without explicit consent. Default-on is legally risky and potentially trust-damaging.
 
 ## Decision
 
-**Community sharing is ON by default. Users can opt-out per component.**
+**Community sharing is OPT-IN with a strong nudge at the right moment.**
 
-### Behavior
+Users must explicitly choose to share. The platform makes sharing easy and encourages it — but never assumes consent.
 
-- When a user accepts a component, it is automatically queued for community upload + review
-- A small non-intrusive indicator shows "Sharing with community..." in the background
-- Users can toggle sharing off:
-  - Per-component: right-click → "Keep Private"
-  - Per-project: project settings → "Private project" (no components shared)
-  - Global: app settings → "Don't share by default"
-- Private components still get cloud checkpoint backups — sharing and backup are independent
+## Behavior
 
-### Why Default-On
+### The Sharing Nudge
 
-- CSlate is a **sharing service first** — the community library is the flywheel
-- Every accepted component makes the platform better for all users
-- Non-technical users (our target) are unlikely to manually opt-in to sharing
-- Default-on with easy opt-out respects user autonomy while maximizing community value
-- The server review pipeline ensures quality/security before anything goes public
+After a user accepts a component, a non-blocking toast appears:
 
-### User Communication
+```
+┌─────────────────────────────────────────────┐
+│ ✓  Login Form saved                         │
+│                                             │
+│ Share with the CSlate community?            │
+│ Help others build faster — it's free.       │
+│                                             │
+│  [Share]  [Not now]                         │
+│                        ─── Don't ask again  │
+└─────────────────────────────────────────────┘
+```
 
-- Onboarding explains: "CSlate is a community-powered platform. Components you create are shared to help others build amazing apps. You can keep any component private."
-- First-time sharing shows a brief tooltip: "This component will be reviewed and shared with the community. [Keep Private] [Got it]"
-- Settings page clearly explains sharing behavior with toggle
+**Rules:**
+- Toast appears after first accept of any component session
+- "Not now" = skip this component, ask again next session
+- "Don't ask again" = suppress for this project (can re-enable in settings)
+- "Share" = queue component for upload + review pipeline
 
-### Privacy Safeguards
+### Opt-In Persistence
 
-- Server review pipeline catches any sensitive data in component code
-- context.md (conversation history) is shared — users are informed during onboarding
-- Users can edit context.md before sharing to remove sensitive details
-- "Keep Private" is always one click away
-- Private components are never indexed, embedded, or searchable
+- Per-component: user selects share vs. keep private at accept time
+- Per-project: project settings → "Contribution mode: Always share / Ask each time / Never share"
+- Global: app settings → same three options
+- Default: "Ask each time"
+
+### Why Not Default-On
+
+1. **GDPR Article 6**: Processing must have a lawful basis. Legitimate interests can work, but consent is cleaner for community sharing.
+2. **User trust**: Non-technical users may not understand what "sharing a component" means. Surprising them erodes trust.
+3. **Context.md risk**: Components include an AI-generated summary of the build conversation. Even a clean summary may contain user intent/context the user considers private.
+4. **Reversibility**: Once shared and indexed, it's hard to fully retract. Default-on means users may share before they understand this.
+
+### Why Still Valuable
+
+- The nudge UI is prominent and appears at the high-engagement moment (component acceptance)
+- "Share" is the primary CTA button (left-aligned, colored)
+- Contribution mode in settings lets power users set "Always share" for zero friction
+- Community library still grows — just from users who understand what they're sharing
+
+### context.md: What Gets Shared
+
+When a component is shared, `context.md` is uploaded as an **AI-generated summary** (not the raw conversation):
+
+```
+AI-generated clean summary:
+"This Stock Ticker component was built to display real-time prices
+for a configurable list of symbols using Yahoo Finance API. It
+includes sparkline charts and auto-refreshes every 30 seconds."
+```
+
+The raw conversation is **never uploaded**. The AI generates this summary locally before upload. Users can review/edit the summary before confirming share.
+
+### What Is Never Shared
+
+- Raw AI conversation history
+- `userConfig` values (symbols, API keys, credentials)
+- Sensitive fields (`sensitive: true` in manifest)
+- Local project structure (tab layouts, app config)
+- Agent memories
 
 ### Flow
 
 ```
 User accepts component
         |
-        ├── Sharing enabled (default) ──→ Queue for upload + review
-        │                                      |
-        │                                 7-stage review
-        │                                      |
-        │                                 Approved → public in community DB
-        │                                 Rejected → stays private, user notified
+        v
+"Share with community?" toast (non-blocking)
+        |
+        ├── [Share] ──────────────────→ Generate context.md summary (local)
+        │                                       |
+        │                              Show preview + edit option
+        │                                       |
+        │                              Queue for upload + review
+        │                                       |
+        │                              7-stage review pipeline
+        │                                       |
+        │                              Approved → public in community DB
+        │                              Rejected → stays private, user notified
         │
-        └── Sharing disabled ──→ Local only + cloud backup (private)
+        ├── [Not now] ──→ Local only + cloud backup (private)
+        │                 Ask again next session
+        │
+        └── [Don't ask again] ──→ Local only + cloud backup (private)
+                                  Suppress nudge for this project
 ```
+
+## Community Library Growth Strategy
+
+Opt-in doesn't mean low contribution. Strategies to maximize sharing:
+
+1. **Right-moment nudge** — ask immediately after accept (highest engagement)
+2. **Social proof** — "127 users shared this week" in the toast
+3. **Easy default** — "Contribution mode: Always share" for users who want it
+4. **Reciprocity** — "You've used 12 community components. Share yours?"
+5. **Low-friction review** — Summary is pre-generated, user just confirms

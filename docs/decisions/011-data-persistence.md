@@ -24,13 +24,22 @@ my-app/
 │   └── dashboard.json
 ├── components/
 │   ├── login-form/
-│   │   ├── component.tsx    # Source code
-│   │   ├── manifest.json    # Component manifest (inputs, outputs, events)
+│   │   ├── ui.tsx               # Current source
+│   │   ├── logic.ts             # Optional: extracted logic
+│   │   ├── types.ts             # Optional: shared types
+│   │   ├── context.md           # AI-generated summary of build conversation
+│   │   ├── manifest.json        # Component manifest
 │   │   └── versions/
-│   │       ├── v1.tsx       # Checkpoint 1
-│   │       ├── v1.meta.json # Checkpoint metadata (timestamp, description)
-│   │       ├── v2.tsx       # Checkpoint 2
-│   │       └── v2.meta.json
+│   │       ├── v1/              # Snapshot directory
+│   │       │   ├── ui.tsx
+│   │       │   ├── manifest.json
+│   │       │   └── meta.json    # timestamp, description, trigger
+│   │       ├── v2/
+│   │       │   ├── ui.tsx
+│   │       │   ├── logic.ts     # Added in v2
+│   │       │   ├── manifest.json
+│   │       │   └── meta.json
+│   │       └── ...
 │   ├── todo-list/
 │   │   ├── component.tsx
 │   │   ├── manifest.json
@@ -115,6 +124,21 @@ Component accepted → Local checkpoint saved → Async upload to server
 
 Only component source code + manifests + checkpoints go to the cloud. This keeps the sync surface small and focused.
 
+### Offline Mode & Graceful Degradation
+
+Local storage is the primary data source. The server is additive, never blocking.
+
+**Rules:**
+- The app ALWAYS opens and functions when offline. Never show an error screen.
+- Checkpoint sync failures are silent — queued and retried when connectivity returns.
+- Server search/retrieval failures show a "Server unavailable, try again later" toast — canvas continues working.
+- Community upload failures queue the upload — user is notified when upload completes later.
+- Sync queue is persisted to `.cslate/sync.json` so it survives app restarts.
+
+**Sync state indicators (non-blocking):**
+- Small dot in component header: grey (local only), yellow (sync pending), green (synced)
+- Never show a modal or block the user for sync state
+
 ### Cloud Checkpoint vs Community Upload
 
 These are two separate flows:
@@ -160,7 +184,7 @@ interface ComponentInstance {
   id: string;
   componentId: string;          // References component in components/
   tabId: string;                // Which tab it's placed on
-  gridPosition: { col: number; row: number; colSpan: number; rowSpan: number };
+  gridPosition: { x: number; y: number; width: number; height: number }; // grid units (multiply by 8 for pixels)
   propsOverrides: Record<string, any>;  // Instance-specific prop values
   stateBindings: Record<string, string>; // input → stateKey mappings
   eventBindings: Record<string, string>; // event → handler mappings

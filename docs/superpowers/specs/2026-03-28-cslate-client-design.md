@@ -1,8 +1,8 @@
 # CSlate Desktop Client — Design Specification
 
 **Date:** 2026-03-28
-**Version:** 1.0
-**Status:** Draft — Awaiting Review
+**Version:** 1.1 (Post Critical Review)
+**Status:** Draft — Critical Review Applied
 **Scope:** MVP (v1)
 
 ---
@@ -29,7 +29,7 @@ Non-technical people who want to build applications through conversation with AI
 2. User can iterate on the component via conversation until satisfied
 3. User can place multiple components on a tab and they communicate via shared state
 4. User can search the community DB for blueprints and use them as starting points
-5. User can upload finished components to the community DB (default-on)
+5. User can upload finished components to the community DB (opt-in with strong nudge)
 6. Components are checkpointed locally and backed up to the cloud
 7. User can roll back any component to a previous version
 8. The experience works with at least 2 LLM providers (OpenAI + Anthropic)
@@ -110,18 +110,18 @@ Every component is a structured package:
 
 ```
 stock-ticker/
-├── ui.tsx           # Visual React component (sandbox entry point)
-├── logic.ts         # Business logic, hooks, data transforms
-├── types.ts         # TypeScript interfaces
-├── context.md       # AI conversation history / design decisions
-└── manifest.json    # Contract: inputs, outputs, events, actions, data sources
+├── ui.tsx           # Required: visual React component (sandbox entry point)
+├── logic.ts         # Optional: business logic, hooks, data transforms
+├── types.ts         # Optional: TypeScript interfaces
+├── context.md       # Required: AI-generated summary of build conversation
+└── manifest.json    # Required: contract (inputs, outputs, events, actions, data)
 ```
 
 **File roles:**
 - `ui.tsx` — What renders. Imports from `logic.ts` and `types.ts`. Uses Tailwind + design tokens.
 - `logic.ts` — Business logic separated from visuals. Custom hooks, data transforms, utilities.
 - `types.ts` — Shared TypeScript interfaces for the component's data shapes.
-- `context.md` — The AI conversation and design decisions that shaped this component. Preserved through community sharing. Indexed for search.
+- `context.md` — AI-generated clean summary of the build conversation and design decisions. Never contains raw chat. Preserved through community sharing. Indexed for search.
 - `manifest.json` — The contract that enables AI wiring, community search, and platform validation.
 
 ### 3.2 Component Manifest (Full Specification)
@@ -233,8 +233,8 @@ interface ComponentManifest {
   };
 
   // === LAYOUT ===
-  defaultSize: { cols: number; rows: number };
-  minSize?: { cols: number; rows: number };
+  defaultSize: { width: number; height: number };  // grid units (multiply by 8 for pixels)
+  minSize?: { width: number; height: number };      // grid units (multiply by 8 for pixels)
 }
 ```
 
@@ -248,6 +248,7 @@ One Zustand store per Slate tab. Components read/write named keys:
 - `outputs` with `stateKey` declare which store keys a component writes to
 - AI wires components by matching output keys → input keys across manifests
 - External orchestration via `getState()` / `setState()` / `subscribe()`
+- State keys are instance-prefixed: `instanceId.keyName` (e.g., `comp_abc123.todoList`). Prevents collisions when multiple instances of the same component type share a canvas.
 
 Optional app-level store for cross-tab state (user preferences, auth).
 
@@ -285,10 +286,16 @@ Components declare `dataSources` in their manifest. The host renderer acts as a 
 
 ### 4.3 Permission Flow
 
-When a component with `dataSources` is placed on the Slate:
+Components may declare up to **5 dataSources** in their manifest. When a component with `dataSources` is placed on the Slate, permissions are evaluated using a tiered model:
 
-1. User sees a permission prompt listing each data source with description and URL
-2. User approves or denies each source individually
+| Tier | Criteria | UX |
+|---|---|---|
+| **Tier 1** | Public APIs (no auth, well-known domains, read-only) | Auto-approved, silent |
+| **Tier 2** | APIs requiring user config (symbols, API keys, etc.) | Inline config panel shown inline on placement |
+| **Tier 3** | Unknown/sensitive origins or write operations | Blocking modal — user must explicitly approve |
+
+1. Host evaluates each data source against the tier criteria
+2. Tier 1 sources activate silently; Tier 2 show inline config; Tier 3 show a blocking modal
 3. If `userConfig` fields exist, user fills them in (e.g., stock symbols)
 4. Approved permissions stored per-component in `.cslate/permissions.json`
 5. Sensitive values (`sensitive: true`) stored in Electron safeStorage
@@ -340,15 +347,17 @@ All via MessageChannel (not broadcast postMessage).
 ### 5.3 Security Layers (v1)
 
 1. **Server-side review** — 7-stage pipeline catches malicious code before it enters community DB
-2. **Default-on sharing** — most components are reviewed before reaching other clients
+2. **Opt-in sharing with nudge** — components are reviewed before reaching other clients
 3. **iframe sandbox boundary** — hard process-level isolation from host
 4. **Data bridge proxy** — no direct network access, host validates every request
 5. **Permission system** — user explicitly approves each data source
 
+**v1 hardened iframe approach:** frozen prototypes to prevent prototype pollution, Shadow DOM per component for DOM scoping, per-component MessagePorts (not broadcast postMessage), scoped bridge object injected per component, and CSP header on the sandbox document.
+
 ### 5.4 v2 Enhancements (Deferred)
 
-- SES `lockdown()` + Compartments (per-component JS isolation)
-- near-membrane proxy (per-component DOM scoping)
+- SES `lockdown()` + Compartments (per-component JS isolation) — **deferred to v2**
+- near-membrane proxy (per-component DOM scoping) — **deferred to v2**
 - Per-component API allowlisting
 
 ---
@@ -420,7 +429,7 @@ Browser-style tab bar at top of window:
 3. Single-turn → done (toast). Multi-turn → chat panel opens
 4. User gives feedback → AI modifies → re-renders. Loop until "Accept"
 5. Checkpoint saved locally + async cloud backup
-6. Auto-shared to community (default-on, user can opt out)
+6. Non-blocking toast: "Share with the CSlate community?" [Share] / [Not now] — opt-in, never automatic
 
 ### 6.6 Version Rollback
 
@@ -433,6 +442,8 @@ Browser-style tab bar at top of window:
 ---
 
 ## 7. AI Agent System
+
+> **v0.1:** Single LLM call with system prompt + 3-5 tools. The full skills/memory/workflows orchestrator system is the target architecture, built incrementally after v0.1 proves the core loop.
 
 ### 7.1 Core Identity
 
@@ -598,10 +609,14 @@ my-app/
 
 **Cloud backup:** Async, non-blocking. Queue + sync on reconnect if offline.
 
-### 9.3 Community Sharing (Default-On)
+### 9.3 Community Sharing (Opt-In with Strong Nudge)
 
-Accepted components auto-upload for community review. Users opt out via:
-- Per-component: "Keep Private"
+When a component is accepted, a non-blocking toast appears: "Share with the CSlate community?" with **[Share]** / **[Not now]** options. Sharing is never automatic — the user always makes an explicit choice.
+
+If the user shares, the component enters the server review pipeline. If they decline, it remains private.
+
+Users can change their mind later:
+- Per-component: right-click → "Share with Community" or "Keep Private"
 - Per-project: project settings
 - Global: app settings
 
@@ -645,6 +660,10 @@ Both client and server validate against Zod schemas from `@cslate/shared`. Manif
 
 ## 11. MVP Scope
 
+### v0.1: Inner MVP
+
+macOS only, single LLM provider (Anthropic), no community features, no tabs, no cloud sync, simple agent (single prompt call). Goal: validate describe → generate → render → iterate loop.
+
 ### 11.1 In v1
 
 - Electron app with Slate canvas (8px grid)
@@ -660,7 +679,7 @@ Both client and server validate against Zod schemas from `@cslate/shared`. Manif
 - Version rollback UI
 - Server integration: search, upload (SSE), checkpoint backup, abuse reporting
 - API key auth
-- Community sharing default-on
+- Community sharing opt-in with non-blocking toast nudge
 - Agent with skills, memory, workflows
 - Support for OpenAI + Anthropic LLM providers
 
@@ -702,7 +721,7 @@ All decisions documented in `docs/decisions/`:
 | 012 | Server contract alignment (multi-file, API key, extended manifest) | Accepted |
 | 013 | Grid system (8px base unit, snap-to-grid) | Accepted |
 | 014 | MVP scope (v1 vs v2) | Accepted |
-| 015 | Community sharing default-on | Accepted |
+| 015 | Community sharing opt-in with nudge (revised from default-on) | Accepted |
 | 016 | Data bridge & permission system | Accepted |
 
 ---
