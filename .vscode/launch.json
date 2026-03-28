@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach: Electron Main",
+      "port": 9229,
+      "restart": true,
+      "timeout": 10000,
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/out/**/*.js"]
+    },
+    {
+      "type": "chrome",
+      "request": "attach",
+      "name": "Attach: Electron Renderer",
+      "port": 9222,
+      "urlFilter": "http://localhost:5173/*",
+      "webRoot": "${workspaceFolder}/src/renderer",
+      "sourceMaps": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug: Electron (Main + Renderer)",
+      "configurations": ["Attach: Electron Main", "Attach: Electron Renderer"]
+    }
+  ]
+}
