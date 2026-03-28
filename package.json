@@ -40,6 +40,7 @@
     "vitest": "^1.6.1"
   },
   "dependencies": {
+    "@cslate/shared": "github:tomerast/CSlate-shared",
     "@electron-toolkit/utils": "^3.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
