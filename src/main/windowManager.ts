@@ -32,11 +32,13 @@ export function createWindow(): BrowserWindow {
   }
 
   win.on('close', () => {
-    const bounds = win.getBounds()
-    windowStore.set('x', bounds.x)
-    windowStore.set('y', bounds.y)
-    windowStore.set('width', bounds.width)
-    windowStore.set('height', bounds.height)
+    if (!win.isMaximized()) {
+      const bounds = win.getBounds()
+      windowStore.set('x', bounds.x)
+      windowStore.set('y', bounds.y)
+      windowStore.set('width', bounds.width)
+      windowStore.set('height', bounds.height)
+    }
     windowStore.set('isMaximized', win.isMaximized())
   })
 

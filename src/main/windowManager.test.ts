@@ -35,6 +35,7 @@ vi.mock('./lib/store', () => ({
 
 describe('windowManager', () => {
   beforeEach(() => {
+    vi.resetModules()
     vi.clearAllMocks()
     // Reset state to defaults
     mockWindowState.width = 1280
@@ -82,7 +83,32 @@ describe('windowManager', () => {
     expect(mockWin.on).toHaveBeenCalledWith('close', expect.any(Function))
   })
 
-  it('the close handler saves current bounds + isMaximized state to windowStore', async () => {
+  it('the close handler saves current bounds + isMaximized state to windowStore when NOT maximized', async () => {
+    const { windowStore } = await import('./lib/store')
+    const { createWindow } = await import('./windowManager')
+    createWindow()
+
+    // Find the close handler registered via win.on('close', handler)
+    const closeCall = (mockWin.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => call[0] === 'close'
+    )
+    expect(closeCall).toBeDefined()
+    const closeHandler = closeCall![1] as () => void
+
+    // Simulate NOT maximized state
+    mockWin.isMaximized.mockReturnValue(false)
+    mockWin.getBounds.mockReturnValue({ x: 100, y: 200, width: 1400, height: 900 })
+
+    closeHandler()
+
+    expect(windowStore.set).toHaveBeenCalledWith('x', 100)
+    expect(windowStore.set).toHaveBeenCalledWith('y', 200)
+    expect(windowStore.set).toHaveBeenCalledWith('width', 1400)
+    expect(windowStore.set).toHaveBeenCalledWith('height', 900)
+    expect(windowStore.set).toHaveBeenCalledWith('isMaximized', false)
+  })
+
+  it('the close handler does NOT save bounds when window is maximized', async () => {
     const { windowStore } = await import('./lib/store')
     const { createWindow } = await import('./windowManager')
     createWindow()
@@ -100,10 +126,10 @@ describe('windowManager', () => {
 
     closeHandler()
 
-    expect(windowStore.set).toHaveBeenCalledWith('x', 50)
-    expect(windowStore.set).toHaveBeenCalledWith('y', 60)
-    expect(windowStore.set).toHaveBeenCalledWith('width', 1600)
-    expect(windowStore.set).toHaveBeenCalledWith('height', 1000)
+    expect(windowStore.set).not.toHaveBeenCalledWith('x', expect.anything())
+    expect(windowStore.set).not.toHaveBeenCalledWith('y', expect.anything())
+    expect(windowStore.set).not.toHaveBeenCalledWith('width', expect.anything())
+    expect(windowStore.set).not.toHaveBeenCalledWith('height', expect.anything())
     expect(windowStore.set).toHaveBeenCalledWith('isMaximized', true)
   })
 })
