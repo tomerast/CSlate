@@ -8,5 +8,5 @@ export interface Tool {
   name: string
   description: string
   inputSchema: JSONSchema
-  execute(input: unknown): Promise<unknown>
+  execute(input: unknown, projectDir: string | null): Promise<unknown>
 }

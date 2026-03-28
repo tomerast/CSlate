@@ -16,6 +16,7 @@ export class SkillRegistry {
     for (const skill of this.skills) {
       if (await skill.canHandle(request)) return skill
     }
+    // Unreachable: ComponentBuilderSkill is a catch-all (canHandle always returns true)
     throw new Error('No skill found for request')
   }
 }

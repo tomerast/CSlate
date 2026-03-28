@@ -12,7 +12,7 @@ export class SearchBlueprintsTool implements Tool {
     required: ['query']
   }
 
-  async execute(_input: unknown): Promise<unknown> {
+  async execute(_input: unknown, _projectDir: string | null): Promise<unknown> {
     // v1: call GET /api/components/search?q=<query>
     return { results: [], message: 'Blueprint search not yet implemented' }
   }
