@@ -1,7 +1,7 @@
 # CSlate Server Team — Full Client Context & Design Decisions
 
 **Date:** 2026-03-28
-**Version:** 1.0
+**Version:** 2.0 (Post Critical Review)
 **Purpose:** Everything the CSlate-Server team needs to know about the client's architecture, design decisions, and what it expects from the server.
 
 ---
@@ -13,7 +13,7 @@
 3. [Component Model](#3-component-model)
 4. [Component Manifest (Full Spec)](#4-component-manifest-full-spec)
 5. [Data Bridge & Permissions](#5-data-bridge--permissions)
-6. [Community Sharing (Default-On)](#6-community-sharing-default-on)
+6. [Community Sharing (Opt-In)](#6-community-sharing-opt-in)
 7. [Component Lifecycle](#7-component-lifecycle)
 8. [Checkpointing & Versioning](#8-checkpointing--versioning)
 9. [Search Requirements](#9-search-requirements)
@@ -31,7 +31,7 @@ CSlate is an AI-powered desktop app building platform. Non-technical users descr
 
 **Core loop:** Describe → Search community blueprints → Generate/modify → Render → Iterate → Share
 
-**The community flywheel:** Every accepted component is shared to the community by default. The server reviews it, catalogs it, embeds it, and makes it searchable. Future users pull these components as blueprints, customize them, and contribute their improvements back. The library gets better with every user.
+**The community flywheel:** Every accepted component prompts the user to share to the community (opt-in). Users who share contribute to the flywheel. The server reviews it, catalogs it, embeds it, and makes it searchable. Future users pull these components as blueprints, customize them, and contribute their improvements back. The library gets better with every user who chooses to share.
 
 **Target users:** Non-technical people who want to build applications through conversation with AI. They never see code, state management, or API configs — the AI handles all of that.
 
@@ -209,7 +209,7 @@ interface ComponentManifest {
   };
 
   // === EXTERNAL DATA SOURCES ===
-  dataSources: {
+  dataSources?: {
     [sourceId: string]: {
       description: string;        // "Live stock prices from Yahoo Finance"
       type: 'rest-api' | 'websocket' | 'graphql';
@@ -238,7 +238,7 @@ interface ComponentManifest {
   };
 
   // === USER-CONFIGURABLE PARAMETERS ===
-  userConfig: {
+  userConfig?: {
     [key: string]: {
       type: 'string' | 'number' | 'boolean' | 'string[]' | 'object';
       description: string;        // "Your stock symbols to track"
@@ -257,8 +257,8 @@ interface ComponentManifest {
   };
 
   // === LAYOUT ===
-  defaultSize: { cols: number; rows: number };  // In 8px grid units
-  minSize?: { cols: number; rows: number };
+  defaultSize: { width: number; height: number };  // Grid units (×8 = pixels)
+  minSize?: { width: number; height: number };      // Grid units (×8 = pixels)
 }
 ```
 
@@ -352,18 +352,22 @@ Exact same schema — the values were never sent to the server. The schema tells
 
 ---
 
-## 6. Community Sharing (Default-On)
+## 6. Community Sharing (Opt-In with Strong Nudge)
 
-### Key Decision: Sharing is ON by Default
+### Key Decision: Sharing is Opt-In
 
-When a user accepts a component after iteration, it is **automatically queued for community upload and review**. Users can opt out:
-- Per-component: "Keep Private"
-- Per-project: project settings → "Private project"
-- Global: app settings → "Don't share by default"
+When a user accepts a component after iteration, a **non-blocking toast notification** appears asking "Share with the CSlate community?" with **[Share]** / **[Not now]** buttons. Sharing is never automatic — the user must explicitly choose to share.
+
+- No automatic uploads on component acceptance
+- The toast is a strong nudge but not modal or blocking
+- "Not now" dismisses without sharing; no guilt-tripping
+- Users who click [Share] trigger the community upload flow as normal
+
+The community flywheel still grows — it just grows from users who explicitly choose to participate, making contributions higher-quality and more intentional.
 
 ### Impact on Server
 
-**High upload volume expected.** Every accepted component triggers an upload. The server should:
+**Lower but more intentional upload volume.** Only opted-in components are uploaded. The server should:
 - Handle upload spikes efficiently (pg-boss queue handles this)
 - Prioritize fast-pass for small/simple components
 - Batch embedding generation where possible
@@ -411,7 +415,7 @@ Same-name uploads by the same author create **new versions**, not duplicates:
    "Show me a stock ticker for my portfolio"
         │
 2. AI SEARCHES COMMUNITY DB
-   Client: GET /api/components/search?q="stock ticker real-time prices"
+   Client: GET /api/v1/components/search?q="stock ticker real-time prices"
    Server returns ranked blueprints with manifests
         │
 3. AI GENERATES / MODIFIES COMPONENT
@@ -431,9 +435,10 @@ Same-name uploads by the same author create **new versions**, not duplicates:
 6. USER ACCEPTS
    Component finalized → checkpoint saved locally
         │
-7. COMMUNITY UPLOAD (default-on, async)
-   Client: POST /api/components/upload { manifest, files }
-   Client: GET /api/components/upload/:id/stream (SSE for progress)
+7. COMMUNITY UPLOAD (opt-in via toast, async)
+   User taps [Share] on post-acceptance toast
+   Client: POST /api/v1/components/upload { manifest, files }
+   Client: GET /api/v1/components/upload/:id/stream (SSE for progress)
         │
 8. SERVER REVIEW (7 stages)
    manifest_validation → security_scan → dependency_check →
@@ -447,10 +452,10 @@ Same-name uploads by the same author create **new versions**, not duplicates:
 ### Component Retrieval Flow (Blueprint Pull)
 
 ```
-1. Client AI searches: GET /api/components/search?q="..."
+1. Client AI searches: GET /api/v1/components/search?q="..."
 2. Server returns: ranked results with manifests (not full source)
 3. Client AI evaluates manifests: which blueprint fits best?
-4. Client fetches source: GET /api/components/:id/source
+4. Client fetches source: GET /api/v1/components/:id/source
 5. Server returns: full package { sourceCode files, manifest }
 6. Client AI modifies the blueprint to fit user's request
 7. Modified component rendered on Slate
@@ -486,8 +491,8 @@ POST /api/checkpoints
 ```
 
 **Retrieval:**
-- `GET /api/checkpoints/:componentLocalId?projectId={pid}` — version list (no source, saves bandwidth)
-- `GET /api/checkpoints/:componentLocalId/:version?projectId={pid}` — full checkpoint with source
+- `GET /api/v1/checkpoints/:componentLocalId?projectId={pid}` — version list (no source, saves bandwidth)
+- `GET /api/v1/checkpoints/:componentLocalId/:version?projectId={pid}` — full checkpoint with source
 
 **Important distinctions:**
 
@@ -496,7 +501,7 @@ POST /api/checkpoints
 | Purpose | User's backup + version history | Shared component library |
 | Visibility | Private to user only | Public to all users |
 | Review | No review | 7-stage review pipeline |
-| Trigger | Automatic on accept | Automatic on accept (default-on) |
+| Trigger | Automatic on accept | User opt-in via post-acceptance toast |
 | Contains user data | Yes (userConfig values in files) | No (stripped) |
 | Contains sensitive data | Yes (may reference in context.md) | Scrubbed |
 
@@ -505,7 +510,7 @@ Both happen simultaneously but are independent paths.
 ### Version Update Checking
 
 ```
-POST /api/components/check-updates
+POST /api/v1/components/check-updates
 Body: { componentIds: ["uuid1", "uuid2", ...] }
 Response: {
   updates: [
@@ -514,6 +519,12 @@ Response: {
       currentVersion: "1.0.0",
       latestVersion: "2.0.0",
       changelog: "Added dark mode support and fixed responsive layout"
+    }
+  ],
+  revocations: [
+    {
+      id: "uuid3",
+      reason: "Security issue discovered post-approval"
     }
   ]
 }
@@ -530,10 +541,10 @@ Client polls on app launch + every 30 minutes. Never auto-updates — user decid
 The AI agent searches on behalf of the user. When a user says "add a todo list", the agent:
 
 1. Generates a search query from user intent: `"todo list with add remove complete filter"`
-2. Sends: `GET /api/components/search?q=...&limit=5`
+2. Sends: `GET /api/v1/components/search?q=...&limit=5`
 3. Evaluates returned manifests — checks inputs/outputs compatibility with current Slate
 4. Picks the best blueprint (or generates from scratch if none fit)
-5. Fetches full source: `GET /api/components/:id/source`
+5. Fetches full source: `GET /api/v1/components/:id/source`
 
 ### What Makes Search Good for CSlate
 
@@ -597,7 +608,9 @@ Stage 3: DEPENDENCY CHECK
 Stage 4: QUALITY REVIEW (LLM-powered)
   - Code quality: readability, structure, best practices
   - React patterns: hooks usage, component structure, error boundaries
-  - Tailwind usage: semantic tokens (bg-primary) not hardcoded (bg-blue-500)
+  - Tailwind token enforcement: HARD REJECT components using raw color utilities
+    (e.g., `bg-blue-500`, `text-gray-900`). Only semantic tokens (`bg-primary`,
+    `text-muted`) are allowed. Rejection code: `STYLING_TOKEN_VIOLATION`.
   - Manifest accuracy: do declared inputs/outputs/events match actual code?
   - Context verification: does code align with requirements in context.md?
     (Flag contradictions, but never reject for messy conversation history)
@@ -626,7 +639,7 @@ Stage 7: EMBEDDING
 ### SSE Progress Stream
 
 ```
-GET /api/components/upload/:id/stream
+GET /api/v1/components/upload/:id/stream
 Content-Type: text/event-stream
 
 data: {"stage":"manifest_validation","status":"in_progress"}
@@ -657,30 +670,52 @@ Per server team decision, "test render" = TypeScript compilation + import resolu
 ```
 Authorization: ApiKey <api_key>
 
-POST   /api/auth/register       → { apiKey, user }
-POST   /api/auth/regenerate     → { apiKey }
-DELETE /api/auth/account
+POST   /api/v1/auth/register       → { apiKey, user }
+POST   /api/v1/auth/regenerate     → { apiKey }
+DELETE /api/v1/auth/account
 ```
 
 ### Component Search & Retrieval
 ```
-GET  /api/components/search?q={query}&tags={tags}&category={cat}&limit={n}&minRating={r}&sortBy={sort}
-GET  /api/components/:id
-GET  /api/components/:id/source              → { files, manifest }
-GET  /api/components/:id/versions
-GET  /api/components/trending?period=week
-GET  /api/components/popular
-GET  /api/components/tags
-GET  /api/components/categories
-POST /api/components/:id/rate               → { rating: 1-5, comment? }
-POST /api/components/check-updates          → { componentIds: [] }
+GET  /api/v1/components/search?q={query}&tags={tags}&category={cat}&limit={n}&minRating={r}&sortBy={sort}
+GET  /api/v1/components/:id
+GET  /api/v1/components/:id/source              → { files, manifest }
+GET  /api/v1/components/:id/versions
+GET  /api/v1/components/trending?period=week
+GET  /api/v1/components/popular
+GET  /api/v1/components/tags
+GET  /api/v1/components/categories
+POST /api/v1/components/:id/rate               → { rating: 1-5, comment? }
+POST /api/v1/components/check-updates          → { componentIds: [] }
+POST /api/v1/components/:id/revoke             → 200 { revoked: true }  (author/admin only)
 ```
+
+`check-updates` response now includes a `revocations[]` array:
+```typescript
+{
+  updates: [
+    {
+      id: "uuid1",
+      currentVersion: "1.0.0",
+      latestVersion: "2.0.0",
+      changelog: "Added dark mode support and fixed responsive layout"
+    }
+  ],
+  revocations: [
+    {
+      id: "uuid3",
+      reason: "Security issue discovered post-approval"
+    }
+  ]
+}
+```
+Clients receiving a revocation should mark the component as unavailable and prompt the user to remove or replace it.
 
 ### Community Upload
 ```
-POST /api/components/upload                 → 202 { uploadId, status }
-GET  /api/components/upload/:id/status      → { status, reviewResult }
-GET  /api/components/upload/:id/stream      → SSE (7 review stages)
+POST /api/v1/components/upload                 → 202 { uploadId, status }
+GET  /api/v1/components/upload/:id/status      → { status, reviewResult }
+GET  /api/v1/components/upload/:id/stream      → SSE (7 review stages)
 ```
 
 Upload payload:
@@ -693,10 +728,10 @@ Upload payload:
 
 ### Checkpoint Backup (Private)
 ```
-POST   /api/checkpoints
-GET    /api/checkpoints/:componentLocalId?projectId={pid}
-GET    /api/checkpoints/:componentLocalId/:version?projectId={pid}
-DELETE /api/checkpoints/:componentLocalId/:version?projectId={pid}
+POST   /api/v1/checkpoints
+GET    /api/v1/checkpoints/:componentLocalId?projectId={pid}
+GET    /api/v1/checkpoints/:componentLocalId/:version?projectId={pid}
+DELETE /api/v1/checkpoints/:componentLocalId/:version?projectId={pid}
 ```
 
 Checkpoint payload:
@@ -715,10 +750,10 @@ Checkpoint payload:
 
 ### User Profile
 ```
-GET   /api/users/me
-GET   /api/users/me/components
-GET   /api/users/me/checkpoints
-PATCH /api/users/me
+GET   /api/v1/users/me
+GET   /api/v1/users/me/components
+GET   /api/v1/users/me/checkpoints
+PATCH /api/v1/users/me
 ```
 
 ### Error Format
@@ -798,7 +833,7 @@ Contains:
 
 3. **Embedding tuning** — The composite embedding formula (what text gets embedded, with what weights) should be tuned iteratively. Start with equal weight, adjust based on search quality feedback.
 
-4. **Community moderation** — Beyond automated review, will there be human moderation? Flagging mechanism? Report abuse endpoint? Recommend adding `POST /api/components/:id/report` to the API.
+4. **Community moderation** — Beyond automated review, will there be human moderation? Flagging mechanism? Report abuse endpoint? Recommend adding `POST /api/v1/components/:id/report` to the API.
 
 ### Future Coordination Points (v2)
 
@@ -807,3 +842,20 @@ Contains:
 - **WebSocket support** — Real-time data streaming for components. Server may need to proxy or manage WebSocket connections.
 - **Component dependencies** — When a component depends on other CSlate components, the server needs to resolve and bundle the dependency tree on retrieval.
 - **Author profiles** — Public author pages showing contributions, reputation, top components.
+
+---
+
+## 15. Critical Review Changes (v2.0 Summary)
+
+All breaking changes introduced in v2.0. The server team must action every item marked **Breaking**.
+
+| Change | Impact |
+|---|---|
+| API versioning `/v1/` on all routes | **Breaking** — update all route handlers |
+| `defaultSize`/`minSize`: `cols`/`rows` → `width`/`height` | **Breaking** — update `@cslate/shared` Zod schema |
+| `dataSources` and `userConfig` optional (`?`) | Schema update — update `@cslate/shared` Zod schema |
+| Max 5 `dataSources` per component | Add `manifest_validation` rule |
+| `context.md` = AI-generated summary (not raw chat) | Update indexing/embedding logic |
+| Tailwind token enforcement hard reject | Add `quality_review` lint rule; rejection code `STYLING_TOKEN_VIOLATION` |
+| Revocation endpoint + `check-updates` `revocations[]` | New endpoint `POST /api/v1/components/:id/revoke` + schema field on `check-updates` response |
+| Community sharing changed to opt-in | Info only — no server changes required |
