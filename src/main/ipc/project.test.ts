@@ -61,6 +61,11 @@ describe('createProject', () => {
     await createProject(projectDir, 'My App')
     const cslateJson = JSON.parse(await readFile(join(projectDir, 'cslate.json'), 'utf-8'))
     expect(cslateJson.name).toBe('My App')
+    // Verify required subdirectories exist
+    const { stat } = await import('fs/promises')
+    await expect(stat(join(projectDir, 'tabs'))).resolves.toBeTruthy()
+    await expect(stat(join(projectDir, 'components'))).resolves.toBeTruthy()
+    await expect(stat(join(projectDir, '.cslate'))).resolves.toBeTruthy()
   })
 
   it('adds project to recents', async () => {

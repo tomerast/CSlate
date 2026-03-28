@@ -29,24 +29,14 @@ function addToRecents(projectDir: string, name: string): void {
     name,
     lastOpened: new Date().toISOString(),
   }
-  const current = (configStore.get('recentProjects') as string[] | undefined) ?? []
-  const deduped = current.filter((p: string) => p !== projectDir)
-  const updated = [projectDir, ...deduped].slice(0, MAX_RECENTS)
+  const current = (configStore.get('recentProjects') as RecentProject[] | undefined) ?? []
+  const deduped = current.filter((r: RecentProject) => r.path !== projectDir)
+  const updated = [entry, ...deduped].slice(0, MAX_RECENTS)
   configStore.set('recentProjects', updated)
-  // Store project names alongside paths
-  const names = configStore.get('_recentProjectNames' as any) as Record<string, string> ?? {}
-  names[projectDir] = name
-  configStore.set('_recentProjectNames' as any, names)
 }
 
 export function listRecentProjects(): RecentProject[] {
-  const paths = (configStore.get('recentProjects') as string[] | undefined) ?? []
-  const names = configStore.get('_recentProjectNames' as any) as Record<string, string> ?? {}
-  return paths.map(p => ({
-    path: p,
-    name: names[p] ?? path.basename(p),
-    lastOpened: new Date().toISOString(),
-  }))
+  return (configStore.get('recentProjects') as RecentProject[] | undefined) ?? []
 }
 
 export async function createProject(projectDir: string, name: string): Promise<AppManifest> {

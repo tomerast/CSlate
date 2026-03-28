@@ -6,7 +6,7 @@ export interface ConfigStore {
   llmBaseUrl?: string
   serverUrl: string
   theme: 'dark' | 'light' | 'midnight'
-  recentProjects: string[]
+  recentProjects: unknown[]
 }
 
 export interface WindowState {
