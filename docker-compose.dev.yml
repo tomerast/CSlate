@@ -17,7 +17,7 @@ services:
 
   cslate-server:
     build:
-      context: ../CSlate-server
+      context: ${CSLATE_SERVER_PATH:-../CSlate-server}
       dockerfile: Dockerfile.dev
     ports:
       - "127.0.0.1:3000:3000"
@@ -25,7 +25,7 @@ services:
       DATABASE_URL: postgresql://cslate:cslate@postgres:5432/cslate_dev
       NODE_ENV: development
     volumes:
-      - ../CSlate-server/src:/app/src
+      - ${CSLATE_SERVER_PATH:-../CSlate-server}/src:/app/src
     depends_on:
       postgres:
         condition: service_healthy
