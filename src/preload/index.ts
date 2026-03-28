@@ -1,12 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-
-const ALLOWED_SEND_CHANNELS = ['bridge:fetch', 'bridge:subscribe', 'bridge:unsubscribe', 'sandbox:load', 'sandbox:unload'] as const
-const ALLOWED_INVOKE_CHANNELS = ['bridge:fetch', 'config:get', 'config:set', 'file:read', 'file:write'] as const
-const ALLOWED_LISTEN_CHANNELS = ['bridge:fetch:resp', 'bridge:event', 'sandbox:load:resp', 'sandbox:error'] as const
-
-type SendChannel = typeof ALLOWED_SEND_CHANNELS[number]
-type InvokeChannel = typeof ALLOWED_INVOKE_CHANNELS[number]
-type ListenChannel = typeof ALLOWED_LISTEN_CHANNELS[number]
+import {
+  ALLOWED_SEND_CHANNELS,
+  ALLOWED_INVOKE_CHANNELS,
+  ALLOWED_LISTEN_CHANNELS
+} from './channels'
+import type { SendChannel, InvokeChannel, ListenChannel } from './channels'
 
 contextBridge.exposeInMainWorld('electron', {
   send: (channel: SendChannel, data?: unknown) => {

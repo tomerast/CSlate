@@ -1,8 +1,8 @@
 import React from 'react'
 
-const shortcut = window.electron?.platform === 'darwin' ? '⌘K' : 'Ctrl+K'
-
 export default function App(): React.ReactElement {
+  const shortcut = window.electron?.platform === 'darwin' ? '⌘K' : 'Ctrl+K'
+
   return (
     <div className="flex items-center justify-center h-full bg-background">
       <div className="text-center">

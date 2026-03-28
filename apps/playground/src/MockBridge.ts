@@ -7,6 +7,7 @@ export interface BridgeAPI {
     callback: (data: unknown) => void
   ) => () => void
   getConfig: (key: string) => unknown
+  destroy: () => void
 }
 
 export function createMockBridge(
@@ -40,6 +41,11 @@ export function createMockBridge(
         console.warn(`[bridge.getConfig] Key "${key}" not found in userConfig for "${componentName}"`)
       }
       return value ?? null
+    },
+
+    destroy() {
+      timers.forEach(clearInterval)
+      timers.clear()
     }
   }
 

@@ -1,6 +1,4 @@
-export type SendChannel = 'bridge:fetch' | 'bridge:subscribe' | 'bridge:unsubscribe' | 'sandbox:load' | 'sandbox:unload'
-export type InvokeChannel = 'bridge:fetch' | 'config:get' | 'config:set' | 'file:read' | 'file:write'
-export type ListenChannel = 'bridge:fetch:resp' | 'bridge:event' | 'sandbox:load:resp' | 'sandbox:error'
+import type { SendChannel, InvokeChannel, ListenChannel } from './channels'
 
 declare global {
   interface Window {

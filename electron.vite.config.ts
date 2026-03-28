@@ -6,19 +6,19 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: {
-      alias: { '@main': resolve('src/main') }
+      alias: { '@main': resolve(__dirname, 'src/main') }
     }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
     resolve: {
-      alias: { '@preload': resolve('src/preload') }
+      alias: { '@preload': resolve(__dirname, 'src/preload') }
     }
   },
   renderer: {
     plugins: [react()],
     resolve: {
-      alias: { '@renderer': resolve('src/renderer') }
+      alias: { '@renderer': resolve(__dirname, 'src/renderer') }
     },
     css: {
       postcss: './postcss.config.js'
