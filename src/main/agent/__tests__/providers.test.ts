@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('@ai-sdk/anthropic', () => ({
-  anthropic: vi.fn(() => ({ type: 'provider', name: 'anthropic' }))
+  createAnthropic: vi.fn(() => ({ type: 'provider', name: 'anthropic', languageModel: vi.fn() }))
 }))
 vi.mock('@ai-sdk/openai', () => ({
-  openai: vi.fn(() => ({ type: 'provider', name: 'openai' }))
+  createOpenAI: vi.fn(() => ({ type: 'provider', name: 'openai', languageModel: vi.fn() }))
 }))
 vi.mock('@ai-sdk/google', () => ({
-  google: vi.fn(() => ({ type: 'provider', name: 'google' }))
+  createGoogleGenerativeAI: vi.fn(() => ({ type: 'provider', name: 'google', languageModel: vi.fn() }))
 }))
 vi.mock('ollama-ai-provider', () => ({
   createOllama: vi.fn(() => ({ type: 'provider', name: 'local' }))

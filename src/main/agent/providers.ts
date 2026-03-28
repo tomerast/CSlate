@@ -1,8 +1,9 @@
 import { createProviderRegistry } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
-import { openai } from '@ai-sdk/openai'
-import { google } from '@ai-sdk/google'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createOpenAI } from '@ai-sdk/openai'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOllama } from 'ollama-ai-provider'
+import type { ProviderV3 } from '@ai-sdk/provider'
 
 export interface LLMConfig {
   provider: 'anthropic' | 'openai' | 'google' | 'local'
@@ -14,10 +15,11 @@ export interface LLMConfig {
 
 export function buildRegistry(config: LLMConfig) {
   return createProviderRegistry({
-    anthropic: anthropic({ apiKey: config.apiKey }),
-    openai: openai({ apiKey: config.apiKey }),
-    google: google({ apiKey: config.apiKey }),
-    local: createOllama({ baseURL: config.baseUrl ?? 'http://localhost:11434' }),
+    anthropic: createAnthropic({ apiKey: config.apiKey }),
+    openai: createOpenAI({ apiKey: config.apiKey }),
+    google: createGoogleGenerativeAI({ apiKey: config.apiKey }),
+    // ollama-ai-provider uses ProviderV1; cast to ProviderV3 for registry compatibility
+    local: createOllama({ baseURL: config.baseUrl ?? 'http://localhost:11434' }) as unknown as ProviderV3,
   })
 }
 

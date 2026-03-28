@@ -45,7 +45,7 @@ export async function parseIntent(
   registry: ReturnType<typeof import('./providers').buildRegistry>
 ): Promise<Intent> {
   const { object } = await generateObject({
-    model: registry.languageModel(fastModelId(config)),
+    model: registry.languageModel(fastModelId(config) as `anthropic:${string}`),
     system: INTENT_SYSTEM,
     prompt: message,
     schema: IntentSchema,
