@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cslate
+      POSTGRES_PASSWORD: cslate
+      POSTGRES_DB: cslate_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cslate"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  cslate-server:
+    build:
+      context: ../CSlate-server
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://cslate:cslate@postgres:5432/cslate_dev
+      NODE_ENV: development
+    volumes:
+      - ../CSlate-server/src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
