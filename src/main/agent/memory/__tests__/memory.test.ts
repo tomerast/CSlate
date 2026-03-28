@@ -86,6 +86,6 @@ describe('buildContextString', () => {
       componentHistory: longText,
       feedbackPatterns: longText,
     })
-    expect(ctx.length).toBeLessThan(3200)
+    expect(ctx.length).toBeLessThan(3000)
   })
 })
