@@ -23,14 +23,20 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'component:list',
   'app:get-version',
   'window:set-title',
-  'agent:generate'
+  'agent:generate',
+  'agent:run'
 ] as const
 
 export const ALLOWED_LISTEN_CHANNELS = [
   'bridge:fetch:resp',
   'bridge:event',
   'sandbox:load:resp',
-  'sandbox:error'
+  'sandbox:error',
+  'agent:token',
+  'agent:tool-call',
+  'agent:tool-result',
+  'agent:done',
+  'agent:error'
 ] as const
 
 export type SendChannel = typeof ALLOWED_SEND_CHANNELS[number]
