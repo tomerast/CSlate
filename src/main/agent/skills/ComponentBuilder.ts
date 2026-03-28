@@ -18,9 +18,14 @@ export class ComponentBuilderSkill implements Skill {
 
     const systemPrompt = COMPONENT_BUILDER_PROMPT + memCtx
 
+    // When iterating, inject the current component code so the model knows what to modify
+    const userContent = request.currentCode
+      ? `Current component code:\n\`\`\`jsx\n${request.currentCode}\n\`\`\`\n\nUser request: ${request.message}`
+      : request.message
+
     const messages = [
       ...request.history.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user' as const, content: request.message }
+      { role: 'user' as const, content: userContent }
     ]
 
     const llmResponse = await ctx.llm.complete({

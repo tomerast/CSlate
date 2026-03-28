@@ -7,6 +7,7 @@ export interface AgentMessage {
 export interface AgentRequest {
   message: string
   history: AgentMessage[]
+  currentCode?: string   // current component code on canvas, for iteration
   projectDir?: string
   sessionId: string
 }

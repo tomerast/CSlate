@@ -12,9 +12,11 @@ export function useChat() {
     setStatus('generating')
     setPanelOpen(true)
 
+    const currentCode = useChatStore.getState().currentCode ?? undefined
     const request: AgentRequest = {
       message: text,
       history: messagesRef.current.slice(-6),
+      currentCode,
       sessionId: `session-${Date.now()}`
     }
 
