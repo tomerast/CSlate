@@ -11,7 +11,18 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'config:get',
   'config:set',
   'file:read',
-  'file:write'
+  'file:write',
+  'file:exists',
+  'file:delete',
+  'project:open',
+  'project:save',
+  'project:create',
+  'project:list-recent',
+  'component:read',
+  'component:write',
+  'component:list',
+  'app:get-version',
+  'window:set-title'
 ] as const
 
 export const ALLOWED_LISTEN_CHANNELS = [
