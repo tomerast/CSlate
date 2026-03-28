@@ -51,11 +51,13 @@ log "Starting Component Playground on :5174..."
 (cd "$REPO_ROOT/apps/playground" && npm run dev 2>&1 | \
   sed "s/^/${MAGENTA}[playground]${NC} /") &
 PLAYGROUND_PID=$!
+PLAYGROUND_PGID=$(ps -o pgid= -p $PLAYGROUND_PID 2>/dev/null | tr -d ' ' || echo $PLAYGROUND_PID)
 
 log "Starting Electron..."
 (npm run dev 2>&1 | \
   sed "s/^/${BLUE}[electron]${NC} /") &
 ELECTRON_PID=$!
+ELECTRON_PGID=$(ps -o pgid= -p $ELECTRON_PID 2>/dev/null | tr -d ' ' || echo $ELECTRON_PID)
 
 ok "All services started"
 log "  Playground  → http://localhost:5174"
@@ -68,7 +70,8 @@ log "Press Ctrl+C to stop all services"
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
 cleanup() {
   log "Shutting down..."
-  kill $PLAYGROUND_PID $ELECTRON_PID 2>/dev/null || true
+  # Kill entire process groups so npm/electron children are also terminated
+  kill -- -$PLAYGROUND_PGID -$ELECTRON_PGID 2>/dev/null || true
   docker compose -f docker-compose.dev.yml down
   ok "All services stopped"
 }
