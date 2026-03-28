@@ -21,7 +21,7 @@ describe('reviewCode sub-agent tool', () => {
         name: 'Foo', description: 'test', tags: [], inputs: {}, outputs: {},
         events: {}, actions: {}, files: [], defaultSize: { width: 10, height: 10 }
       }
-    }, {} as any)
+    }, {} as any) as { passed: boolean; issues: string[]; suggestions: string[] }
 
     expect(result.passed).toBe(true)
     expect(result.issues).toHaveLength(0)
@@ -37,7 +37,7 @@ describe('reviewCode sub-agent tool', () => {
       files: { 'ui.tsx': 'eval("bad")' },
       manifest: { name: 'Bad', description: '', tags: [], inputs: {}, outputs: {},
         events: {}, actions: {}, files: [], defaultSize: { width: 10, height: 10 } }
-    }, {} as any)
+    }, {} as any) as { passed: boolean; issues: string[]; suggestions: string[] }
 
     expect(result.passed).toBe(false)
     expect(result.issues).toContain('Uses eval()')

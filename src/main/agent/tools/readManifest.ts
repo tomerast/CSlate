@@ -1,22 +1,25 @@
-import { tool } from 'ai'
+import type { Tool } from 'ai'
 import { z } from 'zod'
 import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
 
-export function createReadManifestTool(projectDir: string) {
-  return tool({
+type ReadManifestInput = { componentId: string }
+type ReadManifestOutput = { manifest: unknown } | { error: string }
+
+export function createReadManifestTool(projectDir: string): Tool<ReadManifestInput, ReadManifestOutput> {
+  return {
     description: 'Read the manifest.json for a component that already exists in the project.',
-    parameters: z.object({
+    inputSchema: z.object({
       componentId: z.string().describe('The component directory name, e.g. "stock_ticker"'),
-    }),
-    execute: async ({ componentId }) => {
-      const manifestPath = join(projectDir, 'components', componentId, 'manifest.json')
+    }) as any,
+    execute: async (input: ReadManifestInput): Promise<ReadManifestOutput> => {
+      const manifestPath = join(projectDir, 'components', input.componentId, 'manifest.json')
       if (!existsSync(manifestPath)) {
-        return { error: `Component "${componentId}" not found` }
+        return { error: `Component "${input.componentId}" not found` }
       }
       const raw = await readFile(manifestPath, 'utf-8')
-      return { manifest: JSON.parse(raw) }
+      return { manifest: JSON.parse(raw) as unknown }
     },
-  })
+  }
 }

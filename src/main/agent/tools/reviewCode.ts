@@ -1,4 +1,5 @@
-import { tool, generateText } from 'ai'
+import { generateText } from 'ai'
+import type { Tool } from 'ai'
 import { z } from 'zod'
 
 const REVIEWER_SYSTEM = `You are a CSlate code reviewer. Review the provided React component code and manifest for:
@@ -18,28 +19,30 @@ const FilesSchema = z.object({
   'types.ts': z.string().optional(),
 })
 
+type FilesInput = z.infer<typeof FilesSchema>
+type ReviewInput = { files: FilesInput; manifest: unknown }
 type ReviewResult = { passed: boolean; issues: string[]; suggestions: string[] }
 
 export function createReviewCodeTool(
   registry: { languageModel: (id: string) => any },
   fastModelId: string
-) {
-  return tool({
+): Tool<ReviewInput, ReviewResult> {
+  return {
     description: 'Spawn an isolated code review sub-agent to check the generated component. Run in parallel with renderComponent. If issues are found, fix them before calling writeComponent.',
-    parameters: z.object({
+    inputSchema: z.object({
       files: FilesSchema,
-      manifest: z.unknown().describe('The ComponentManifest object'),
-    }),
-    execute: async ({ files, manifest }) => {
-      const filesText = Object.entries(files)
+      manifest: z.any().describe('The ComponentManifest object'),
+    }) as any,
+    execute: async (input: ReviewInput): Promise<ReviewResult> => {
+      const filesText = Object.entries(input.files)
         .map(([name, content]) => `### ${name}\n\`\`\`tsx\n${content}\n\`\`\``)
         .join('\n\n')
 
       const { text } = await generateText({
         model: registry.languageModel(fastModelId),
         system: REVIEWER_SYSTEM,
-        prompt: `Review this component:\n\n${filesText}\n\n### manifest.json\n\`\`\`json\n${JSON.stringify(manifest, null, 2)}\n\`\`\``,
-        maxTokens: 1000,
+        prompt: `Review this component:\n\n${filesText}\n\n### manifest.json\n\`\`\`json\n${JSON.stringify(input.manifest, null, 2)}\n\`\`\``,
+        maxOutputTokens: 1000,
       })
 
       try {
@@ -48,5 +51,5 @@ export function createReviewCodeTool(
         return { passed: false, issues: ['Reviewer returned invalid JSON'], suggestions: [] }
       }
     },
-  })
+  }
 }

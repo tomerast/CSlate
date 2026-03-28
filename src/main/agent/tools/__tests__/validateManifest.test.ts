@@ -14,14 +14,14 @@ describe('validateManifest tool execute', () => {
       files: [{ path: 'ui.tsx', type: 'ui', role: 'main render' }],
       defaultSize: { width: 20, height: 15 },
     }
-    const result = await validateManifest.execute!({ manifest }, {} as any)
+    const result = await validateManifest.execute!({ manifest }, {} as any) as { valid: boolean; errors: string[] }
     expect(result.valid).toBe(true)
     expect(result.errors).toHaveLength(0)
   })
 
   it('returns valid=false and lists errors for missing required fields', async () => {
     const manifest = { name: 'Bad' }
-    const result = await validateManifest.execute!({ manifest }, {} as any)
+    const result = await validateManifest.execute!({ manifest }, {} as any) as { valid: boolean; errors: string[] }
     expect(result.valid).toBe(false)
     expect(result.errors.length).toBeGreaterThan(0)
   })
