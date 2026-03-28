@@ -5,15 +5,18 @@ import { resolve } from 'path'
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: 'jsdom',
     globals: true,
+    environment: 'jsdom',
+    environmentMatchGlobs: [
+      ['src/main/**', 'node'],
+    ],
+    exclude: ['node_modules', 'dist', '.worktrees'],
     setupFiles: ['./src/test-setup.ts']
   },
   resolve: {
     alias: {
       '@renderer': resolve(__dirname, 'src/renderer'),
-      '@main': resolve(__dirname, 'src/main'),
-      '@preload': resolve(__dirname, 'src/preload')
+      '@main': resolve(__dirname, 'src/main')
     }
   }
 })
