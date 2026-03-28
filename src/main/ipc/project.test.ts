@@ -94,6 +94,47 @@ describe('openProject', () => {
     const { listRecentProjects } = await import('./project')
     expect(listRecentProjects().some(r => r.path === projectDir)).toBe(true)
   })
+
+  it('throws on invalid manifest missing required fields', async () => {
+    const { writeFile } = await import('fs/promises')
+    await writeFile(join(projectDir, 'cslate.json'), JSON.stringify({ name: 'Incomplete' }), 'utf-8')
+    await expect(openProject(projectDir)).rejects.toThrow('Invalid cslate.json: missing required fields')
+  })
+
+  it('throws on completely malformed JSON', async () => {
+    const { writeFile } = await import('fs/promises')
+    await writeFile(join(projectDir, 'cslate.json'), 'not valid json', 'utf-8')
+    await expect(openProject(projectDir)).rejects.toThrow()
+  })
+})
+
+describe('listRecentProjects', () => {
+  it('filters out stale entries with invalid shape from the store', async () => {
+    storeData.set('recentProjects', [
+      { path: '/valid/path', name: 'Valid', lastOpened: new Date().toISOString() },
+      { path: '/missing-name' },           // missing name + lastOpened
+      { name: 'No path', lastOpened: '' }, // missing path
+      null,                                // null entry
+      42,                                  // non-object
+    ])
+    const { listRecentProjects } = await import('./project')
+    const recents = listRecentProjects()
+    expect(recents).toHaveLength(1)
+    expect(recents[0].path).toBe('/valid/path')
+  })
+
+  it('does not persist malformed entries when adding a new project', async () => {
+    storeData.set('recentProjects', [
+      { path: '/junk' }, // malformed: missing name + lastOpened
+    ])
+    await createProject(projectDir, 'Fresh App')
+    const { listRecentProjects } = await import('./project')
+    const recents = listRecentProjects()
+    // only the freshly-created project should appear (malformed entry dropped)
+    expect(recents.every(r => typeof r.name === 'string' && typeof r.lastOpened === 'string')).toBe(true)
+    expect(recents.some(r => r.path === projectDir)).toBe(true)
+    expect(recents.some(r => r.path === '/junk')).toBe(false)
+  })
 })
 
 describe('saveProject', () => {

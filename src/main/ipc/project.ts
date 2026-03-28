@@ -23,20 +23,37 @@ export interface RecentProject {
 
 const MAX_RECENTS = 10
 
+function isRecentProject(r: unknown): r is RecentProject {
+  return typeof r === 'object' && r !== null &&
+    typeof (r as RecentProject).path === 'string' &&
+    typeof (r as RecentProject).name === 'string' &&
+    typeof (r as RecentProject).lastOpened === 'string'
+}
+
+function parseAppManifest(raw: string): AppManifest {
+  const data = JSON.parse(raw) as Partial<AppManifest>
+  if (!data.name || !data.version || !data.createdAt || !data.settings) {
+    throw new Error('Invalid cslate.json: missing required fields')
+  }
+  return data as AppManifest
+}
+
 function addToRecents(projectDir: string, name: string): void {
   const entry: RecentProject = {
     path: projectDir,
     name,
     lastOpened: new Date().toISOString(),
   }
-  const current = (configStore.get('recentProjects') as RecentProject[] | undefined) ?? []
-  const deduped = current.filter((r: RecentProject) => r.path !== projectDir)
+  const raw = (configStore.get('recentProjects') as unknown[] | undefined) ?? []
+  const current = raw.filter(isRecentProject)
+  const deduped = current.filter((r) => r.path !== projectDir)
   const updated = [entry, ...deduped].slice(0, MAX_RECENTS)
   configStore.set('recentProjects', updated)
 }
 
 export function listRecentProjects(): RecentProject[] {
-  return (configStore.get('recentProjects') as RecentProject[] | undefined) ?? []
+  const raw = (configStore.get('recentProjects') as unknown[] | undefined) ?? []
+  return raw.filter(isRecentProject)
 }
 
 export async function createProject(projectDir: string, name: string): Promise<AppManifest> {
@@ -49,15 +66,15 @@ export async function createProject(projectDir: string, name: string): Promise<A
   await fs.mkdir(path.join(projectDir, 'tabs'), { recursive: true })
   await fs.mkdir(path.join(projectDir, 'components'), { recursive: true })
   await fs.mkdir(path.join(projectDir, '.cslate'), { recursive: true })
-  await fs.writeFile(path.join(projectDir, 'cslate.json'), JSON.stringify(manifest, null, 2), 'utf-8')
+  await fs.writeFile(safePath(projectDir, 'cslate.json'), JSON.stringify(manifest, null, 2), 'utf-8')
   addToRecents(projectDir, name)
   return manifest
 }
 
 export async function openProject(projectDir: string): Promise<AppManifest> {
-  const cslateJson = path.join(projectDir, 'cslate.json')
+  const cslateJson = safePath(projectDir, 'cslate.json')
   const raw = await fs.readFile(cslateJson, 'utf-8')
-  const manifest = JSON.parse(raw) as AppManifest
+  const manifest = parseAppManifest(raw)
   addToRecents(projectDir, manifest.name)
   return manifest
 }
@@ -74,7 +91,7 @@ export async function readComponent(projectDir: string, componentId: string): Pr
   const manifest = JSON.parse(manifestRaw) as ComponentManifest
   const files: Record<string, string> = {}
   for (const entry of manifest.files) {
-    const filePath = path.join(componentDir, entry.path)
+    const filePath = safePath(componentDir, entry.path)
     const exists = await fs.access(filePath).then(() => true).catch(() => false)
     if (exists) {
       files[entry.path] = await fs.readFile(filePath, 'utf-8')
