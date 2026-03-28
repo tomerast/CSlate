@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["src/renderer/*"],
+      "@main/*": ["src/main/*"],
+      "@preload/*": ["src/preload/*"]
+    }
+  },
+  "include": ["src/**/*", "apps/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "dist", "out"]
+}

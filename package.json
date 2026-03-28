@@ -1,0 +1,21 @@
+{
+  "name": "cslate",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "electron-vite dev --inspect=9229",
+    "dev:full": "bash scripts/dev.sh",
+    "dev:stop": "docker compose -f docker-compose.dev.yml down && pkill -f electron-vite || true",
+    "dev:logs": "docker compose -f docker-compose.dev.yml logs -f",
+    "playground": "npm run dev --workspace=apps/playground",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.base.json && npm run typecheck --workspace=apps/playground",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:reset": "docker compose -f docker-compose.dev.yml exec cslate-server npm run db:reset",
+    "db:migrate": "docker compose -f docker-compose.dev.yml exec cslate-server npm run db:migrate",
+    "db:studio": "docker compose -f docker-compose.dev.yml exec cslate-server npm run db:studio",
+    "db:seed": "docker compose -f docker-compose.dev.yml exec cslate-server npm run db:seed"
+  }
+}
