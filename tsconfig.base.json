@@ -6,14 +6,7 @@
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "jsx": "react-jsx",
-    "baseUrl": ".",
-    "paths": {
-      "@renderer/*": ["src/renderer/*"],
-      "@main/*": ["src/main/*"],
-      "@preload/*": ["src/preload/*"]
-    }
+    "jsx": "react-jsx"
   },
-  "include": ["src/**/*", "apps/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "dist", "out"]
 }

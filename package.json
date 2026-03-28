@@ -10,7 +10,7 @@
     "dev:logs": "docker compose -f docker-compose.dev.yml logs -f",
     "playground": "npm run dev --workspace=apps/playground",
     "build": "electron-vite build",
-    "typecheck": "tsc --noEmit -p tsconfig.base.json && npm run typecheck --workspace=apps/playground",
+    "typecheck": "tsc --noEmit && npm run typecheck --workspace=apps/playground",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:reset": "docker compose -f docker-compose.dev.yml exec cslate-server npm run db:reset",
