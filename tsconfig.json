@@ -6,7 +6,8 @@
       "@renderer/*": ["src/renderer/*"],
       "@main/*": ["src/main/*"],
       "@preload/*": ["src/preload/*"]
-    }
+    },
+    "types": ["vitest/globals"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "out", "apps"]
