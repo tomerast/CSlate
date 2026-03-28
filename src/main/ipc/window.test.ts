@@ -2,7 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 vi.mock('electron', () => ({
   app: { getVersion: vi.fn(() => '1.2.3') },
-  BrowserWindow: { getFocusedWindow: vi.fn() },
+  BrowserWindow: { getFocusedWindow: vi.fn(), getAllWindows: vi.fn(() => []) },
   ipcMain: { handle: vi.fn() }
 }))
 
@@ -33,11 +33,23 @@ describe('setWindowTitle', () => {
     expect(mockWindow.setTitle).toHaveBeenCalledWith('My Title')
   })
 
-  it('does nothing when there is no focused window', () => {
+  it('falls back to first window when there is no focused window', () => {
+    const fallbackWindow = { setTitle: vi.fn() }
     vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue(null)
+    vi.mocked((BrowserWindow as any).getAllWindows).mockReturnValue([fallbackWindow])
 
-    expect(() => setWindowTitle('No Window')).not.toThrow()
+    setWindowTitle('No Focus')
+
     expect(BrowserWindow.getFocusedWindow).toHaveBeenCalledOnce()
+    expect((BrowserWindow as any).getAllWindows).toHaveBeenCalledOnce()
+    expect(fallbackWindow.setTitle).toHaveBeenCalledWith('No Focus')
+  })
+
+  it('does nothing when there are no windows at all', () => {
+    vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue(null)
+    vi.mocked((BrowserWindow as any).getAllWindows).mockReturnValue([])
+
+    expect(() => setWindowTitle('Ghost')).not.toThrow()
   })
 })
 

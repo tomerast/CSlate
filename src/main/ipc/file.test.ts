@@ -70,3 +70,21 @@ describe('path traversal protection', () => {
     await expect(deleteFile(projectDir, '../other-dir/file')).rejects.toThrow('Path traversal attempt blocked')
   })
 })
+
+describe('relative projectDir rejection', () => {
+  it('readFile rejects a relative projectDir', async () => {
+    await expect(readFile('relative/path', 'file.txt')).rejects.toThrow('projectDir must be an absolute path')
+  })
+
+  it('writeFile rejects a relative projectDir', async () => {
+    await expect(writeFile('relative/path', 'file.txt', 'content')).rejects.toThrow('projectDir must be an absolute path')
+  })
+
+  it('fileExists rejects a relative projectDir', async () => {
+    await expect(fileExists('relative/path', 'file.txt')).rejects.toThrow('projectDir must be an absolute path')
+  })
+
+  it('deleteFile rejects a relative projectDir', async () => {
+    await expect(deleteFile('relative/path', 'file.txt')).rejects.toThrow('projectDir must be an absolute path')
+  })
+})

@@ -146,6 +146,21 @@ describe('saveProject', () => {
   })
 })
 
+describe('relative projectDir rejection', () => {
+  it('createProject rejects a relative projectDir', async () => {
+    await expect(createProject('relative/path', 'My App')).rejects.toThrow('projectDir must be an absolute path')
+  })
+
+  it('openProject rejects a relative projectDir', async () => {
+    await expect(openProject('relative/path')).rejects.toThrow('projectDir must be an absolute path')
+  })
+
+  it('saveProject rejects a relative projectDir', async () => {
+    const manifest = await createProject(projectDir, 'App')
+    await expect(saveProject('relative/path', manifest)).rejects.toThrow('projectDir must be an absolute path')
+  })
+})
+
 describe('writeComponent + readComponent', () => {
   it('round-trips a ComponentPackage', async () => {
     const pkg = {
@@ -169,6 +184,19 @@ describe('writeComponent + readComponent', () => {
   it('rejects invalid componentId', async () => {
     const pkg = { manifest: minimalManifest, files: {} }
     await expect(writeComponent(projectDir, '../evil', pkg)).rejects.toThrow('Invalid componentId')
+  })
+
+  it('throws when pkg.files has a key not listed in manifest.files', async () => {
+    const pkg = {
+      manifest: minimalManifest,
+      files: {
+        'ui.tsx': 'export default function() {}',
+        'unlisted.ts': 'export const x = 1',
+      },
+    }
+    await expect(writeComponent(projectDir, 'stock-ticker', pkg)).rejects.toThrow(
+      'ComponentPackage.files has keys not listed in manifest.files: unlisted.ts'
+    )
   })
 })
 

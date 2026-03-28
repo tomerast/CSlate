@@ -7,6 +7,8 @@ export interface ConfigStore {
   serverUrl: string
   theme: 'dark' | 'light' | 'midnight'
   recentProjects: unknown[]
+  _secure_llmApiKey?: string
+  _secure_serverApiKey?: string
 }
 
 export interface WindowState {

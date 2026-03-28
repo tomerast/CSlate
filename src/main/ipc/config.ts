@@ -9,17 +9,19 @@ const SECURE_PREFIX = '_secure_'
 
 export function getConfigValue(key: string): unknown {
   if (SENSITIVE_KEYS.has(key)) {
-    const stored = configStore.get(`${SECURE_PREFIX}${key}` as keyof ConfigStore)
+    const secureKey = `${SECURE_PREFIX}${key}` as '_secure_llmApiKey' | '_secure_serverApiKey'
+    const stored = configStore.get(secureKey)
     if (!stored) return null
-    return safeStorage.decryptString(Buffer.from(stored as string, 'base64'))
+    return safeStorage.decryptString(Buffer.from(stored, 'base64'))
   }
   return configStore.get(key as keyof ConfigStore)
 }
 
 export function setConfigValue(key: string, value: unknown): void {
   if (SENSITIVE_KEYS.has(key)) {
+    const secureKey = `${SECURE_PREFIX}${key}` as '_secure_llmApiKey' | '_secure_serverApiKey'
     const encrypted = safeStorage.encryptString(String(value))
-    configStore.set(`${SECURE_PREFIX}${key}` as keyof ConfigStore, encrypted.toString('base64') as any)
+    configStore.set(secureKey, encrypted.toString('base64'))
     return
   }
   configStore.set(key as keyof ConfigStore, value as any)

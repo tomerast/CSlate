@@ -57,6 +57,9 @@ export function listRecentProjects(): RecentProject[] {
 }
 
 export async function createProject(projectDir: string, name: string): Promise<AppManifest> {
+  if (!path.isAbsolute(projectDir)) {
+    throw new Error(`projectDir must be an absolute path: "${projectDir}"`)
+  }
   const manifest: AppManifest = {
     name,
     version: '0.1.0',
@@ -72,6 +75,9 @@ export async function createProject(projectDir: string, name: string): Promise<A
 }
 
 export async function openProject(projectDir: string): Promise<AppManifest> {
+  if (!path.isAbsolute(projectDir)) {
+    throw new Error(`projectDir must be an absolute path: "${projectDir}"`)
+  }
   const cslateJson = safePath(projectDir, 'cslate.json')
   const raw = await fs.readFile(cslateJson, 'utf-8')
   const manifest = parseAppManifest(raw)
@@ -80,6 +86,9 @@ export async function openProject(projectDir: string): Promise<AppManifest> {
 }
 
 export async function saveProject(projectDir: string, manifest: AppManifest): Promise<void> {
+  if (!path.isAbsolute(projectDir)) {
+    throw new Error(`projectDir must be an absolute path: "${projectDir}"`)
+  }
   const cslateJson = safePath(projectDir, 'cslate.json')
   await fs.writeFile(cslateJson, JSON.stringify(manifest, null, 2), 'utf-8')
 }
@@ -102,6 +111,12 @@ export async function readComponent(projectDir: string, componentId: string): Pr
 
 export async function writeComponent(projectDir: string, componentId: string, pkg: ComponentPackage): Promise<void> {
   safeComponentId(componentId)
+  // Validate all pkg.files keys are listed in manifest.files
+  const manifestFilePaths = new Set(pkg.manifest.files.map(f => f.path))
+  const missingFromManifest = Object.keys(pkg.files).filter(k => !manifestFilePaths.has(k))
+  if (missingFromManifest.length > 0) {
+    throw new Error(`ComponentPackage.files has keys not listed in manifest.files: ${missingFromManifest.join(', ')}`)
+  }
   const componentDir = path.join(projectDir, 'components', componentId)
   await fs.mkdir(componentDir, { recursive: true })
   await fs.writeFile(path.join(componentDir, 'manifest.json'), JSON.stringify(pkg.manifest, null, 2), 'utf-8')

@@ -4,22 +4,34 @@ import type { IpcMain } from 'electron'
 import { safePath } from '../lib/paths'
 
 export async function readFile(projectDir: string, relativePath: string): Promise<string> {
+  if (!path.isAbsolute(projectDir)) {
+    throw new Error(`projectDir must be an absolute path: "${projectDir}"`)
+  }
   const target = safePath(projectDir, relativePath)
   return fs.readFile(target, 'utf-8')
 }
 
 export async function writeFile(projectDir: string, relativePath: string, content: string): Promise<void> {
+  if (!path.isAbsolute(projectDir)) {
+    throw new Error(`projectDir must be an absolute path: "${projectDir}"`)
+  }
   const target = safePath(projectDir, relativePath)
   await fs.mkdir(path.dirname(target), { recursive: true })
   await fs.writeFile(target, content, 'utf-8')
 }
 
 export async function fileExists(projectDir: string, relativePath: string): Promise<boolean> {
+  if (!path.isAbsolute(projectDir)) {
+    throw new Error(`projectDir must be an absolute path: "${projectDir}"`)
+  }
   const target = safePath(projectDir, relativePath)
   return fs.access(target).then(() => true).catch(() => false)
 }
 
 export async function deleteFile(projectDir: string, relativePath: string): Promise<void> {
+  if (!path.isAbsolute(projectDir)) {
+    throw new Error(`projectDir must be an absolute path: "${projectDir}"`)
+  }
   const target = safePath(projectDir, relativePath)
   await fs.unlink(target)
 }

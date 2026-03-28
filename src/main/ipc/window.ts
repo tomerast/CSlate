@@ -6,7 +6,8 @@ export function getAppVersion(): string {
 }
 
 export function setWindowTitle(title: string): void {
-  BrowserWindow.getFocusedWindow()?.setTitle(title)
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  win?.setTitle(title)
 }
 
 export function register(ipcMain: IpcMain): void {

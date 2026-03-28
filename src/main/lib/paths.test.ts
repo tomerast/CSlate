@@ -46,4 +46,9 @@ describe('safeComponentId', () => {
     expect(() => safeComponentId('TICKER')).toThrow('Invalid componentId')
     expect(() => safeComponentId('')).toThrow('Invalid componentId')
   })
+
+  it('rejects reserved directory names', () => {
+    expect(() => safeComponentId('tabs')).toThrow('Reserved componentId')
+    expect(() => safeComponentId('versions')).toThrow('Reserved componentId')
+  })
 })
