@@ -2,7 +2,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg15
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: cslate
       POSTGRES_PASSWORD: cslate
@@ -20,7 +20,7 @@ services:
       context: ../CSlate-server
       dockerfile: Dockerfile.dev
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       DATABASE_URL: postgresql://cslate:cslate@postgres:5432/cslate_dev
       NODE_ENV: development

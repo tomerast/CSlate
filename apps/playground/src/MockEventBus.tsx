@@ -2,9 +2,27 @@ import React, { useEffect, useState } from 'react'
 
 type EventEntry = { ts: string; name: string; payload: unknown }
 
-const listeners = new Map<string, Set<(payload: unknown) => void>>()
-const log: EventEntry[] = []
-const logListeners = new Set<() => void>()
+// Attach state to window so it survives Vite HMR module re-evaluation
+// without accumulating duplicate listeners from stale component instances.
+declare global {
+  interface Window {
+    __mockEventBusState?: {
+      listeners: Map<string, Set<(payload: unknown) => void>>
+      log: EventEntry[]
+      logListeners: Set<() => void>
+    }
+  }
+}
+
+if (!window.__mockEventBusState) {
+  window.__mockEventBusState = {
+    listeners: new Map(),
+    log: [],
+    logListeners: new Set()
+  }
+}
+
+const { listeners, log, logListeners } = window.__mockEventBusState
 
 export const mockEventBus = {
   emit(name: string, payload: unknown) {

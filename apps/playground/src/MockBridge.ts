@@ -15,7 +15,7 @@ export function createMockBridge(
 ): BridgeAPI {
   const timers = new Set<ReturnType<typeof setInterval>>()
 
-  return {
+  const api: BridgeAPI = {
     async fetch(sourceId, endpointId, params = {}) {
       console.log(`[bridge.fetch] ${sourceId}/${endpointId}`, params)
       return {}
@@ -23,9 +23,9 @@ export function createMockBridge(
 
     subscribe(sourceId, endpointId, params, callback) {
       console.log(`[bridge.subscribe] ${sourceId}/${endpointId}`, params)
-      this.fetch(sourceId, endpointId, params).then(callback)
+      api.fetch(sourceId, endpointId, params).then(callback)
       const timer = setInterval(() => {
-        this.fetch(sourceId, endpointId, params).then(callback)
+        api.fetch(sourceId, endpointId, params).then(callback)
       }, 30_000)
       timers.add(timer)
       return () => {
@@ -42,4 +42,6 @@ export function createMockBridge(
       return value ?? null
     }
   }
+
+  return api
 }

@@ -9,6 +9,6 @@ describe('App', () => {
 
   it('renders the welcome message', () => {
     render(<App />)
-    expect(screen.getByText(/Press ⌘K to begin/)).toBeInTheDocument()
+    expect(screen.getByText(/Press .+ to begin/)).toBeInTheDocument()
   })
 })

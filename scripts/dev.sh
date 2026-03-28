@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ── Resolve repo root regardless of call site ────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$REPO_ROOT"
+
 # ── Colors ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m' GREEN='\033[0;32m' BLUE='\033[0;34m'
 YELLOW='\033[1;33m' MAGENTA='\033[0;35m' NC='\033[0m'
@@ -11,11 +16,11 @@ warn()    { echo -e "${YELLOW}[dev]${NC} ⚠ $1"; }
 err()     { echo -e "${RED}[dev]${NC} ✗ $1"; }
 
 # ── Preflight ────────────────────────────────────────────────────────────────
-if [ ! -f .env.development ]; then
+if [ ! -f "$REPO_ROOT/.env.development" ]; then
   err ".env.development not found. Copy .env.development.example and fill in your values."
   exit 1
 fi
-source .env.development
+source "$REPO_ROOT/.env.development"
 
 if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
   warn "ANTHROPIC_API_KEY not set. Agent functionality will not work."
@@ -43,7 +48,7 @@ done
 
 # ── Start Playground + Electron in parallel ──────────────────────────────────
 log "Starting Component Playground on :5174..."
-(cd apps/playground && npm run dev 2>&1 | \
+(cd "$REPO_ROOT/apps/playground" && npm run dev 2>&1 | \
   sed "s/^/${MAGENTA}[playground]${NC} /") &
 PLAYGROUND_PID=$!
 

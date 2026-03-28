@@ -27,6 +27,7 @@ export function StoreInspector(): React.ReactElement {
   const entries = store._getAll()
 
   const handleSet = () => {
+    if (!editKey.trim()) return
     try {
       store._set(editKey, JSON.parse(editValue))
       setEditKey('')
