@@ -56,7 +56,7 @@ export class AgentEngine {
       tabId: this.options.tabId,
       memory,
       activeComponents,
-      targetComponentId: input.targetComponentId ?? intent.targetComponentId,
+      targetComponentId: input.targetComponentId ?? intent.targetComponentId ?? undefined,
       conversationHistory: input.conversationHistory,
     }
 

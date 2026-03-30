@@ -17,7 +17,7 @@ export function buildRegistry(config: LLMConfig) {
   return createProviderRegistry({
     anthropic: createAnthropic({ apiKey: config.apiKey }),
     openai: (() => {
-      const p = createOpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl, compatibility: 'compatible' })
+      const p = createOpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl })
       // @ai-sdk/openai v3 defaults languageModel() to the Responses API (/responses).
       // Gateways (Vercel, OpenRouter, etc.) only support Chat Completions (/chat/completions).
       return { ...p, languageModel: (id: string) => p.chat(id) }
