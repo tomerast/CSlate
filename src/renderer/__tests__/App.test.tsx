@@ -1,14 +1,28 @@
 import { render, screen } from '@testing-library/react'
-import App from '../App'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import React from 'react'
+
+beforeEach(() => {
+  Object.defineProperty(window, 'electron', {
+    value: {
+      invoke: vi.fn().mockResolvedValue(null), // null = no API key stored
+      platform: 'darwin',
+      isDev: false,
+      send: vi.fn(),
+      on: vi.fn().mockReturnValue(() => {})
+    },
+    writable: true,
+    configurable: true
+  })
+  vi.resetModules()
+})
 
 describe('App', () => {
-  it('renders the CSlate headline', () => {
-    render(<App />)
-    expect(screen.getByText('CSlate')).toBeInTheDocument()
-  })
-
-  it('renders the welcome message', () => {
-    render(<App />)
-    expect(screen.getByText(/Press .+ to begin/)).toBeInTheDocument()
+  it('shows ApiKeySetup when no API key is stored', async () => {
+    const { default: App } = await import('../App')
+    render(React.createElement(App))
+    await vi.waitFor(() => {
+      expect(screen.getByText(/Welcome to CSlate/i)).toBeTruthy()
+    })
   })
 })
