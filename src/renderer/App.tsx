@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useAppStore } from './store/appStore'
 import { AppLayout } from './layout/AppLayout'
 import CSlateConfigPanel from './components/cslate-config-panel/ui'
-import type { ConfigValues, Theme, GatewayMode } from './components/cslate-config-panel/types'
+import type { ConfigValues, Theme } from './components/cslate-config-panel/types'
 
 /* ── Error Boundary ──────────────────────────────────────── */
 interface ErrorBoundaryState { error: Error | null }
@@ -40,10 +40,9 @@ class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNod
 export default function App() {
   const { configOpen, configFocusTab, openConfig, closeConfig } = useAppStore()
   const [config, setConfig] = useState({
-    llmModel: 'anthropic/claude-sonnet-4.6',
+    llmModel: 'anthropic/claude-sonnet-4-6',
     llmApiKey: '',
     gatewayUrl: 'https://openrouter.ai/api/v1',
-    gatewayMode: 'openrouter' as GatewayMode,
     theme: 'dark' as Theme,
     serverUrl: 'https://api.cslate.app',
   })
@@ -52,11 +51,10 @@ export default function App() {
     async function loadConfig() {
       if (!window.electron) return
       try {
-        const [llmModel, llmApiKey, gatewayUrl, gatewayMode, theme, serverUrl] = await Promise.all([
+        const [llmModel, llmApiKey, gatewayUrl, theme, serverUrl] = await Promise.all([
           window.electron.invoke('config:get', 'llmModel'),
           window.electron.invoke('config:get', 'llmApiKey'),
           window.electron.invoke('config:get', 'gatewayUrl'),
-          window.electron.invoke('config:get', 'gatewayMode'),
           window.electron.invoke('config:get', 'theme'),
           window.electron.invoke('config:get', 'serverUrl'),
         ])
@@ -65,7 +63,6 @@ export default function App() {
           if (llmModel) next.llmModel = llmModel as string
           if (llmApiKey) next.llmApiKey = llmApiKey as string
           if (gatewayUrl) next.gatewayUrl = gatewayUrl as string
-          if (gatewayMode) next.gatewayMode = gatewayMode as GatewayMode
           if (theme) next.theme = theme as Theme
           if (serverUrl) next.serverUrl = serverUrl as string
           return next
@@ -119,7 +116,6 @@ export default function App() {
           llmModel={config.llmModel}
           llmApiKey={config.llmApiKey}
           gatewayUrl={config.gatewayUrl}
-          gatewayMode={config.gatewayMode}
           theme={config.theme}
           serverUrl={config.serverUrl}
           onOutput={handleOutput}

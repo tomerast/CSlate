@@ -5,7 +5,6 @@ export interface ConfigStore {
   llmModel: string
   llmBaseUrl?: string
   gatewayUrl: string
-  gatewayMode: 'openrouter' | 'vercel' | 'cloudflare' | 'portkey' | 'helicone' | 'direct'
   serverUrl: string
   theme: 'dark' | 'light' | 'midnight'
   recentProjects: unknown[]
@@ -26,9 +25,8 @@ export const configStore = new Store<ConfigStore>({
   name: 'config',
   defaults: {
     llmProvider: 'anthropic',
-    llmModel: 'anthropic/claude-sonnet-4.6',
+    llmModel: 'anthropic/claude-sonnet-4-6',
     gatewayUrl: 'https://openrouter.ai/api/v1',
-    gatewayMode: 'openrouter',
     serverUrl: 'https://api.cslate.app',
     theme: 'dark',
     recentProjects: [],

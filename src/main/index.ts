@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, session } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, session } from 'electron'
 import { is } from '@electron-toolkit/utils'
+import { join } from 'path'
 import { register as registerConfig } from './ipc/config'
 import { register as registerProject } from './ipc/project'
 import { register as registerFile } from './ipc/file'
@@ -7,6 +8,7 @@ import { register as registerWindow } from './ipc/window'
 import { register as registerAgent } from './agent/ipc'
 import { register as registerServer } from './ipc/server'
 import { register as registerShell } from './ipc/shell'
+import { register as registerModels } from './ipc/models'
 import { createWindow } from './windowManager'
 
 function installCSP(): void {
@@ -32,6 +34,14 @@ function installCSP(): void {
 }
 
 app.whenReady().then(() => {
+  const iconPath = is.dev
+    ? join(__dirname, '../../resources/icon.png')
+    : join(process.resourcesPath, 'icon.png')
+  const icon = nativeImage.createFromPath(iconPath)
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(icon)
+  }
+
   installCSP()
   registerConfig(ipcMain)
   registerProject(ipcMain)
@@ -40,6 +50,7 @@ app.whenReady().then(() => {
   registerAgent(ipcMain)
   registerServer(ipcMain)
   registerShell(ipcMain)
+  registerModels(ipcMain)
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -11,6 +11,12 @@ export function SlateCanvas() {
       {!currentCode ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center select-none">
+            <img
+              src={new URL('../assets/logo.png', import.meta.url).href}
+              alt=""
+              className="h-12 w-auto mx-auto mb-4 opacity-20"
+              draggable={false}
+            />
             <p className="text-muted text-base font-medium">Your Slate canvas</p>
             <p className="text-muted/60 text-sm mt-1">
               Press{' '}

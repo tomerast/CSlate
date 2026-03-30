@@ -25,7 +25,8 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'agent:run',
   'server:search',
   'server:publish',
-  'shell:openExternal'
+  'shell:openExternal',
+  'models:fetch'
 ] as const
 
 export const ALLOWED_LISTEN_CHANNELS = [

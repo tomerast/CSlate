@@ -6,6 +6,13 @@
   "workspaces": [
     "apps/*"
   ],
+  "build": {
+    "appId": "com.cslate.app",
+    "icon": "build/icon.icns",
+    "extraResources": [
+      { "from": "resources/", "to": "." }
+    ]
+  },
   "scripts": {
     "dev": "electron-vite dev --inspect=9229",
     "dev:full": "bash scripts/dev.sh",

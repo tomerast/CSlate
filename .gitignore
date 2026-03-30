@@ -16,3 +16,4 @@ release/
 
 .env
 *.log
+.claude/worktrees/
