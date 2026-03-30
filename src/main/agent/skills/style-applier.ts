@@ -1,4 +1,5 @@
 import type { SkillConfig, AgentContext } from './types'
+import { BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prompts/fragments'
 
 export function styleApplierSkill(tools: Record<string, import('ai').Tool>): SkillConfig {
   return {
@@ -8,7 +9,7 @@ export function styleApplierSkill(tools: Record<string, import('ai').Tool>): Ski
     temperature: 0.3,
     tools,
     systemPrompt: (_ctx: AgentContext) => `You are the CSlate Agent applying styling changes.
-
+${BEHAVIORAL_GUIDELINES}${OUTPUT_STYLE}
 ALWAYS use design token classes, NEVER hardcode colors:
 - bg-primary, bg-secondary, bg-accent, bg-background, bg-surface
 - text-text, text-muted, text-error, text-success, text-warning

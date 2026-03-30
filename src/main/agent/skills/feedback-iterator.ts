@@ -1,5 +1,6 @@
 import type { SkillConfig, AgentContext } from './types'
 import { buildContextString } from '../memory/context-builder'
+import { PLATFORM_KNOWLEDGE, BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prompts/fragments'
 
 export function feedbackIteratorSkill(tools: Record<string, import('ai').Tool>): SkillConfig {
   return {
@@ -11,6 +12,7 @@ export function feedbackIteratorSkill(tools: Record<string, import('ai').Tool>):
     systemPrompt: (ctx: AgentContext) => {
       const memoryContext = buildContextString(ctx.memory)
       return `You are the CSlate Agent iterating on a component based on feedback.
+${PLATFORM_KNOWLEDGE}${BEHAVIORAL_GUIDELINES}${OUTPUT_STYLE}
 ${memoryContext}
 
 Workflow:
