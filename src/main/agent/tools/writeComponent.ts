@@ -2,6 +2,7 @@ import type { Tool } from 'ai'
 import { z } from 'zod'
 import { writeFile, mkdir } from 'fs/promises'
 import { join, resolve } from 'path'
+import { stripFences } from '../lib/stripFences'
 
 const FilesSchema = z.object({
   'ui.tsx': z.string(),
@@ -33,10 +34,10 @@ export function createWriteComponentTool(projectDir: string): Tool<WriteInput, W
       const writes: Promise<void>[] = [
         writeFile(join(dir, 'manifest.json'), JSON.stringify(input.manifest, null, 2), 'utf-8'),
         writeFile(join(dir, 'context.md'), input.contextMd, 'utf-8'),
-        writeFile(join(dir, 'ui.tsx'), input.files['ui.tsx'], 'utf-8'),
+        writeFile(join(dir, 'ui.tsx'), stripFences(input.files['ui.tsx']), 'utf-8'),
       ]
-      if (input.files['logic.ts']) writes.push(writeFile(join(dir, 'logic.ts'), input.files['logic.ts'], 'utf-8'))
-      if (input.files['types.ts']) writes.push(writeFile(join(dir, 'types.ts'), input.files['types.ts'], 'utf-8'))
+      if (input.files['logic.ts']) writes.push(writeFile(join(dir, 'logic.ts'), stripFences(input.files['logic.ts']), 'utf-8'))
+      if (input.files['types.ts']) writes.push(writeFile(join(dir, 'types.ts'), stripFences(input.files['types.ts']), 'utf-8'))
 
       await Promise.all(writes)
       return { success: true, path: dir }

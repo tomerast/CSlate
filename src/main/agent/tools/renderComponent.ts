@@ -1,6 +1,7 @@
 import type { Tool } from 'ai'
 import { z } from 'zod'
 import type { WebContents } from 'electron'
+import { stripFences } from '../lib/stripFences'
 
 const FilesSchema = z.object({
   'ui.tsx': z.string(),
@@ -30,7 +31,12 @@ export function createRenderComponentTool(sender: WebContents, tabId: string): T
     }) as any,
     execute: async (input: RenderInput): Promise<RenderOutput> => {
       const componentId = `comp_${Date.now()}`
-      sender.send('sandbox:load', { tabId, componentId, files: input.files, manifest: input.manifest, placement: input.placement })
+      const cleanFiles = {
+        'ui.tsx': stripFences(input.files['ui.tsx']),
+        ...(input.files['logic.ts'] ? { 'logic.ts': stripFences(input.files['logic.ts']!) } : {}),
+        ...(input.files['types.ts'] ? { 'types.ts': stripFences(input.files['types.ts']!) } : {}),
+      }
+      sender.send('sandbox:load', { tabId, componentId, files: cleanFiles, manifest: input.manifest, placement: input.placement })
       return { success: true, componentId }
     },
   }
