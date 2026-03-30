@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { MessageList } from './MessageList'
+import { PublishToast } from './PublishToast'
 
 interface Props {
   onSubmit(text: string): void
@@ -36,6 +37,8 @@ export function ChatPanel({ onSubmit, onClose }: Props) {
       <div className="flex-1 overflow-y-auto min-h-0">
         <MessageList />
       </div>
+
+      <PublishToast />
 
       <div className="p-3 border-t border-border">
         <div className="flex gap-2">

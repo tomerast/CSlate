@@ -8,10 +8,12 @@ interface ChatState {
   status: 'idle' | 'generating' | 'error'
   currentCode: string | null
   panelOpen: boolean
+  publishState: 'hidden' | 'prompting' | 'publishing' | 'published' | 'declined'
   addMessage(msg: NewMessage): void
   setStatus(s: ChatState['status']): void
   setCurrentCode(code: string | null): void
   setPanelOpen(v: boolean): void
+  setPublishState(s: ChatState['publishState']): void
   reset(): void
 }
 
@@ -20,10 +22,12 @@ export const useChatStore = create<ChatState>((set) => ({
   status: 'idle',
   currentCode: null,
   panelOpen: false,
+  publishState: 'hidden',
   addMessage: (msg) =>
     set((s) => ({ messages: [...s.messages, { ...msg, timestamp: Date.now() }] })),
   setStatus: (status) => set({ status }),
   setCurrentCode: (code) => set({ currentCode: code }),
   setPanelOpen: (v) => set({ panelOpen: v }),
-  reset: () => set({ messages: [], status: 'idle', currentCode: null, panelOpen: false })
+  setPublishState: (s) => set({ publishState: s }),
+  reset: () => set({ messages: [], status: 'idle', currentCode: null, panelOpen: false, publishState: 'hidden' })
 }))
