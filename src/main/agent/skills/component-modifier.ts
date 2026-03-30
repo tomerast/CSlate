@@ -1,5 +1,6 @@
 import type { SkillConfig, AgentContext } from './types'
 import { buildContextString } from '../memory/context-builder'
+import { PLATFORM_KNOWLEDGE, BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prompts/fragments'
 
 export function componentModifierSkill(tools: Record<string, import('ai').Tool>): SkillConfig {
   return {
@@ -11,6 +12,7 @@ export function componentModifierSkill(tools: Record<string, import('ai').Tool>)
     systemPrompt: (ctx: AgentContext) => {
       const memoryContext = buildContextString(ctx.memory)
       return `You are the CSlate Agent modifying an existing component.
+${PLATFORM_KNOWLEDGE}${BEHAVIORAL_GUIDELINES}${OUTPUT_STYLE}
 ${memoryContext}
 
 ## Your Task
@@ -23,9 +25,7 @@ Workflow:
 4. Call renderComponent AND reviewCode in the same step.
 5. Fix any issues found by reviewCode.
 6. Call validateManifest on the updated manifest.
-7. Call writeComponent to save.
-
-CRITICAL: Do not break existing state key bindings or event names — other components may depend on them.`
+7. Call writeComponent to save.`
     },
   }
 }
