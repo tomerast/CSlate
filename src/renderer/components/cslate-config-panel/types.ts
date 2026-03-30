@@ -38,6 +38,8 @@ export interface ModelPreset {
   tier: 'premium' | 'balanced' | 'budget'
   keyUrl: string
   directProvider: DirectProvider | 'gateway-only'
+  /** Which gateways support this model. 'all' = works everywhere; array = OpenRouter-family only */
+  supportedGateways: 'all' | GatewayMode[]
 }
 
 export const MODEL_PRESETS: ModelPreset[] = [
@@ -49,6 +51,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     tier: 'premium',
     keyUrl: 'https://console.anthropic.com/settings/keys',
     directProvider: 'anthropic',
+    supportedGateways: 'all',
   },
   {
     id: 'anthropic/claude-haiku-4.5',
@@ -58,6 +61,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     tier: 'balanced',
     keyUrl: 'https://console.anthropic.com/settings/keys',
     directProvider: 'anthropic',
+    supportedGateways: 'all',
   },
   {
     id: 'openai/gpt-4o',
@@ -67,6 +71,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     tier: 'premium',
     keyUrl: 'https://platform.openai.com/api-keys',
     directProvider: 'openai',
+    supportedGateways: 'all',
   },
   {
     id: 'openai/gpt-4o-mini',
@@ -76,6 +81,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     tier: 'balanced',
     keyUrl: 'https://platform.openai.com/api-keys',
     directProvider: 'openai',
+    supportedGateways: 'all',
   },
   {
     id: 'google/gemini-2.5-pro',
@@ -85,6 +91,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     tier: 'premium',
     keyUrl: 'https://aistudio.google.com/apikey',
     directProvider: 'google',
+    supportedGateways: 'all',
   },
   {
     id: 'minimax/minimax-m2.5',
@@ -94,6 +101,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     tier: 'budget',
     keyUrl: 'https://www.minimax.chat',
     directProvider: 'gateway-only',
+    supportedGateways: ['openrouter', 'portkey', 'helicone'],
   },
   {
     id: 'moonshotai/kimi-k2.5',
@@ -103,6 +111,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     tier: 'budget',
     keyUrl: 'https://kimi.moonshot.cn',
     directProvider: 'gateway-only',
+    supportedGateways: ['openrouter', 'portkey', 'helicone'],
   },
 ]
 

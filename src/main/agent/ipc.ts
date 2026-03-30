@@ -20,15 +20,42 @@ export function register(ipcMain: IpcMain): void {
     const sender: WebContents = event.sender
 
     // Load LLM config from secure storage
-    const provider = (getConfigValue('llmProvider') as LLMConfig['provider']) ?? 'anthropic'
-    const model = (getConfigValue('llmModel') as string) ?? 'claude-sonnet-4-6'
+    const gatewayMode = (getConfigValue('gatewayMode') as string) ?? 'direct'
+    const gatewayUrl = (getConfigValue('gatewayUrl') as string) ?? ''
+    const llmModel = (getConfigValue('llmModel') as string) ?? 'anthropic/claude-sonnet-4.6'
     const apiKey = (getConfigValue('llmApiKey') as string | null) ?? undefined
-    const baseUrl = (getConfigValue('llmBaseUrl') as string | null) ?? undefined
     const serverUrl = (getConfigValue('serverUrl') as string) ?? 'http://localhost:3000'
     const serverApiKey = (getConfigValue('serverApiKey') as string | null) ?? ''
 
+    // Derive provider + model ID + baseUrl from gateway config
+    let provider: LLMConfig['provider']
+    let model: string
+    let baseUrl: string | undefined
+
+    if (gatewayMode !== 'direct') {
+      // All gateways are OpenAI-compatible — pass full model ID (e.g. 'moonshotai/kimi-k2.5')
+      provider = 'openai'
+      model = llmModel
+      baseUrl = gatewayUrl
+    } else {
+      // Direct mode — strip provider prefix, derive SDK provider
+      if (llmModel.startsWith('anthropic/')) {
+        provider = 'anthropic'
+        model = llmModel.slice('anthropic/'.length)
+      } else if (llmModel.startsWith('openai/')) {
+        provider = 'openai'
+        model = llmModel.slice('openai/'.length)
+      } else if (llmModel.startsWith('google/')) {
+        provider = 'google'
+        model = llmModel.slice('google/'.length)
+      } else {
+        provider = 'local'
+        model = llmModel
+      }
+    }
+
     // Check if provider is configured
-    const isLocal = model.startsWith('ollama') || provider === 'local'
+    const isLocal = provider === 'local'
     if (!apiKey && !isLocal) {
       sender.send('agent:error', {
         message: 'No AI provider configured. Open Settings (⌘,) to set up your model and API key.',

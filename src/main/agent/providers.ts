@@ -16,7 +16,7 @@ export interface LLMConfig {
 export function buildRegistry(config: LLMConfig) {
   return createProviderRegistry({
     anthropic: createAnthropic({ apiKey: config.apiKey }),
-    openai: createOpenAI({ apiKey: config.apiKey }),
+    openai: createOpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl }),
     google: createGoogleGenerativeAI({ apiKey: config.apiKey }),
     // ollama-ai-provider uses ProviderV1; cast to ProviderV3 for registry compatibility
     local: createOllama({ baseURL: config.baseUrl ?? 'http://localhost:11434' }) as unknown as ProviderV3,

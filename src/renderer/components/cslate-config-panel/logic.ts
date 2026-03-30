@@ -108,9 +108,15 @@ export function useConfigForm(props: ConfigPanelProps) {
   }, [values.llmModel, updateField])
 
   const filteredModels = useMemo(() => {
-    if (connectionMode === 'gateway') return MODEL_PRESETS
+    if (connectionMode === 'gateway') {
+      const gw = values.gatewayMode
+      return MODEL_PRESETS.filter(preset =>
+        preset.supportedGateways === 'all' ||
+        (preset.supportedGateways as GatewayMode[]).includes(gw)
+      )
+    }
     return MODEL_PRESETS.filter(preset => preset.directProvider === directProvider)
-  }, [connectionMode, directProvider])
+  }, [connectionMode, directProvider, values.gatewayMode])
 
   const maskApiKey = useCallback((key: string) => {
     if (!key) return ''
