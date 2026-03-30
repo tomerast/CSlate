@@ -1,7 +1,7 @@
 # 018 — Plan 02 Review & Plan 03 Scope
 
 **Date:** 2026-03-28
-**Status:** Decided
+**Status:** Resolved (Plan 03 shipped 2026-03-30)
 **Context:** Post-merge review of Plan 02 (agent architecture + host renderer UI). Documents what works, what needs fixing before Plan 03, and what Plan 03 must deliver.
 
 ---
@@ -23,56 +23,52 @@ These were found in the Plan 02 code review (see tomerast/CSlate#2) and are not 
 
 ### Critical (breaks correctness in normal use)
 
-**1. User message duplicated in LLM history** (`src/renderer/chat/useChat.ts:11,18`)
-`addMessage(...)` is called before `messagesRef.current.slice(-6)` is read. Zustand `set()` is synchronous, so the just-added user message is already in the ref. `ComponentBuilderSkill` also appends it explicitly — every request sends the current user message twice.
-**Fix:** Snapshot history before calling `addMessage`, or read from the store state before the mutation.
+**1. User message duplicated in LLM history** — ✅ Fixed in Plan 03
+History is now snapshotted before `addMessage()`. Regression test added (`src/renderer/__tests__/useChat.test.ts`).
 
-**2. Markdown fences not stripped from LLM output** (`src/main/agent/skills/ComponentBuilder.ts:48`)
-`componentCode: llmResponse.content` is returned raw. If the model wraps its response in ` ```jsx ... ``` `, Babel fails to parse it and the canvas shows a compile error.
-**Fix:** Strip ` ```jsx ` / ` ``` ` fences before returning `componentCode`.
+**2. Markdown fences not stripped from LLM output** — ✅ Fixed in Plan 03
+`stripFences()` utility applied in `renderComponent` and `writeComponent` tools before code reaches Babel or disk.
 
-**3. `ErrorBoundary` caught state never resets** (`src/renderer/sandbox/DynamicComponent.tsx:50-77`)
-After a runtime crash, `caught = true` persists in the `ErrorBoundary` instance even when new valid code arrives. The canvas shows nothing forever after the first runtime error.
-**Fix:** Add a `key={code}` prop to `ErrorBoundary` so it remounts when code changes.
+**3. `ErrorBoundary` caught state never resets** — ✅ Fixed in Plan 03
+Added `key={code}` to `ErrorBoundary` so it remounts when code changes.
 
-### Security (real issues, low immediate exploitability since tools aren't wired yet)
+### Security
 
-**4. Agent filesystem tools — path restriction** ✅ Fixed
-`writeComponent.ts` and `readManifest.ts` in `src/main/agent/tools/` already resolve paths against `componentsRoot` and reject traversal. No separate ReadFileTool/WriteFileTool exists — the scope is component-scoped tools only.
+**4. Agent file tools — no path restriction** — ✅ Fixed in Plan 03
+`ReadFileTool`/`WriteFileTool` don't exist as separate files. Path traversal protection added to `readProjectContext.ts`. Other tools (`readManifest`, `writeComponent`) already had it.
 
-**5. `file:read` / `file:write` in preload allowlist** ✅ Fixed
-Handlers are registered in `src/main/ipc/file.ts` using `safePath()` for path restriction. Channels are correctly listed in `ALLOWED_INVOKE_CHANNELS`.
+**5. `file:read`/`file:write` in preload allowlist with no handlers** — Deferred
+These channels have registered handlers in `src/main/ipc/file.ts` (added in Plan 02). They work correctly.
 
 ### Minor (code quality)
 
-**6. Dead code `throw` in `SkillRegistry`** (`src/main/agent/skills/index.ts:16-20`)
-`throw new Error('No skill found')` is unreachable because `ComponentBuilderSkill.canHandle()` always returns `true`. Remove it or add a comment explaining it's guarded by the catch-all.
+**6. Dead code `throw` in `SkillRegistry`** — ✅ Fixed in Plan 05
+The old try/catch pattern was replaced with a clean object-literal registry in the agent engine rewrite.
 
-**7. Misleading "v1" comments on stub skills** (`StateWirer.ts:4`, `BlueprintSearch.ts:4`)
-Comments say "v1: analyzes component manifests / searches community DB" but implementations are stubs. Change to "TODO" or "stub — implement in Plan 03."
+**7. Misleading "v1" comments on stub skills** — ✅ Fixed in Plan 05
+Old stub files (`BlueprintSearch.ts`, `StateWirer.ts`) replaced with real skill implementations in the agent engine rewrite.
 
-**8. `bridge:fetch` in both send and invoke channel lists** (`src/preload/channels.ts:2,10`)
-Same channel in two lists with no handler registered for either. Likely legacy scaffolding. Remove or clarify intent.
+**8. `bridge:fetch` in both send and invoke channel lists** — ✅ Fixed in Plan 03
+Removed `bridge:fetch` from `ALLOWED_INVOKE_CHANNELS`. It correctly remains in `ALLOWED_SEND_CHANNELS` only.
 
 ---
 
-## What Plan 03 must deliver
+## What Plan 03 delivered
 
-### Mandatory for the next phase to be useful
+**A. `ComponentBlueprint` Zod schema** — ✅ Shipped
+Created at `src/shared/blueprintTypes.ts` (local to client, not in `@cslate/shared`). Includes `ComponentBlueprintSchema` and `SearchResultSchema` with full Zod validation.
 
-**A. `ComponentBlueprint` Zod schema in `@cslate/shared`**
-The shared type system needs a structured blueprint type: `id`, `title`, `description`, `tags`, `source` (JSX string), `dependencies` (list of npm packages the component uses), `manifest` (version, author). Both client and server will validate against this. Enables cataloging, search, and display.
+**B. `searchBlueprints` tool refactored** — ✅ Shipped
+The `searchBlueprints` agent tool now delegates to `CSlateServerClient` instead of raw `fetch`. The `component-search` skill was already implemented in Plan 05's agent engine rewrite.
 
-**B. `component-search` skill — real implementation**
-Hit the CSlate-Server `GET /api/components/search` endpoint with the user's natural-language description. Return the top 3 matches as context to `component-builder` skill. The agent flow becomes: describe → search → generate (with blueprint as starting point or reference). Skill file: `src/main/agent/skills/component-search.ts`.
+**C. Server integration — `CSlateServerClient`** — ✅ Shipped
+`src/main/server/CSlateServerClient.ts` wraps search, publish, and fetchSource endpoints. IPC handlers at `src/main/ipc/server.ts` expose `server:search` and `server:publish` channels.
 
-**C. Server integration — `CSlate-Server` client**
-Thin HTTP client (`src/main/server/CSlateServerClient.ts`) that wraps the search, fetch-source, and publish endpoints. Handles auth token, base URL from config, error handling. Used by `BlueprintSearchSkill` and the future publish flow.
+**D. Publish flow** — ✅ Shipped
+`PublishToast` component shows after component accept: "Share with the CSlate community?" with [Share]/[Not now]. State managed via `publishState` in chatStore.
 
-**D. Publish flow**
-After a component is built, the user can name it and publish to the community DB. Requires: name input in UI, `POST /api/components` with the blueprint, response shown in chat panel.
-
-**E. Fix the three critical bugs from Plan 02 review** (items 1–3 above) before Plan 03 ships.
+**E. Three critical bugs fixed** — ✅ Shipped
+See items 1–3 above.
 
 ### Deferred to Plan 04+
 
@@ -84,39 +80,33 @@ After a component is built, the user can name it and publish to the community DB
 
 ---
 
-## Architecture notes for Plan 03 implementer
+## Architecture (as implemented)
 
 ### Server client placement
-`src/main/server/` — main process only. Never imported by renderer. Renderer asks for data via IPC (`server:search`, `server:publish`), not by calling the server directly.
+`src/main/server/CSlateServerClient.ts` — main process only. Renderer communicates via IPC (`server:search`, `server:publish`).
 
 ### Blueprint schema placement
-`src/shared/blueprintTypes.ts` — accessible by both main and renderer via `@shared` alias. Keep it separate from `agentTypes.ts`. Use Zod for runtime validation on the main side.
+`src/shared/blueprintTypes.ts` — accessible by both main and renderer via `@shared` alias.
 
-### Skill flow for search + generate
-```
-AgentRunner.run(request)
-  → SkillRegistry.resolve() → BlueprintSearchSkill (if no current code)
-    → CSlateServerClient.search(request.message) → top 3 blueprints
-    → pass to ComponentBuilderSkill as additional system context
-  → ComponentBuilderSkill.execute(ctx, request)
-    → LLM prompt includes blueprint references
-    → returns new component code
-```
+### Agent tool flow
+`AgentEngine` creates a `CSlateServerClient` from config, passes it to `createSearchBlueprintsTool()`. The `component-builder` skill calls `searchBlueprints` tool to find community blueprints before generating.
 
-### `projectDir` is never set — all memory is shared
-`AgentRequest.projectDir` is optional and currently never populated from `useChat.ts`. All `MemoryManager` instances fall back to `~/.cslate/agent/memory`. Plan 03 should either pass a real project dir or remove the abstraction until it's needed.
+### Known remaining items (deferred to Plan 04+)
+- `projectDir` is still empty string from `useChat.ts` — memory falls back to `~/.cslate/agent/memory`
+- `file:read`/`file:write` IPC channels exist and have handlers but are separate from agent tool file access
+- Publish toast sends hardcoded "Untitled Component" — needs name input UI
 
 ---
 
-## File locations
+## File locations (final)
 
-| File | Purpose |
-|------|---------|
-| `src/shared/blueprintTypes.ts` | `ComponentBlueprint` Zod schema (create in Plan 03) |
-| `src/main/server/CSlateServerClient.ts` | HTTP client for CSlate-Server (create in Plan 03) |
-| `src/main/ipc/server.ts` | IPC handlers for `server:search`, `server:publish` (create in Plan 03) |
-| `src/main/agent/skills/component-search.ts` | Replace stub with real `CSlateServerClient` calls (Plan 03) |
-| `src/renderer/chat/useChat.ts` | Fix double-message bug (Plan 03 — do first) |
-| `src/main/agent/skills/component-builder.ts` | Fix markdown fence stripping (Plan 03 — do first) |
-| `src/renderer/sandbox/DynamicComponent.tsx` | Fix ErrorBoundary reset (Plan 03 — do first) |
-| `src/preload/channels.ts` | Remove `bridge:fetch` from `ALLOWED_INVOKE_CHANNELS` (duplicate, no handler) |
+| File | Purpose | Status |
+|------|---------|--------|
+| `src/shared/blueprintTypes.ts` | `ComponentBlueprint` Zod schema | ✅ Created |
+| `src/main/server/CSlateServerClient.ts` | HTTP client for CSlate-Server | ✅ Created |
+| `src/main/ipc/server.ts` | IPC handlers for `server:search`, `server:publish` | ✅ Created |
+| `src/main/agent/tools/searchBlueprints.ts` | Delegates to CSlateServerClient | ✅ Refactored |
+| `src/main/agent/lib/stripFences.ts` | Markdown fence stripping utility | ✅ Created |
+| `src/renderer/chat/PublishToast.tsx` | Post-accept publish toast | ✅ Created |
+| `src/renderer/sandbox/DynamicComponent.tsx` | ErrorBoundary key fix | ✅ Fixed |
+| `src/preload/channels.ts` | Added server channels, removed duplicate | ✅ Fixed |
