@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
+import { useAppStore } from '../store/appStore'
 
 const MAX_HISTORY_MESSAGES = 6
 
@@ -31,6 +32,17 @@ export function useChat() {
         pendingCode = null
       }
     })
+    const offError = window.electron.on('agent:error', (data: unknown) => {
+      const d = data as { message: string; code?: string }
+      if (d.code === 'UNCONFIGURED_LLM') {
+        useAppStore.getState().openConfig('models')
+        setStatus('idle')
+        addMessage({
+          role: 'assistant',
+          content: "No AI provider configured — I've opened Settings so you can set one up."
+        })
+      }
+    })
 
     try {
       const result = await window.electron.invoke('agent:run', {
@@ -56,6 +68,7 @@ export function useChat() {
     } finally {
       offToolCall()
       offToolResult()
+      offError()
     }
   }, [addMessage, setStatus, setCurrentCode, setPanelOpen, setPublishState])
 

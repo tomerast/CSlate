@@ -1,6 +1,13 @@
 import { useState, useCallback, useMemo } from 'react'
-import type { ConfigValues, ConfigPanelProps, Theme, GatewayMode } from './types'
+import type { ConfigValues, ConfigPanelProps, Theme, GatewayMode, ConfigTab, ConnectionMode, DirectProvider } from './types'
 import { DEFAULT_CONFIG, MODEL_PRESETS, GATEWAY_OPTIONS } from './types'
+
+function inferDirectProvider(model: string): DirectProvider {
+  if (model.startsWith('anthropic/')) return 'anthropic'
+  if (model.startsWith('openai/')) return 'openai'
+  if (model.startsWith('google/')) return 'google'
+  return 'anthropic'
+}
 
 export function useConfigForm(props: ConfigPanelProps) {
   const initialValues: ConfigValues = {
@@ -16,6 +23,13 @@ export function useConfigForm(props: ConfigPanelProps) {
   const [showApiKey, setShowApiKey] = useState(false)
   const [customModel, setCustomModel] = useState('')
   const [useCustomModel, setUseCustomModel] = useState(false)
+  const [activeTab, setActiveTab] = useState<ConfigTab>(props.focusTab ?? 'models')
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>(
+    initialValues.gatewayMode !== 'direct' ? 'gateway' : 'direct'
+  )
+  const [directProvider, setDirectProvider] = useState<DirectProvider>(
+    inferDirectProvider(initialValues.llmModel)
+  )
 
   const updateField = useCallback(<K extends keyof ConfigValues>(key: K, value: ConfigValues[K]) => {
     setValues(prev => ({ ...prev, [key]: value }))
@@ -66,6 +80,38 @@ export function useConfigForm(props: ConfigPanelProps) {
     }
   }, [updateField])
 
+  const switchConnectionMode = useCallback((mode: ConnectionMode) => {
+    setConnectionMode(mode)
+    if (mode === 'gateway') {
+      updateField('gatewayMode', 'openrouter')
+      updateField('gatewayUrl', 'https://openrouter.ai/api/v1')
+    } else {
+      updateField('gatewayMode', 'direct')
+      updateField('gatewayUrl', '')
+    }
+  }, [updateField])
+
+  const selectDirectProvider = useCallback((p: DirectProvider) => {
+    setDirectProvider(p)
+    // Auto-select first matching model preset if current model doesn't match
+    const currentModel = values.llmModel
+    const matchesProvider = p === 'local'
+      ? false
+      : currentModel.startsWith(`${p}/`)
+    if (!matchesProvider && p !== 'local') {
+      const firstMatch = MODEL_PRESETS.find(preset => preset.directProvider === p)
+      if (firstMatch) {
+        setUseCustomModel(false)
+        updateField('llmModel', firstMatch.id)
+      }
+    }
+  }, [values.llmModel, updateField])
+
+  const filteredModels = useMemo(() => {
+    if (connectionMode === 'gateway') return MODEL_PRESETS
+    return MODEL_PRESETS.filter(preset => preset.directProvider === directProvider)
+  }, [connectionMode, directProvider])
+
   const maskApiKey = useCallback((key: string) => {
     if (!key) return ''
     if (key.length <= 8) return '••••••••'
@@ -98,5 +144,12 @@ export function useConfigForm(props: ConfigPanelProps) {
     maskApiKey,
     selectedPreset,
     selectedGateway,
+    activeTab,
+    setActiveTab,
+    connectionMode,
+    directProvider,
+    filteredModels,
+    switchConnectionMode,
+    selectDirectProvider,
   }
 }

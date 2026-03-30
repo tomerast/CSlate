@@ -2,6 +2,12 @@ export type Theme = 'dark' | 'light' | 'midnight'
 
 export type GatewayMode = 'openrouter' | 'vercel' | 'cloudflare' | 'portkey' | 'helicone' | 'direct'
 
+export type ConfigTab = 'theme' | 'models' | 'settings'
+
+export type ConnectionMode = 'gateway' | 'direct'
+
+export type DirectProvider = 'anthropic' | 'openai' | 'google' | 'local'
+
 export interface ConfigValues {
   llmModel: string
   llmApiKey: string
@@ -19,6 +25,7 @@ export interface ConfigPanelProps {
   theme?: Theme
   serverUrl?: string
   isOpen?: boolean
+  focusTab?: ConfigTab
   onOutput?: (key: keyof ConfigValues, value: string) => void
   onEvent?: (event: string, payload: unknown) => void
 }
@@ -30,6 +37,7 @@ export interface ModelPreset {
   description: string
   tier: 'premium' | 'balanced' | 'budget'
   keyUrl: string
+  directProvider: DirectProvider | 'gateway-only'
 }
 
 export const MODEL_PRESETS: ModelPreset[] = [
@@ -40,6 +48,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'Best balance of quality and speed',
     tier: 'premium',
     keyUrl: 'https://console.anthropic.com/settings/keys',
+    directProvider: 'anthropic',
   },
   {
     id: 'anthropic/claude-haiku-4.5',
@@ -48,6 +57,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'Fast and affordable',
     tier: 'balanced',
     keyUrl: 'https://console.anthropic.com/settings/keys',
+    directProvider: 'anthropic',
   },
   {
     id: 'openai/gpt-4o',
@@ -56,6 +66,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'Strong general-purpose model',
     tier: 'premium',
     keyUrl: 'https://platform.openai.com/api-keys',
+    directProvider: 'openai',
   },
   {
     id: 'openai/gpt-4o-mini',
@@ -64,6 +75,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'Compact and cost-effective',
     tier: 'balanced',
     keyUrl: 'https://platform.openai.com/api-keys',
+    directProvider: 'openai',
   },
   {
     id: 'google/gemini-2.5-pro',
@@ -72,6 +84,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'Advanced reasoning and long context',
     tier: 'premium',
     keyUrl: 'https://aistudio.google.com/apikey',
+    directProvider: 'google',
   },
   {
     id: 'minimax/minimax-m2.5',
@@ -80,6 +93,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'Extremely cheap, good for experimentation',
     tier: 'budget',
     keyUrl: 'https://www.minimax.chat',
+    directProvider: 'gateway-only',
   },
   {
     id: 'moonshotai/kimi-k2.5',
@@ -88,6 +102,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     description: 'Fast and affordable with solid results',
     tier: 'budget',
     keyUrl: 'https://kimi.moonshot.cn',
+    directProvider: 'gateway-only',
   },
 ]
 
@@ -153,16 +168,13 @@ export const GATEWAY_OPTIONS: GatewayOption[] = [
     signupUrl: 'https://helicone.ai',
     setupHint: 'Sign up, get a Helicone API key, set base URL to ai-gateway.helicone.ai.',
   },
-  {
-    id: 'direct',
-    label: 'Direct',
-    tagline: 'No middleman',
-    description: 'Call provider APIs directly with your own key',
-    defaultUrl: '',
-    docsUrl: '',
-    signupUrl: '',
-    setupHint: 'Your API key goes straight to the provider. No caching or logging.',
-  },
+]
+
+export const DIRECT_PROVIDER_OPTIONS: { id: DirectProvider; label: string; description: string; keyUrl: string }[] = [
+  { id: 'anthropic', label: 'Anthropic', description: 'Claude models', keyUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'openai', label: 'OpenAI', description: 'GPT models', keyUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'google', label: 'Google', description: 'Gemini models', keyUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'local', label: 'Local', description: 'Ollama (no key needed)', keyUrl: '' },
 ]
 
 export const THEME_OPTIONS: { value: Theme; label: string; description: string }[] = [

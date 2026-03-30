@@ -1,11 +1,16 @@
 import { create } from 'zustand'
+import type { ConfigTab } from '../components/cslate-config-panel/types'
 
 interface AppState {
-  apiKeySet: boolean
-  setApiKeySet(v: boolean): void
+  configOpen: boolean
+  configFocusTab: ConfigTab | undefined
+  openConfig: (focusTab?: ConfigTab) => void
+  closeConfig: () => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  apiKeySet: false,
-  setApiKeySet: (v) => set({ apiKeySet: v })
+  configOpen: false,
+  configFocusTab: undefined,
+  openConfig: (focusTab) => set({ configOpen: true, configFocusTab: focusTab }),
+  closeConfig: () => set({ configOpen: false, configFocusTab: undefined }),
 }))

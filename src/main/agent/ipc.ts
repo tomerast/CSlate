@@ -27,6 +27,16 @@ export function register(ipcMain: IpcMain): void {
     const serverUrl = (getConfigValue('serverUrl') as string) ?? 'http://localhost:3000'
     const serverApiKey = (getConfigValue('serverApiKey') as string | null) ?? ''
 
+    // Check if provider is configured
+    const isLocal = model.startsWith('ollama') || provider === 'local'
+    if (!apiKey && !isLocal) {
+      sender.send('agent:error', {
+        message: 'No AI provider configured. Open Settings (⌘,) to set up your model and API key.',
+        code: 'UNCONFIGURED_LLM'
+      })
+      return { ok: true }
+    }
+
     const config: LLMConfig = { provider, model, apiKey, baseUrl }
 
     const engine = new AgentEngine(config, projectDir, {

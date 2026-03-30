@@ -1,7 +1,11 @@
 import React from 'react'
-import type { ConfigPanelProps, GatewayOption } from './types'
-import { MODEL_PRESETS, THEME_OPTIONS, GATEWAY_OPTIONS } from './types'
+import type { ConfigPanelProps, GatewayOption, ConfigTab } from './types'
+import { THEME_OPTIONS, GATEWAY_OPTIONS, DIRECT_PROVIDER_OPTIONS } from './types'
 import { useConfigForm } from './logic'
+
+function openExternal(url: string) {
+  window.electron?.invoke('shell:openExternal', url).catch(console.warn)
+}
 
 export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactElement | null {
   if (!props.isOpen) return null
@@ -24,6 +28,13 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
     maskApiKey,
     selectedPreset,
     selectedGateway,
+    activeTab,
+    setActiveTab,
+    connectionMode,
+    directProvider,
+    filteredModels,
+    switchConnectionMode,
+    selectDirectProvider,
   } = useConfigForm(props)
 
   return (
@@ -47,202 +58,419 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
           </button>
         </div>
 
+        {/* Tab bar */}
+        <div className="px-6 pt-4">
+          <div className="flex gap-1 p-1 bg-background rounded-lg mb-1">
+            {(['theme', 'models', 'settings'] as ConfigTab[]).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md capitalize transition-all
+                  ${activeTab === tab ? 'bg-primary text-white shadow-sm' : 'text-muted hover:text-text'}`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-7">
 
-          {/* ── AI Gateway ─────────────────────────────────── */}
-          <section>
-            <SectionHeader
-              title="AI Gateway"
-              subtitle="Route agent calls through your own infrastructure"
-            />
+          {/* ── Theme tab ─────────────────────────────────── */}
+          {activeTab === 'theme' && (
+            <section>
+              <SectionHeader title="Theme" subtitle="Choose your visual style" />
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                {THEME_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => selectTheme(opt.value)}
+                    className={`flex flex-col items-center gap-2 px-3 py-3 rounded-lg border transition-all ${
+                      values.theme === opt.value
+                        ? 'border-primary bg-primary/8 ring-1 ring-primary/25'
+                        : 'border-border hover:border-primary/30'
+                    }`}
+                  >
+                    <ThemePreview theme={opt.value} active={values.theme === opt.value} />
+                    <div className="text-center">
+                      <span className="text-xs font-medium text-text">{opt.label}</span>
+                      <p className="text-[10px] text-muted">{opt.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
-            <div className="mt-2.5 px-3 py-2.5 bg-primary/5 border border-primary/10 rounded-lg">
-              <p className="text-xs text-text/80 leading-relaxed">
-                CSlate&apos;s agent runs on <span className="font-semibold text-text">your</span> infrastructure with <span className="font-semibold text-text">your</span> API key.
-                Pick a gateway for caching, logging, and cost control — or go direct.
-              </p>
-            </div>
+          {/* ── Models tab ────────────────────────────────── */}
+          {activeTab === 'models' && (
+            <>
+              {/* Connection mode toggle */}
+              <div className="flex gap-0.5 p-0.5 bg-background rounded-lg border border-border mb-4">
+                <button
+                  onClick={() => switchConnectionMode('gateway')}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all
+                    ${connectionMode === 'gateway' ? 'bg-surface text-text shadow-sm border border-border' : 'text-muted hover:text-text'}`}
+                >
+                  Via Gateway
+                </button>
+                <button
+                  onClick={() => switchConnectionMode('direct')}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all
+                    ${connectionMode === 'direct' ? 'bg-surface text-text shadow-sm border border-border' : 'text-muted hover:text-text'}`}
+                >
+                  Direct API
+                </button>
+              </div>
 
-            <div className="grid grid-cols-1 gap-1.5 mt-3">
-              {GATEWAY_OPTIONS.map(gw => (
-                <GatewayCard
-                  key={gw.id}
-                  gateway={gw}
-                  selected={values.gatewayMode === gw.id}
-                  onSelect={() => selectGateway(gw.id)}
-                />
-              ))}
-            </div>
+              {/* ── Via Gateway content ── */}
+              {connectionMode === 'gateway' && (
+                <>
+                  <section>
+                    <SectionHeader
+                      title="AI Gateway"
+                      subtitle="Route agent calls through your own infrastructure"
+                    />
 
-            {/* Gateway URL + docs (only when not direct) */}
-            {values.gatewayMode !== 'direct' && selectedGateway && (
-              <div className="mt-3 space-y-2">
-                <label className="block text-xs font-medium text-muted">Gateway URL</label>
+                    <div className="mt-2.5 px-3 py-2.5 bg-primary/5 border border-primary/10 rounded-lg">
+                      <p className="text-xs text-text/80 leading-relaxed">
+                        CSlate&apos;s agent runs on <span className="font-semibold text-text">your</span> infrastructure with <span className="font-semibold text-text">your</span> API key.
+                        Pick a gateway for caching, logging, and cost control.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-1.5 mt-3">
+                      {GATEWAY_OPTIONS.map(gw => (
+                        <GatewayCard
+                          key={gw.id}
+                          gateway={gw}
+                          selected={values.gatewayMode === gw.id}
+                          onSelect={() => selectGateway(gw.id)}
+                        />
+                      ))}
+                    </div>
+
+                    {selectedGateway && (
+                      <div className="mt-3 space-y-2">
+                        <label className="block text-xs font-medium text-muted">Gateway URL</label>
+                        <input
+                          type="text"
+                          value={values.gatewayUrl}
+                          onChange={e => updateField('gatewayUrl', e.target.value)}
+                          placeholder={selectedGateway.defaultUrl || 'https://...'}
+                          className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
+                        />
+                        <div className="flex items-center gap-3">
+                          {selectedGateway.docsUrl && (
+                            <button
+                              onClick={() => openExternal(selectedGateway.docsUrl)}
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                              <LinkIcon /> Docs
+                            </button>
+                          )}
+                          {selectedGateway.signupUrl && (
+                            <button
+                              onClick={() => openExternal(selectedGateway.signupUrl)}
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                              <LinkIcon /> Sign up
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted/50">{selectedGateway.setupHint}</p>
+                      </div>
+                    )}
+                  </section>
+
+                  {/* API Key */}
+                  <section>
+                    <SectionHeader
+                      title="API Key"
+                      subtitle="Your gateway key — billed to your account, never leaves your machine"
+                    />
+                    <div className="mt-3 relative">
+                      <input
+                        type={showApiKey ? 'text' : 'password'}
+                        value={showApiKey ? values.llmApiKey : maskApiKey(values.llmApiKey)}
+                        onChange={e => updateField('llmApiKey', e.target.value)}
+                        onFocus={() => setShowApiKey(true)}
+                        placeholder="sk-..."
+                        className="w-full px-3 py-2.5 pr-10 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
+                      />
+                      <button
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-text transition-colors"
+                        title={showApiKey ? 'Hide' : 'Reveal'}
+                      >
+                        {showApiKey ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-muted/50 mt-1.5">
+                      Encrypted via OS keychain. All calls run from your machine — CSlate never sees your key.
+                    </p>
+                  </section>
+
+                  {/* Model presets — all 7 */}
+                  <section>
+                    <SectionHeader
+                      title="AI Model"
+                      subtitle="Choose the LLM that powers your CSlate agent"
+                    />
+                    <div className="grid grid-cols-1 gap-1.5 mt-3">
+                      {filteredModels.map(preset => (
+                        <button
+                          key={preset.id}
+                          onClick={() => selectModel(preset.id)}
+                          className={`
+                            flex items-center justify-between px-3 py-2.5 rounded-lg border text-left transition-all
+                            ${values.llmModel === preset.id && !useCustomModel
+                              ? 'border-primary bg-primary/8 ring-1 ring-primary/25'
+                              : 'border-border hover:border-primary/30 hover:bg-background/50'
+                            }
+                          `}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-text">{preset.label}</span>
+                              <TierBadge tier={preset.tier} />
+                            </div>
+                            <p className="text-xs text-muted mt-0.5 truncate">
+                              {preset.provider} — {preset.description}
+                            </p>
+                          </div>
+                          {values.llmModel === preset.id && !useCustomModel && <CheckIcon />}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom model input */}
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={customModel}
+                        onChange={e => setCustomModel(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && applyCustomModel()}
+                        placeholder="or type provider/model (e.g. deepseek/deepseek-r1)"
+                        className={`flex-1 px-3 py-2 text-sm bg-background border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 ${useCustomModel ? 'border-primary ring-1 ring-primary/25' : 'border-border'}`}
+                      />
+                      <button
+                        onClick={applyCustomModel}
+                        disabled={!customModel.trim() || !customModel.includes('/')}
+                        className="px-3 py-2 text-sm font-medium rounded-lg bg-background border border-border text-muted hover:text-text hover:border-primary/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Use
+                      </button>
+                    </div>
+                    {useCustomModel && (
+                      <p className="text-xs text-primary mt-1.5">Using custom model: <span className="font-mono">{values.llmModel}</span></p>
+                    )}
+
+                    <div className="mt-2">
+                      <button
+                        onClick={() => openExternal('https://openrouter.ai/models')}
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        <LinkIcon /> Browse all models
+                      </button>
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {/* ── Direct API content ── */}
+              {connectionMode === 'direct' && (
+                <>
+                  {/* Provider selector */}
+                  <section>
+                    <SectionHeader
+                      title="Provider"
+                      subtitle="Connect directly to your chosen AI provider"
+                    />
+                    <div className="grid grid-cols-4 gap-1.5 mt-3">
+                      {DIRECT_PROVIDER_OPTIONS.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => selectDirectProvider(p.id)}
+                          className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg border text-center transition-all
+                            ${directProvider === p.id
+                              ? 'border-primary bg-primary/8 ring-1 ring-primary/25'
+                              : 'border-border hover:border-primary/30 hover:bg-background/50'
+                            }`}
+                        >
+                          <span className="text-sm font-medium text-text">{p.label}</span>
+                          <span className="text-[10px] text-muted leading-tight">{p.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* API Key (hidden for Local) */}
+                  {directProvider !== 'local' && (
+                    <section>
+                      <SectionHeader
+                        title="API Key"
+                        subtitle="Your provider key — billed to your account, never leaves your machine"
+                      />
+                      <div className="mt-3 relative">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={showApiKey ? values.llmApiKey : maskApiKey(values.llmApiKey)}
+                          onChange={e => updateField('llmApiKey', e.target.value)}
+                          onFocus={() => setShowApiKey(true)}
+                          placeholder="sk-..."
+                          className="w-full px-3 py-2.5 pr-10 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
+                        />
+                        <button
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-text transition-colors"
+                          title={showApiKey ? 'Hide' : 'Reveal'}
+                        >
+                          {showApiKey ? <EyeOffIcon /> : <EyeIcon />}
+                        </button>
+                      </div>
+                      {(() => {
+                        const providerOpt = DIRECT_PROVIDER_OPTIONS.find(p => p.id === directProvider)
+                        return providerOpt?.keyUrl ? (
+                          <p className="text-xs mt-2.5">
+                            <span className="text-muted">Need a key? </span>
+                            <button
+                              onClick={() => openExternal(providerOpt.keyUrl)}
+                              className="text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              Get your {providerOpt.label} API key <ArrowIcon />
+                            </button>
+                          </p>
+                        ) : null
+                      })()}
+                      <p className="text-[11px] text-muted/50 mt-1.5">
+                        Encrypted via OS keychain. All calls run from your machine — CSlate never sees your key.
+                      </p>
+                    </section>
+                  )}
+
+                  {/* Model presets or custom-only for Local */}
+                  <section>
+                    <SectionHeader
+                      title="AI Model"
+                      subtitle="Choose the LLM that powers your CSlate agent"
+                    />
+
+                    {directProvider === 'local' ? (
+                      <div className="mt-3">
+                        <p className="text-xs text-muted mb-2">
+                          Ollama models vary per installation. Enter your model name below.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={customModel}
+                            onChange={e => setCustomModel(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && applyCustomModel()}
+                            placeholder="e.g. llama3, mistral"
+                            className={`flex-1 px-3 py-2 text-sm bg-background border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 ${useCustomModel ? 'border-primary ring-1 ring-primary/25' : 'border-border'}`}
+                          />
+                          <button
+                            onClick={applyCustomModel}
+                            disabled={!customModel.trim() || !customModel.includes('/')}
+                            className="px-3 py-2 text-sm font-medium rounded-lg bg-background border border-border text-muted hover:text-text hover:border-primary/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Use
+                          </button>
+                        </div>
+                        {useCustomModel && (
+                          <p className="text-xs text-primary mt-1.5">Using custom model: <span className="font-mono">{values.llmModel}</span></p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 gap-1.5 mt-3">
+                          {filteredModels.map(preset => (
+                            <button
+                              key={preset.id}
+                              onClick={() => selectModel(preset.id)}
+                              className={`
+                                flex items-center justify-between px-3 py-2.5 rounded-lg border text-left transition-all
+                                ${values.llmModel === preset.id && !useCustomModel
+                                  ? 'border-primary bg-primary/8 ring-1 ring-primary/25'
+                                  : 'border-border hover:border-primary/30 hover:bg-background/50'
+                                }
+                              `}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-text">{preset.label}</span>
+                                  <TierBadge tier={preset.tier} />
+                                </div>
+                                <p className="text-xs text-muted mt-0.5 truncate">
+                                  {preset.provider} — {preset.description}
+                                </p>
+                              </div>
+                              {values.llmModel === preset.id && !useCustomModel && <CheckIcon />}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Custom model input */}
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={customModel}
+                            onChange={e => setCustomModel(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && applyCustomModel()}
+                            placeholder="or type provider/model (e.g. deepseek/deepseek-r1)"
+                            className={`flex-1 px-3 py-2 text-sm bg-background border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 ${useCustomModel ? 'border-primary ring-1 ring-primary/25' : 'border-border'}`}
+                          />
+                          <button
+                            onClick={applyCustomModel}
+                            disabled={!customModel.trim() || !customModel.includes('/')}
+                            className="px-3 py-2 text-sm font-medium rounded-lg bg-background border border-border text-muted hover:text-text hover:border-primary/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Use
+                          </button>
+                        </div>
+                        {useCustomModel && (
+                          <p className="text-xs text-primary mt-1.5">Using custom model: <span className="font-mono">{values.llmModel}</span></p>
+                        )}
+
+                        {selectedPreset && !useCustomModel && (
+                          <p className="text-xs mt-2.5">
+                            <span className="text-muted">Need a key? </span>
+                            <button
+                              onClick={() => openExternal(selectedPreset.keyUrl)}
+                              className="text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              Get your {selectedPreset.provider} API key <ArrowIcon />
+                            </button>
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </section>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── Settings tab ──────────────────────────────── */}
+          {activeTab === 'settings' && (
+            <section>
+              <SectionHeader title="Community Server" subtitle="Connect to CSlate's component library" />
+              <div className="mt-3">
                 <input
                   type="text"
-                  value={values.gatewayUrl}
-                  onChange={e => updateField('gatewayUrl', e.target.value)}
-                  placeholder={selectedGateway.defaultUrl || 'https://...'}
+                  value={values.serverUrl}
+                  onChange={e => updateField('serverUrl', e.target.value)}
+                  placeholder="https://api.cslate.app"
                   className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
                 />
-                <div className="flex items-center gap-3">
-                  {selectedGateway.docsUrl && (
-                    <a href={selectedGateway.docsUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
-                      <LinkIcon /> Docs
-                    </a>
-                  )}
-                  {selectedGateway.signupUrl && (
-                    <a href={selectedGateway.signupUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
-                      <LinkIcon /> Sign up
-                    </a>
-                  )}
-                </div>
-                <p className="text-[11px] text-muted/50">{selectedGateway.setupHint}</p>
+                <p className="text-[11px] text-muted/50 mt-1.5">
+                  For searching community blueprints and uploading components.
+                </p>
               </div>
-            )}
-          </section>
-
-          {/* ── AI Model ───────────────────────────────────── */}
-          <section>
-            <SectionHeader
-              title="AI Model"
-              subtitle="Choose the LLM that powers your CSlate agent"
-            />
-
-            <div className="grid grid-cols-1 gap-1.5 mt-3">
-              {MODEL_PRESETS.map(preset => (
-                <button
-                  key={preset.id}
-                  onClick={() => selectModel(preset.id)}
-                  className={`
-                    flex items-center justify-between px-3 py-2.5 rounded-lg border text-left transition-all
-                    ${values.llmModel === preset.id && !useCustomModel
-                      ? 'border-primary bg-primary/8 ring-1 ring-primary/25'
-                      : 'border-border hover:border-primary/30 hover:bg-background/50'
-                    }
-                  `}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-text">{preset.label}</span>
-                      <TierBadge tier={preset.tier} />
-                    </div>
-                    <p className="text-xs text-muted mt-0.5 truncate">
-                      {preset.provider} — {preset.description}
-                    </p>
-                  </div>
-                  {values.llmModel === preset.id && !useCustomModel && <CheckIcon />}
-                </button>
-              ))}
-            </div>
-
-            {/* Custom model input */}
-            <div className="mt-3 flex items-center gap-2">
-              <input
-                type="text"
-                value={customModel}
-                onChange={e => setCustomModel(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && applyCustomModel()}
-                placeholder="or type provider/model (e.g. deepseek/deepseek-r1)"
-                className={`flex-1 px-3 py-2 text-sm bg-background border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 ${useCustomModel ? 'border-primary ring-1 ring-primary/25' : 'border-border'}`}
-              />
-              <button
-                onClick={applyCustomModel}
-                disabled={!customModel.trim() || !customModel.includes('/')}
-                className="px-3 py-2 text-sm font-medium rounded-lg bg-background border border-border text-muted hover:text-text hover:border-primary/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                Use
-              </button>
-            </div>
-            {useCustomModel && (
-              <p className="text-xs text-primary mt-1.5">Using custom model: <span className="font-mono">{values.llmModel}</span></p>
-            )}
-          </section>
-
-          {/* ── API Key ────────────────────────────────────── */}
-          <section>
-            <SectionHeader
-              title="API Key"
-              subtitle="Your provider key — billed to your account, never leaves your machine"
-            />
-            <div className="mt-3 relative">
-              <input
-                type={showApiKey ? 'text' : 'password'}
-                value={showApiKey ? values.llmApiKey : maskApiKey(values.llmApiKey)}
-                onChange={e => updateField('llmApiKey', e.target.value)}
-                onFocus={() => setShowApiKey(true)}
-                placeholder="sk-..."
-                className="w-full px-3 py-2.5 pr-10 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
-              />
-              <button
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-text transition-colors"
-                title={showApiKey ? 'Hide' : 'Reveal'}
-              >
-                {showApiKey ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
-            </div>
-
-            {selectedPreset && (
-              <p className="text-xs mt-2.5">
-                <span className="text-muted">Need a key? </span>
-                <a
-                  href={selectedPreset.keyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Get your {selectedPreset.provider} API key <ArrowIcon />
-                </a>
-              </p>
-            )}
-
-            <p className="text-[11px] text-muted/50 mt-1.5">
-              Encrypted via OS keychain. All calls run from your machine — CSlate never sees your key.
-            </p>
-          </section>
-
-          {/* ── Theme ──────────────────────────────────────── */}
-          <section>
-            <SectionHeader title="Theme" subtitle="Choose your visual style" />
-            <div className="grid grid-cols-3 gap-2 mt-3">
-              {THEME_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => selectTheme(opt.value)}
-                  className={`flex flex-col items-center gap-2 px-3 py-3 rounded-lg border transition-all ${
-                    values.theme === opt.value
-                      ? 'border-primary bg-primary/8 ring-1 ring-primary/25'
-                      : 'border-border hover:border-primary/30'
-                  }`}
-                >
-                  <ThemePreview theme={opt.value} active={values.theme === opt.value} />
-                  <div className="text-center">
-                    <span className="text-xs font-medium text-text">{opt.label}</span>
-                    <p className="text-[10px] text-muted">{opt.description}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {/* ── Community Server ───────────────────────────── */}
-          <section>
-            <SectionHeader title="Community Server" subtitle="Connect to CSlate's component library" />
-            <div className="mt-3">
-              <input
-                type="text"
-                value={values.serverUrl}
-                onChange={e => updateField('serverUrl', e.target.value)}
-                placeholder="https://api.cslate.app"
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
-              />
-              <p className="text-[11px] text-muted/50 mt-1.5">
-                For searching community blueprints and uploading components.
-              </p>
-            </div>
-          </section>
+            </section>
+          )}
         </div>
 
         {/* Footer */}

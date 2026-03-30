@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback, Component } from 'react'
 import type { ReactNode } from 'react'
 import { useAppStore } from './store/appStore'
-import { ApiKeySetup } from './settings/ApiKeySetup'
 import { AppLayout } from './layout/AppLayout'
 import CSlateConfigPanel from './components/cslate-config-panel/ui'
 import type { ConfigValues, Theme, GatewayMode } from './components/cslate-config-panel/types'
@@ -39,8 +38,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNod
 
 /* ── App ─────────────────────────────────────────────────── */
 export default function App() {
-  const { apiKeySet, setApiKeySet } = useAppStore()
-  const [configOpen, setConfigOpen] = useState(false)
+  const { configOpen, configFocusTab, openConfig, closeConfig } = useAppStore()
   const [config, setConfig] = useState({
     llmModel: 'anthropic/claude-sonnet-4.6',
     llmApiKey: '',
@@ -72,7 +70,6 @@ export default function App() {
           if (serverUrl) next.serverUrl = serverUrl as string
           return next
         })
-        if (llmApiKey) setApiKeySet(true)
         if (theme && theme !== 'dark') {
           document.documentElement.setAttribute('data-theme', theme as string)
         }
@@ -81,14 +78,12 @@ export default function App() {
       }
     }
     loadConfig()
-  }, [setApiKeySet])
+  }, [])
 
   const handleOutput = useCallback((key: keyof ConfigValues, value: string) => {
     if (!window.electron) return
     window.electron.invoke('config:set', { key, value }).catch(console.warn)
     setConfig(prev => ({ ...prev, [key]: value }))
-
-    if (key === 'llmApiKey' && value) setApiKeySet(true)
 
     if (key === 'theme') {
       if (value === 'dark') {
@@ -97,31 +92,30 @@ export default function App() {
         document.documentElement.setAttribute('data-theme', value)
       }
     }
-  }, [setApiKeySet])
+  }, [])
 
   const handleEvent = useCallback((event: string) => {
-    if (event === 'config:closed') setConfigOpen(false)
-  }, [])
+    if (event === 'config:closed') closeConfig()
+  }, [closeConfig])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault()
-        setConfigOpen(prev => !prev)
+        configOpen ? closeConfig() : openConfig()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-
-  if (!apiKeySet) return <ApiKeySetup onComplete={() => setApiKeySet(true)} />
+  }, [configOpen, openConfig, closeConfig])
 
   return (
     <ErrorBoundary>
-      <AppLayout />
+      <AppLayout onOpenConfig={() => openConfig()} />
       <ErrorBoundary>
         <CSlateConfigPanel
           isOpen={configOpen}
+          focusTab={configFocusTab}
           llmModel={config.llmModel}
           llmApiKey={config.llmApiKey}
           gatewayUrl={config.gatewayUrl}
