@@ -25,7 +25,7 @@ vi.mock('electron', () => ({
 // Mock CSlateServerClient
 const mockSearch = vi.fn()
 const mockPublish = vi.fn()
-vi.mock('../server/CSlateServerClient', () => ({
+vi.mock('../../server/CSlateServerClient', () => ({
   CSlateServerClient: class {
     constructor(public serverUrl: string, public apiKey: string) {}
     search = mockSearch
@@ -38,8 +38,8 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-const { register } = await import('./server')
-const { setConfigValue } = await import('./config')
+const { register } = await import('../server')
+const { setConfigValue } = await import('../config')
 
 function createMockIpcMain(): IpcMain {
   const handlers = new Map<string, Function>()

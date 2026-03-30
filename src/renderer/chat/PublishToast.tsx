@@ -41,8 +41,8 @@ export function PublishToast() {
 
   if (publishState === 'published') {
     return (
-      <div className="mx-3 mb-2 p-3 bg-green-500/10 border border-green-500/30 rounded-md">
-        <div className="flex items-center gap-2 text-sm text-green-600">
+      <div className="mx-3 mb-2 p-3 bg-success/10 border border-success/30 rounded-md">
+        <div className="flex items-center gap-2 text-sm text-success">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
