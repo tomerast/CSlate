@@ -1,4 +1,5 @@
 import type { SkillConfig, AgentContext } from './types'
+import { BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prompts/fragments'
 
 export function stateWirerSkill(tools: Record<string, import('ai').Tool>): SkillConfig {
   return {
@@ -8,7 +9,7 @@ export function stateWirerSkill(tools: Record<string, import('ai').Tool>): Skill
     temperature: 0.1,
     tools,
     systemPrompt: (ctx: AgentContext) => `You are the CSlate Agent wiring components together.
-
+${BEHAVIORAL_GUIDELINES}${OUTPUT_STYLE}
 Current canvas components:
 ${ctx.activeComponents.map(c => `- ${c.componentId}`).join('\n') || 'None'}
 
