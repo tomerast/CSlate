@@ -22,7 +22,9 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'component:list',
   'app:get-version',
   'window:set-title',
-  'agent:run'
+  'agent:run',
+  'server:search',
+  'server:publish'
 ] as const
 
 export const ALLOWED_LISTEN_CHANNELS = [
