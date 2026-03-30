@@ -2,8 +2,11 @@ import type { IpcMain, WebContents } from 'electron'
 import { AgentEngine } from './engine'
 import { getConfigValue } from '../ipc/config'
 import type { LLMConfig } from './providers'
+import { agentLog, logFile } from '../lib/logger'
 
 export function register(ipcMain: IpcMain): void {
+  agentLog.info({ logFile }, 'agent IPC registered')
+
   ipcMain.handle('agent:run', async (event, {
     message,
     projectDir,
@@ -18,6 +21,9 @@ export function register(ipcMain: IpcMain): void {
     targetComponentId?: string
   }) => {
     const sender: WebContents = event.sender
+    const log = agentLog.child({ tabId })
+
+    log.info({ message, historyLength: conversationHistory.length }, 'agent:run received')
 
     // Load LLM config from secure storage
     const gatewayUrl = (getConfigValue('gatewayUrl') as string) ?? ''
@@ -61,8 +67,11 @@ export function register(ipcMain: IpcMain): void {
       }
     }
 
+    log.debug({ provider, model, baseUrl: baseUrl ?? '(direct)', hasApiKey: !!apiKey }, 'config resolved')
+
     const isLocal = provider === 'local'
     if (!apiKey && !isLocal) {
+      log.warn({ provider, model }, 'no API key configured')
       sender.send('agent:error', {
         message: 'No API key configured. Open Settings (⌘,) to set up your provider.',
         code: 'UNCONFIGURED_LLM'
@@ -79,6 +88,7 @@ export function register(ipcMain: IpcMain): void {
       tabId,
     })
 
+    log.debug('engine created, starting stream')
     try {
       for await (const part of engine.stream({ message, conversationHistory, targetComponentId })) {
         const p = part as Record<string, unknown>
@@ -87,20 +97,25 @@ export function register(ipcMain: IpcMain): void {
             sender.send('agent:token', { delta: p['text'] })
             break
           case 'tool-call':
+            log.debug({ tool: p['toolName'], input: p['input'] }, 'tool-call')
             sender.send('agent:tool-call', { tool: p['toolName'], input: p['input'] })
             break
           case 'tool-result':
+            log.debug({ tool: p['toolName'] }, 'tool-result')
             sender.send('agent:tool-result', { tool: p['toolName'], result: p['result'] })
             break
           case 'finish':
+            log.info({ usage: (p['response'] as any)?.usage }, 'stream finished')
             sender.send('agent:done', { usage: (p['response'] as any)?.usage ?? {} })
             break
           case 'error':
+            log.error({ err: p['error'] }, 'stream error part')
             sender.send('agent:error', { message: String((p['error'] as Error)?.message ?? p['error']) })
             break
         }
       }
     } catch (err: unknown) {
+      log.error({ err }, 'agent:run threw')
       sender.send('agent:error', { message: err instanceof Error ? err.message : String(err) })
     }
 

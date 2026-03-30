@@ -2,6 +2,7 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import type { LLMConfig } from './providers'
 import { fastModelId } from './providers'
+import { intentLog } from '../lib/logger'
 
 export const SkillNameSchema = z.enum([
   'component-builder',
@@ -17,7 +18,7 @@ export type SkillName = z.infer<typeof SkillNameSchema>
 
 export const IntentSchema = z.object({
   skill: SkillNameSchema,
-  targetComponentId: z.string().nullable(),
+  targetComponentId: z.string().nullable().optional(),
   summary: z.string(),
   isMultiTurn: z.boolean(),
 })
@@ -44,11 +45,17 @@ export async function parseIntent(
   config: LLMConfig,
   registry: ReturnType<typeof import('./providers').buildRegistry>
 ): Promise<Intent> {
+  const modelId = fastModelId(config)
+  intentLog.debug({ modelId, message }, 'parseIntent start')
+  const t0 = Date.now()
+
   const { object } = await generateObject({
-    model: (registry as { languageModel: (id: string) => any }).languageModel(fastModelId(config)),
+    model: (registry as { languageModel: (id: string) => any }).languageModel(modelId),
     system: INTENT_SYSTEM,
     prompt: message,
     schema: IntentSchema,
   })
+
+  intentLog.debug({ modelId, durationMs: Date.now() - t0, skill: object.skill, targetComponentId: object.targetComponentId }, 'parseIntent done')
   return object
 }

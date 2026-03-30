@@ -12,6 +12,7 @@ import { createReadManifestTool } from './tools/readManifest'
 import { createReadProjectContextTool } from './tools/readProjectContext'
 import { createSearchBlueprintsTool } from './tools/searchBlueprints'
 import { CSlateServerClient } from '../server/CSlateServerClient'
+import { engineLog } from '../lib/logger'
 
 export interface EngineOptions {
   serverUrl: string
@@ -38,12 +39,17 @@ export class AgentEngine {
   }
 
   async *stream(input: RunInput): AsyncGenerator<unknown> {
+    const log = engineLog.child({ tabId: this.options.tabId })
+
     // 1. Parse intent
+    log.debug({ message: input.message }, 'parsing intent')
     const intent = await parseIntent(input.message, this.config, this.registry)
+    log.info({ skill: intent.skill, targetComponentId: intent.targetComponentId, summary: intent.summary }, 'intent parsed')
 
     // 2. Load context
     const memory = await readMemory(this.projectDir)
     const activeComponents = await this.loadActiveComponents()
+    log.debug({ activeComponentCount: activeComponents.length }, 'context loaded')
 
     const ctx: AgentContext = {
       projectDir: this.projectDir,
@@ -75,8 +81,11 @@ export class AgentEngine {
     const skill = skillRegistry[intent.skill]
 
     // 5. Stream
+    const modelId = mainModelId(this.config)
+    log.info({ modelId, skill: intent.skill, maxSteps: skill.maxSteps }, 'streamText starting')
+    const t0 = Date.now()
     const result = streamText({
-      model: reg.languageModel(mainModelId(this.config)),
+      model: reg.languageModel(modelId),
       system: skill.systemPrompt(ctx),
       messages: [
         ...input.conversationHistory,
@@ -88,12 +97,16 @@ export class AgentEngine {
       temperature: skill.temperature,
     })
 
+    let partCount = 0
     for await (const part of result.fullStream) {
+      if (partCount === 0) log.debug({ durationMs: Date.now() - t0 }, 'first token received')
+      partCount++
       yield part
     }
 
     // 6. Fire-and-forget memory write
     Promise.resolve(result.usage).then(usage => {
+      log.info({ durationMs: Date.now() - t0, totalTokens: usage?.totalTokens, partCount }, 'stream finished')
       this.writeSessionMemory(intent.summary, usage).catch(() => {/* non-critical */})
     }).catch(() => {/* non-critical */})
   }
