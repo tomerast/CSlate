@@ -49,7 +49,7 @@ CSlate is an AI-powered app building platform. It combines:
 - **AI:** User-configurable LLM provider (OpenAI, Anthropic, etc.)
   - CSlate provides agent skills, workflows, and logic
   - User provides their own LLM API configuration
-- **Database:** pgvector for semantic component search (to be validated)
+- **Database:** pgvector for semantic component search (confirmed — PostgreSQL + pgvector on Neon, see Decision 012)
 
 ## Key Differentiators
 

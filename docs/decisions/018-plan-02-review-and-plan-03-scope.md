@@ -37,13 +37,11 @@ After a runtime crash, `caught = true` persists in the `ErrorBoundary` instance 
 
 ### Security (real issues, low immediate exploitability since tools aren't wired yet)
 
-**4. `ReadFileTool` / `WriteFileTool` — no path restriction** (`src/main/agent/tools/ReadFileTool.ts:14-20`, `WriteFileTool.ts:16-23`)
-The LLM can instruct the agent to read or write any file on the system. Prompt injection in user input could exfiltrate secrets.
-**Fix:** Resolve path against `request.projectDir` and reject anything outside it. Tools are not yet invoked from skills, so this is safe for now but must be fixed before tools are enabled.
+**4. Agent filesystem tools — path restriction** ✅ Fixed
+`writeComponent.ts` and `readManifest.ts` in `src/main/agent/tools/` already resolve paths against `componentsRoot` and reject traversal. No separate ReadFileTool/WriteFileTool exists — the scope is component-scoped tools only.
 
-**5. `file:read` / `file:write` in preload allowlist with no handlers** (`src/preload/channels.ts:11-15`)
-These channels are advertised as callable but have no `ipcMain.handle()` registrations. Calls will silently hang.
-**Fix:** Either remove from `ALLOWED_INVOKE_CHANNELS` until handlers are implemented, or add scoped handlers.
+**5. `file:read` / `file:write` in preload allowlist** ✅ Fixed
+Handlers are registered in `src/main/ipc/file.ts` using `safePath()` for path restriction. Channels are correctly listed in `ALLOWED_INVOKE_CHANNELS`.
 
 ### Minor (code quality)
 
@@ -65,8 +63,8 @@ Same channel in two lists with no handler registered for either. Likely legacy s
 **A. `ComponentBlueprint` Zod schema in `@cslate/shared`**
 The shared type system needs a structured blueprint type: `id`, `title`, `description`, `tags`, `source` (JSX string), `dependencies` (list of npm packages the component uses), `manifest` (version, author). Both client and server will validate against this. Enables cataloging, search, and display.
 
-**B. `BlueprintSearchSkill` — real implementation**
-Hit the CSlate-Server `GET /api/components/search` endpoint with the user's natural-language description. Return the top 3 matches as context to `ComponentBuilderSkill`. The agent flow becomes: describe → search → generate (with blueprint as starting point or reference).
+**B. `component-search` skill — real implementation**
+Hit the CSlate-Server `GET /api/components/search` endpoint with the user's natural-language description. Return the top 3 matches as context to `component-builder` skill. The agent flow becomes: describe → search → generate (with blueprint as starting point or reference). Skill file: `src/main/agent/skills/component-search.ts`.
 
 **C. Server integration — `CSlate-Server` client**
 Thin HTTP client (`src/main/server/CSlateServerClient.ts`) that wraps the search, fetch-source, and publish endpoints. Handles auth token, base URL from config, error handling. Used by `BlueprintSearchSkill` and the future publish flow.
@@ -117,10 +115,8 @@ AgentRunner.run(request)
 | `src/shared/blueprintTypes.ts` | `ComponentBlueprint` Zod schema (create in Plan 03) |
 | `src/main/server/CSlateServerClient.ts` | HTTP client for CSlate-Server (create in Plan 03) |
 | `src/main/ipc/server.ts` | IPC handlers for `server:search`, `server:publish` (create in Plan 03) |
-| `src/main/agent/skills/BlueprintSearch.ts` | Replace stub with real implementation (Plan 03) |
+| `src/main/agent/skills/component-search.ts` | Replace stub with real `CSlateServerClient` calls (Plan 03) |
 | `src/renderer/chat/useChat.ts` | Fix double-message bug (Plan 03 — do first) |
-| `src/main/agent/skills/ComponentBuilder.ts` | Fix markdown fence stripping (Plan 03 — do first) |
+| `src/main/agent/skills/component-builder.ts` | Fix markdown fence stripping (Plan 03 — do first) |
 | `src/renderer/sandbox/DynamicComponent.tsx` | Fix ErrorBoundary reset (Plan 03 — do first) |
-| `src/main/agent/tools/ReadFileTool.ts` | Add path restriction before enabling tools (Plan 03) |
-| `src/main/agent/tools/WriteFileTool.ts` | Add path restriction before enabling tools (Plan 03) |
-| `src/preload/channels.ts` | Remove dangling `file:read`/`file:write` or add handlers (Plan 03) |
+| `src/preload/channels.ts` | Remove `bridge:fetch` from `ALLOWED_INVOKE_CHANNELS` (duplicate, no handler) |

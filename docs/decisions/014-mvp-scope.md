@@ -9,6 +9,8 @@ CSlate has a large design surface. To ship, we need a tight MVP scope that deliv
 
 ## v0.1: Inner MVP (Pre-v1)
 
+> **Status:** ✅ Implemented — Plans 01 (scaffolding), 02 (Electron core + agent UI), and 05 (agent engine with streaming, skills, and tools) are complete. Plan 03 (server integration) is in progress.
+
 Before v1, ship the smallest thing that demonstrates the core value: describe → generate → render → iterate.
 
 **v0.1 scope (macOS only):**

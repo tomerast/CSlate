@@ -9,6 +9,8 @@ CSlate needs a local AI agent that helps users build components via natural lang
 
 ## v0.1: Simplified Agent (Starting Point)
 
+> **Status:** v0.1 has been implemented (Plans 02 + 05). The `AgentEngine`, `SkillRegistry`, and `ToolRegistry` are live with `ComponentBuilderSkill` as the primary skill. Migration toward the full architecture below continues incrementally.
+
 The full orchestrator + skills + memory + workflows architecture is the **target**. For v0.1 (inner MVP), we start much simpler:
 
 **v0.1 agent = a single LLM call with a carefully crafted system prompt.**
@@ -288,7 +290,7 @@ Users can customize their agent while the core identity is preserved:
 interface LLMConfig {
   provider: 'openai' | 'anthropic' | 'google' | 'local' | 'custom';
   apiKey?: string;              // Stored securely in OS keychain
-  model: string;                // e.g., 'gpt-4o', 'claude-sonnet-4-5-20250514', 'gemini-pro'
+  model: string;                // e.g., 'gpt-4o', 'claude-sonnet-4-6', 'gemini-pro'
   baseUrl?: string;             // For custom/local providers
   maxTokens?: number;
   temperature?: number;

@@ -32,7 +32,7 @@ When users place components on the Slate, we need a strategy for how components 
 
 - Non-technical users (our primary audience) think in terms of "put this here, put that there" — a grid makes that intuitive
 - Dense grid allows fine-grained control while maintaining structure
-- Components automatically produce responsive, real-world layouts
+- Components produce structured, real-world layouts (responsive breakpoints deferred to v2 — see Decision 017/C3)
 - Simpler to implement and extend
 - The AI can reason about grid placement more reliably than free-form coordinates
 

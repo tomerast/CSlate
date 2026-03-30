@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-28
 **Version:** 1.1 (Post Critical Review)
-**Status:** Draft — Critical Review Applied
+**Status:** Active — Plans 01/02/05 complete, Plan 03 (server integration) in progress
 **Scope:** MVP (v1)
 
 ---
@@ -11,7 +11,7 @@
 
 ### 1.1 What CSlate Is
 
-CSlate is an AI-powered desktop app building platform. Non-technical users describe components in natural language, an AI agent generates live React components, renders them on a canvas ("Slate"), and iterates based on user feedback. Accepted components are automatically shared to a community library, creating a self-improving ecosystem where every user's work benefits future users.
+CSlate is an AI-powered desktop app building platform. Non-technical users describe components in natural language, an AI agent generates live React components, renders them on a canvas ("Slate"), and iterates based on user feedback. Users are nudged to share accepted components to a community library (opt-in, never default-on — see Decision 015), creating a self-improving ecosystem where every user's work benefits future users.
 
 ### 1.2 Core Loop
 
