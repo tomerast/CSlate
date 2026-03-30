@@ -7,7 +7,6 @@ export const ALLOWED_SEND_CHANNELS = [
 ] as const
 
 export const ALLOWED_INVOKE_CHANNELS = [
-  'bridge:fetch',
   'config:get',
   'config:set',
   'file:read',

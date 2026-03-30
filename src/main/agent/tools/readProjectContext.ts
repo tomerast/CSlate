@@ -2,7 +2,7 @@ import type { Tool } from 'ai'
 import { z } from 'zod'
 import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { readdirSync } from 'fs'
 
 type ReadContextInput = { includeSourceSummaries: boolean }
@@ -21,7 +21,7 @@ export function createReadProjectContextTool(projectDir: string): Tool<ReadConte
         appManifest = JSON.parse(await readFile(appManifestPath, 'utf-8')) as Record<string, unknown>
       }
 
-      const componentsDir = join(projectDir, 'components')
+      const componentsDir = resolve(projectDir, 'components')
       const components: Record<string, unknown>[] = []
       if (existsSync(componentsDir)) {
         const dirs = readdirSync(componentsDir, { withFileTypes: true })
@@ -29,12 +29,17 @@ export function createReadProjectContextTool(projectDir: string): Tool<ReadConte
           .map(d => d.name)
 
         for (const name of dirs) {
-          const manifestPath = join(componentsDir, name, 'manifest.json')
+          const componentDir = resolve(componentsDir, name)
+          // Path traversal protection
+          if (!componentDir.startsWith(componentsDir + '/')) {
+            continue
+          }
+          const manifestPath = join(componentDir, 'manifest.json')
           if (!existsSync(manifestPath)) continue
           const manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as unknown
           const entry: Record<string, unknown> = { componentId: name, manifest }
           if (input.includeSourceSummaries) {
-            const contextPath = join(componentsDir, name, 'context.md')
+            const contextPath = join(componentDir, 'context.md')
             if (existsSync(contextPath)) {
               entry.context = await readFile(contextPath, 'utf-8')
             }
