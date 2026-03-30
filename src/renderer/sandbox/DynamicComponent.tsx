@@ -76,5 +76,3 @@ export function DynamicComponent({ code }: Props) {
     </ErrorBoundary>
   )
 }
-
-export default DynamicComponent

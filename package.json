@@ -43,11 +43,16 @@
     "vitest": "^1.6.1"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.64",
+    "@ai-sdk/google": "^3.0.53",
+    "@ai-sdk/openai": "^3.0.48",
     "@anthropic-ai/sdk": "^0.80.0",
     "@babel/standalone": "^7.29.2",
     "@cslate/shared": "github:tomerast/CSlate-shared",
     "@electron-toolkit/utils": "^3.0.0",
+    "ai": "^6.0.141",
     "electron-store": "^8.2.0",
+    "ollama-ai-provider": "^1.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.7"

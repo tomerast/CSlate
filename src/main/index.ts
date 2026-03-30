@@ -4,7 +4,7 @@ import { register as registerConfig } from './ipc/config'
 import { register as registerProject } from './ipc/project'
 import { register as registerFile } from './ipc/file'
 import { register as registerWindow } from './ipc/window'
-import { register as registerAgent } from './ipc/agent'
+import { register as registerAgent } from './agent/ipc'
 import { createWindow } from './windowManager'
 
 function installCSP(): void {

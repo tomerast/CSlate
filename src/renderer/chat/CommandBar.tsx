@@ -60,5 +60,3 @@ export function CommandBar({ onSubmit, onDismiss }: Props) {
     </div>
   )
 }
-
-export default CommandBar
