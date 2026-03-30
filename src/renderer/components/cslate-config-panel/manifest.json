@@ -1,0 +1,106 @@
+{
+  "name": "CSlate Config Panel",
+  "description": "System configuration panel for CSlate. Configures the LLM model routed through Vercel AI Gateway (BYOK), visual theme, and server connection. This is a protected system component — users cannot modify it through the AI chat.",
+  "tags": ["system", "config", "settings", "llm", "theme", "gateway"],
+  "inputs": {
+    "llmModel": {
+      "type": "string",
+      "description": "Current LLM model ID in gateway format (e.g. 'anthropic/claude-sonnet-4.6', 'minimax/minimax-m2.5')",
+      "required": false,
+      "default": "anthropic/claude-sonnet-4.6",
+      "stateKey": "config.llmModel"
+    },
+    "llmApiKey": {
+      "type": "string",
+      "description": "User's own LLM provider API key (BYOK). Stored encrypted via safeStorage. Displayed masked in UI.",
+      "required": false,
+      "stateKey": "config.llmApiKey"
+    },
+    "gatewayUrl": {
+      "type": "string",
+      "description": "Vercel AI Gateway URL. Defaults to hosted gateway.",
+      "required": false,
+      "default": "https://ai-gateway.vercel.sh",
+      "stateKey": "config.gatewayUrl"
+    },
+    "theme": {
+      "type": "string",
+      "description": "Active visual theme: 'dark', 'light', or 'midnight'",
+      "required": false,
+      "default": "dark",
+      "stateKey": "config.theme"
+    },
+    "serverUrl": {
+      "type": "string",
+      "description": "CSlate community server URL",
+      "required": false,
+      "default": "https://api.cslate.app",
+      "stateKey": "config.serverUrl"
+    },
+    "isOpen": {
+      "type": "boolean",
+      "description": "Whether the config panel is visible",
+      "required": false,
+      "default": false,
+      "stateKey": "config.isOpen"
+    }
+  },
+  "outputs": {
+    "llmModel": {
+      "type": "string",
+      "description": "Updated LLM model ID after save",
+      "stateKey": "config.llmModel"
+    },
+    "llmApiKey": {
+      "type": "string",
+      "description": "Updated LLM API key after save",
+      "stateKey": "config.llmApiKey"
+    },
+    "gatewayUrl": {
+      "type": "string",
+      "description": "Updated gateway URL after save",
+      "stateKey": "config.gatewayUrl"
+    },
+    "theme": {
+      "type": "string",
+      "description": "Updated theme after save — host applies data-theme attribute to document",
+      "stateKey": "config.theme"
+    },
+    "serverUrl": {
+      "type": "string",
+      "description": "Updated server URL after save",
+      "stateKey": "config.serverUrl"
+    }
+  },
+  "events": {
+    "config:saved": {
+      "description": "Fired when user saves configuration. Host should persist via config:set IPC.",
+      "payload": {
+        "changedKeys": { "type": "string[]", "description": "Keys that were modified" }
+      }
+    },
+    "config:closed": {
+      "description": "Fired when user closes the panel",
+      "payload": {}
+    }
+  },
+  "actions": {
+    "open": {
+      "description": "Open the config panel",
+      "params": {}
+    },
+    "close": {
+      "description": "Close the config panel",
+      "params": {}
+    }
+  },
+  "files": [
+    { "path": "ui.tsx", "type": "ui", "role": "Main config panel render — sections for AI model, theme, server" },
+    { "path": "logic.ts", "type": "logic", "role": "Config form state management, validation, and model preset data" },
+    { "path": "types.ts", "type": "types", "role": "TypeScript interfaces for config data and component props" },
+    { "path": "context.md", "type": "context", "role": "Build context and design rationale" },
+    { "path": "manifest.json", "type": "other", "role": "Component contract" }
+  ],
+  "defaultSize": { "width": 50, "height": 70 },
+  "minSize": { "width": 40, "height": 50 }
+}

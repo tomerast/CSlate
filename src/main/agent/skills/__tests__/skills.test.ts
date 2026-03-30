@@ -53,4 +53,5 @@ describe('buildSkillRegistry', () => {
     })
     expect(prompt).toContain('stock_ticker')
   })
+
 })

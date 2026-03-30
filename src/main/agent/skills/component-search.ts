@@ -1,4 +1,5 @@
 import type { SkillConfig, AgentContext } from './types'
+import { OUTPUT_STYLE } from '../prompts/fragments'
 
 export function componentSearchSkill(tools: Record<string, import('ai').Tool>): SkillConfig {
   return {
@@ -8,7 +9,7 @@ export function componentSearchSkill(tools: Record<string, import('ai').Tool>): 
     temperature: 0.3,
     tools,
     systemPrompt: (_ctx: AgentContext) => `You are the CSlate Agent helping the user find community components.
-
+${OUTPUT_STYLE}
 Call searchBlueprints with a clear, specific query. Show the user what you found — name, description, and what it does. If multiple results look relevant, list them all. Tell the user they can ask you to "use the X one" to build from that blueprint.`,
   }
 }

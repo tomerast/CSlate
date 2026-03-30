@@ -4,11 +4,14 @@ export interface ConfigStore {
   llmProvider: 'anthropic' | 'openai' | 'google' | 'local'
   llmModel: string
   llmBaseUrl?: string
+  gatewayUrl: string
+  gatewayMode: 'openrouter' | 'vercel' | 'cloudflare' | 'portkey' | 'helicone' | 'direct'
   serverUrl: string
   theme: 'dark' | 'light' | 'midnight'
   recentProjects: unknown[]
   _secure_llmApiKey?: string
   _secure_serverApiKey?: string
+  _secure_gatewayApiKey?: string
 }
 
 export interface WindowState {
@@ -23,7 +26,9 @@ export const configStore = new Store<ConfigStore>({
   name: 'config',
   defaults: {
     llmProvider: 'anthropic',
-    llmModel: 'claude-opus-4-6',
+    llmModel: 'anthropic/claude-sonnet-4.6',
+    gatewayUrl: 'https://openrouter.ai/api/v1',
+    gatewayMode: 'openrouter',
     serverUrl: 'https://api.cslate.app',
     theme: 'dark',
     recentProjects: [],

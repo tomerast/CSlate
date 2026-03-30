@@ -1,4 +1,5 @@
 import type { SkillConfig, AgentContext } from './types'
+import { BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prompts/fragments'
 
 export function manifestGeneratorSkill(tools: Record<string, import('ai').Tool>): SkillConfig {
   return {
@@ -8,7 +9,7 @@ export function manifestGeneratorSkill(tools: Record<string, import('ai').Tool>)
     temperature: 0.1,
     tools,
     systemPrompt: (_ctx: AgentContext) => `You are the CSlate Agent fixing or generating a component manifest.
-
+${BEHAVIORAL_GUIDELINES}${OUTPUT_STYLE}
 A manifest must accurately describe all props the component uses, all state keys it reads/writes, all events it emits, and all actions it responds to.
 
 Workflow:
