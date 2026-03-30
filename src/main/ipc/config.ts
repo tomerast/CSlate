@@ -29,5 +29,6 @@ export function setConfigValue(key: string, value: unknown): void {
 
 export function register(ipcMain: IpcMain): void {
   ipcMain.handle('config:get', (_event, key: string) => getConfigValue(key))
-  ipcMain.handle('config:set', (_event, key: string, value: unknown) => setConfigValue(key, value))
+  ipcMain.handle('config:set', (_event, args: { key: string; value: unknown }) =>
+    setConfigValue(args.key, args.value))
 }

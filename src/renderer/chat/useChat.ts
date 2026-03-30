@@ -1,21 +1,22 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
 import type { AgentRequest, AgentResponse } from '@shared/agentTypes'
 
 export function useChat() {
-  const { messages, addMessage, setStatus, setCurrentCode, setPanelOpen } = useChatStore()
-  const messagesRef = useRef(messages)
-  messagesRef.current = messages
+  const { addMessage, setStatus, setCurrentCode, setPanelOpen } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
+    // Capture history BEFORE adding user message to avoid double-sending
+    const history = useChatStore.getState().messages.slice(-6)
+    const currentCode = useChatStore.getState().currentCode ?? undefined
+
     addMessage({ role: 'user', content: text })
     setStatus('generating')
     setPanelOpen(true)
 
-    const currentCode = useChatStore.getState().currentCode ?? undefined
     const request: AgentRequest = {
       message: text,
-      history: messagesRef.current.slice(-6),
+      history,
       currentCode,
       sessionId: `session-${Date.now()}`
     }

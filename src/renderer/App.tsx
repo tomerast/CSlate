@@ -8,7 +8,7 @@ export default function App() {
 
   useEffect(() => {
     window.electron
-      .invoke('config:get', { key: 'anthropic:apiKey:encrypted' })
+      .invoke('config:get', 'llmApiKey')
       .then((val) => { if (val) setApiKeySet(true) })
       .catch(() => {})
   }, [setApiKeySet])

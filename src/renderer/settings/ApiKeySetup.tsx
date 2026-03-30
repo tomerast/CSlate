@@ -11,17 +11,14 @@ export function ApiKeySetup({ onComplete }: Props) {
 
   async function handleSave() {
     const trimmed = key.trim()
-    if (!trimmed.startsWith('sk-ant-')) {
-      setError('Must be a valid Anthropic API key (starts with sk-ant-)')
+    if (!trimmed) {
+      setError('API key is required')
       return
     }
     setError('')
     setSaving(true)
     try {
-      await window.electron.invoke('config:set', {
-        key: 'anthropic:apiKey:encrypted',
-        value: trimmed
-      })
+      await window.electron.invoke('config:set', { key: 'llmApiKey', value: trimmed })
       onComplete()
     } catch {
       setError('Failed to save key. Try again.')
@@ -35,14 +32,15 @@ export function ApiKeySetup({ onComplete }: Props) {
       <div className="bg-surface rounded-lg p-8 w-full max-w-md shadow-lg border border-border">
         <h1 className="text-2xl font-bold text-text mb-2">Welcome to CSlate</h1>
         <p className="text-muted text-sm mb-6">
-          Enter your Anthropic API key to start building with AI.
+          Enter your LLM API key to start building with AI.
+          This will be used with the Vercel AI Gateway.
         </p>
         <input
           type="password"
           value={key}
           onChange={(e) => setKey(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-          placeholder="sk-ant-api03-..."
+          placeholder="Your API key..."
           className="w-full bg-background text-text border border-border rounded-md px-4 py-3 mb-2 outline-none focus:border-primary"
           autoFocus
         />
@@ -56,8 +54,6 @@ export function ApiKeySetup({ onComplete }: Props) {
         </button>
         <p className="text-muted text-xs mt-4">
           Your key is encrypted with your OS keychain via Electron safeStorage.
-          Get a key at{' '}
-          <span className="text-primary">console.anthropic.com</span>.
         </p>
       </div>
     </div>
