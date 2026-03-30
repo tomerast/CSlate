@@ -31,20 +31,27 @@ export interface ConfigPanelProps {
 }
 
 export interface ModelPreset {
-  id: string
+  id: string           // OpenRouter/gateway format: provider/model
+  directModelId: string // Native provider model ID for direct API calls
   label: string
   provider: string
   description: string
   tier: 'premium' | 'balanced' | 'budget'
   keyUrl: string
   directProvider: DirectProvider | 'gateway-only'
-  /** Which gateways support this model. 'all' = works everywhere; array = OpenRouter-family only */
+  /** Which gateways support this model. 'all' = all 5 gateways; array = subset */
   supportedGateways: 'all' | GatewayMode[]
 }
 
+// Model IDs use OpenRouter format (provider/model with dashes).
+// Vercel supports: Anthropic, OpenAI, Google only.
+// Cloudflare compat adds: DeepSeek, Llama, Mistral.
+// OpenRouter / Portkey / Helicone: all models.
 export const MODEL_PRESETS: ModelPreset[] = [
+  // ── Anthropic ──────────────────────────────────────────────
   {
-    id: 'anthropic/claude-sonnet-4.6',
+    id: 'anthropic/claude-sonnet-4-6',
+    directModelId: 'claude-sonnet-4-6',
     label: 'Claude Sonnet 4.6',
     provider: 'Anthropic',
     description: 'Best balance of quality and speed',
@@ -54,7 +61,8 @@ export const MODEL_PRESETS: ModelPreset[] = [
     supportedGateways: 'all',
   },
   {
-    id: 'anthropic/claude-haiku-4.5',
+    id: 'anthropic/claude-haiku-4-5',
+    directModelId: 'claude-haiku-4-5',
     label: 'Claude Haiku 4.5',
     provider: 'Anthropic',
     description: 'Fast and affordable',
@@ -63,8 +71,10 @@ export const MODEL_PRESETS: ModelPreset[] = [
     directProvider: 'anthropic',
     supportedGateways: 'all',
   },
+  // ── OpenAI ─────────────────────────────────────────────────
   {
     id: 'openai/gpt-4o',
+    directModelId: 'gpt-4o',
     label: 'GPT-4o',
     provider: 'OpenAI',
     description: 'Strong general-purpose model',
@@ -75,6 +85,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
   },
   {
     id: 'openai/gpt-4o-mini',
+    directModelId: 'gpt-4o-mini',
     label: 'GPT-4o Mini',
     provider: 'OpenAI',
     description: 'Compact and cost-effective',
@@ -83,8 +94,10 @@ export const MODEL_PRESETS: ModelPreset[] = [
     directProvider: 'openai',
     supportedGateways: 'all',
   },
+  // ── Google ─────────────────────────────────────────────────
   {
     id: 'google/gemini-2.5-pro',
+    directModelId: 'gemini-2.5-pro-preview',
     label: 'Gemini 2.5 Pro',
     provider: 'Google',
     description: 'Advanced reasoning and long context',
@@ -94,24 +107,87 @@ export const MODEL_PRESETS: ModelPreset[] = [
     supportedGateways: 'all',
   },
   {
+    id: 'google/gemini-2.5-flash',
+    directModelId: 'gemini-2.5-flash-preview',
+    label: 'Gemini 2.5 Flash',
+    provider: 'Google',
+    description: 'Fast and cost-effective from Google',
+    tier: 'balanced',
+    keyUrl: 'https://aistudio.google.com/apikey',
+    directProvider: 'google',
+    supportedGateways: 'all',
+  },
+  // ── DeepSeek (gateway-only) ────────────────────────────────
+  {
+    id: 'deepseek/deepseek-r1',
+    directModelId: 'deepseek-r1',
+    label: 'DeepSeek R1',
+    provider: 'DeepSeek',
+    description: 'Open reasoning model, strong at math & code',
+    tier: 'premium',
+    keyUrl: 'https://platform.deepseek.com/api_keys',
+    directProvider: 'gateway-only',
+    supportedGateways: 'all', // Vercel, OpenRouter, Cloudflare, Portkey, Helicone all use deepseek/deepseek-r1
+  },
+  {
+    id: 'deepseek/deepseek-chat',
+    directModelId: 'deepseek-chat',
+    label: 'DeepSeek V3',
+    provider: 'DeepSeek',
+    description: 'Extremely cost-effective, great for general use',
+    tier: 'budget',
+    keyUrl: 'https://platform.deepseek.com/api_keys',
+    directProvider: 'gateway-only',
+    supportedGateways: ['openrouter', 'cloudflare', 'portkey', 'helicone'], // Vercel uses deepseek-v3.x IDs
+  },
+  // ── Meta Llama (gateway-only) ──────────────────────────────
+  // Note: Vercel uses `meta/` prefix; OpenRouter/Cloudflare use `meta-llama/`
+  {
+    id: 'meta-llama/llama-3.3-70b-instruct',
+    directModelId: 'meta-llama/llama-3.3-70b-instruct',
+    label: 'Llama 3.3 70B',
+    provider: 'Meta',
+    description: 'Open-source, strong instruction following',
+    tier: 'balanced',
+    keyUrl: 'https://openrouter.ai/keys',
+    directProvider: 'gateway-only',
+    supportedGateways: ['openrouter', 'cloudflare', 'portkey', 'helicone'], // Vercel uses meta/ prefix
+  },
+  // ── Mistral (gateway-only) ─────────────────────────────────
+  // Note: Vercel uses `mistral/` prefix; OpenRouter uses `mistralai/`
+  {
+    id: 'mistralai/mistral-large',
+    directModelId: 'mistral-large-latest',
+    label: 'Mistral Large',
+    provider: 'Mistral',
+    description: 'European frontier model, multilingual',
+    tier: 'balanced',
+    keyUrl: 'https://console.mistral.ai/api-keys/',
+    directProvider: 'gateway-only',
+    supportedGateways: ['openrouter', 'cloudflare', 'portkey', 'helicone'], // Vercel uses mistral/ prefix
+  },
+  // ── Kimi & MiniMax — supported on Vercel, OpenRouter, Portkey ─
+  {
+    id: 'moonshotai/kimi-k2.5',
+    directModelId: 'moonshot-v1-128k',
+    label: 'Kimi K2.5',
+    provider: 'Moonshot AI',
+    description: 'Fast and affordable with solid results',
+    tier: 'budget',
+    keyUrl: 'https://platform.moonshot.cn/',
+    directProvider: 'gateway-only',
+    supportedGateways: 'all', // Verified: Vercel supports moonshotai/kimi-k2.5
+  },
+  {
     id: 'minimax/minimax-m2.5',
+    directModelId: 'minimax-m2.5',
     label: 'MiniMax M2.5',
     provider: 'MiniMax',
     description: 'Extremely cheap, good for experimentation',
     tier: 'budget',
     keyUrl: 'https://www.minimax.chat',
     directProvider: 'gateway-only',
-    supportedGateways: ['openrouter', 'portkey', 'helicone'],
-  },
-  {
-    id: 'moonshotai/kimi-k2.5',
-    label: 'Kimi K2.5',
-    provider: 'Moonshot AI',
-    description: 'Fast and affordable with solid results',
-    tier: 'budget',
-    keyUrl: 'https://kimi.moonshot.cn',
-    directProvider: 'gateway-only',
-    supportedGateways: ['openrouter', 'portkey', 'helicone'],
+    supportedGateways: 'all', // Verified: Vercel supports minimax/minimax-m2.5
   },
 ]
 
@@ -140,12 +216,12 @@ export const GATEWAY_OPTIONS: GatewayOption[] = [
   {
     id: 'vercel',
     label: 'Vercel AI Gateway',
-    tagline: 'Zero-config',
-    description: 'Automatic caching, observability, and provider fallbacks',
-    defaultUrl: 'https://ai-gateway.vercel.sh',
+    tagline: '180+ models',
+    description: 'Anthropic, OpenAI, Google, DeepSeek, Kimi, MiniMax and 25+ providers',
+    defaultUrl: 'https://ai-gateway.vercel.sh/v1',
     docsUrl: 'https://vercel.com/docs/ai-gateway',
     signupUrl: 'https://vercel.com/signup',
-    setupHint: 'Works out of the box if you deploy on Vercel. Otherwise, set up via the Vercel dashboard.',
+    setupHint: 'Sign up for Vercel, enable AI Gateway, and get an API key. Supports 180+ models across 30+ providers.',
   },
   {
     id: 'cloudflare',
@@ -193,7 +269,7 @@ export const THEME_OPTIONS: { value: Theme; label: string; description: string }
 ]
 
 export const DEFAULT_CONFIG: ConfigValues = {
-  llmModel: 'anthropic/claude-sonnet-4.6',
+  llmModel: 'anthropic/claude-sonnet-4-6',
   llmApiKey: '',
   gatewayUrl: 'https://openrouter.ai/api/v1',
   gatewayMode: 'openrouter',

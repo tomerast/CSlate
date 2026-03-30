@@ -27,6 +27,16 @@ export function register(ipcMain: IpcMain): void {
     const serverUrl = (getConfigValue('serverUrl') as string) ?? 'http://localhost:3000'
     const serverApiKey = (getConfigValue('serverApiKey') as string | null) ?? ''
 
+    // Native model IDs for direct API calls (provider SDKs don't use the provider/ prefix)
+    const DIRECT_MODEL_IDS: Record<string, string> = {
+      'anthropic/claude-sonnet-4-6': 'claude-sonnet-4-6',
+      'anthropic/claude-haiku-4-5': 'claude-haiku-4-5',
+      'openai/gpt-4o': 'gpt-4o',
+      'openai/gpt-4o-mini': 'gpt-4o-mini',
+      'google/gemini-2.5-pro': 'gemini-2.5-pro-preview',
+      'google/gemini-2.5-flash': 'gemini-2.5-flash-preview',
+    }
+
     // Derive provider + model ID + baseUrl from gateway config
     let provider: LLMConfig['provider']
     let model: string
@@ -35,19 +45,20 @@ export function register(ipcMain: IpcMain): void {
     if (gatewayMode !== 'direct') {
       // All gateways are OpenAI-compatible — pass full model ID (e.g. 'moonshotai/kimi-k2.5')
       provider = 'openai'
-      model = llmModel
       baseUrl = gatewayUrl
+      // Portkey requires @ prefix for provider routing
+      model = gatewayMode === 'portkey' ? `@${llmModel}` : llmModel
     } else {
-      // Direct mode — strip provider prefix, derive SDK provider
+      // Direct mode — use native provider model ID, derive SDK provider from prefix
       if (llmModel.startsWith('anthropic/')) {
         provider = 'anthropic'
-        model = llmModel.slice('anthropic/'.length)
+        model = DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('anthropic/'.length)
       } else if (llmModel.startsWith('openai/')) {
         provider = 'openai'
-        model = llmModel.slice('openai/'.length)
+        model = DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('openai/'.length)
       } else if (llmModel.startsWith('google/')) {
         provider = 'google'
-        model = llmModel.slice('google/'.length)
+        model = DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('google/'.length)
       } else {
         provider = 'local'
         model = llmModel
