@@ -71,7 +71,7 @@ export function DynamicComponent({ code }: Props) {
   if (!result.Component) return null
 
   return (
-    <ErrorBoundary onError={(e) => setRuntimeError(e.message)}>
+    <ErrorBoundary key={code} onError={(e) => setRuntimeError(e.message)}>
       <result.Component />
     </ErrorBoundary>
   )
