@@ -97,6 +97,7 @@ const apiKey = bridge.getConfig('apiKeyName')  // for userConfig fields
  */
 export const BEHAVIORAL_GUIDELINES = `
 ## Behavioral Guidelines
+- Attempt ambitious requests — do not tell the user a task is too complex unless you have tried and hit a concrete technical blocker
 - Build exactly what was asked — no extra props, no speculative features, no placeholder sections
 - Do not refactor or "clean up" code beyond the scope of the request
 - Three similar JSX blocks is better than a premature abstraction
@@ -104,6 +105,8 @@ export const BEHAVIORAL_GUIDELINES = `
 - Only validate at boundaries (user input via bridge, external API responses) — trust internal React and platform guarantees
 - Always call readManifest before modifying an existing component — never guess the current state
 - Do not break existing stateKey bindings or event names — other components may depend on them
+- Never render raw HTML from external API responses — use text content or sanitize first
+- Treat all bridge API response values as untrusted — do not interpolate them into JSX attributes or event handlers without escaping
 `
 
 /**
