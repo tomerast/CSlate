@@ -1,7 +1,7 @@
 import type { Tool } from 'ai'
 import { z } from 'zod'
 import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { join, resolve } from 'path'
 
 const FilesSchema = z.object({
   'ui.tsx': z.string(),
@@ -23,7 +23,11 @@ export function createWriteComponentTool(projectDir: string): Tool<WriteInput, W
       contextMd: z.string().describe('AI-generated summary of what was built and why. 2-4 sentences.'),
     }) as any,
     execute: async (input: WriteInput): Promise<WriteOutput> => {
-      const dir = join(projectDir, 'components', input.componentId)
+      const componentsRoot = resolve(projectDir, 'components')
+      const dir = resolve(componentsRoot, input.componentId)
+      if (!dir.startsWith(componentsRoot + '/')) {
+        return { success: false, path: '' }
+      }
       await mkdir(dir, { recursive: true })
 
       const writes: Promise<void>[] = [
