@@ -17,7 +17,7 @@ export type SkillName = z.infer<typeof SkillNameSchema>
 
 export const IntentSchema = z.object({
   skill: SkillNameSchema,
-  targetComponentId: z.string().optional(),
+  targetComponentId: z.string().nullable(),
   summary: z.string(),
   isMultiTurn: z.boolean(),
 })

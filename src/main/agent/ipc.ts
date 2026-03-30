@@ -84,10 +84,10 @@ export function register(ipcMain: IpcMain): void {
         const p = part as Record<string, unknown>
         switch (p['type']) {
           case 'text-delta':
-            sender.send('agent:token', { delta: p['textDelta'] })
+            sender.send('agent:token', { delta: p['text'] })
             break
           case 'tool-call':
-            sender.send('agent:tool-call', { tool: p['toolName'], input: p['args'] })
+            sender.send('agent:tool-call', { tool: p['toolName'], input: p['input'] })
             break
           case 'tool-result':
             sender.send('agent:tool-result', { tool: p['toolName'], result: p['result'] })

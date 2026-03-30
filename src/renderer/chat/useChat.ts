@@ -16,6 +16,29 @@ export function useChat() {
     setPanelOpen(true)
     setPublishState('hidden')
 
+    // Buffer streaming tokens into a single assistant message
+    let streamedContent = ''
+    let streamMessageAdded = false
+
+    const offToken = window.electron.on('agent:token', (data: unknown) => {
+      const d = data as { delta: string }
+      streamedContent += d.delta
+      if (!streamMessageAdded) {
+        addMessage({ role: 'assistant', content: streamedContent })
+        streamMessageAdded = true
+      } else {
+        // Update the last message in-place
+        useChatStore.setState(s => {
+          const messages = [...s.messages]
+          const last = messages[messages.length - 1]
+          if (last?.role === 'assistant') {
+            messages[messages.length - 1] = { ...last, content: streamedContent }
+          }
+          return { messages }
+        })
+      }
+    })
+
     // Track code from renderComponent tool calls so we can trigger the publish toast
     let pendingCode: string | null = null
     const offToolCall = window.electron.on('agent:tool-call', (data: unknown) => {
@@ -41,24 +64,20 @@ export function useChat() {
           role: 'assistant',
           content: "No AI provider configured — I've opened Settings so you can set one up."
         })
+      } else {
+        setStatus('error')
+        addMessage({ role: 'assistant', content: `Error: ${d.message}` })
       }
     })
 
     try {
-      const result = await window.electron.invoke('agent:run', {
+      await window.electron.invoke('agent:run', {
         message: text,
         projectDir: '',
         tabId: crypto.randomUUID(),
         conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
       })
-
-      // agent:run returns { ok: true } — actual responses come via agent:token/agent:done events
-      // For now, mark as idle after the stream completes
       setStatus('idle')
-
-      if (result && typeof result === 'object' && 'message' in result) {
-        addMessage({ role: 'assistant', content: (result as { message: string }).message })
-      }
     } catch (e) {
       setStatus('error')
       addMessage({
@@ -66,6 +85,7 @@ export function useChat() {
         content: `Failed: ${e instanceof Error ? e.message : String(e)}`
       })
     } finally {
+      offToken()
       offToolCall()
       offToolResult()
       offError()
