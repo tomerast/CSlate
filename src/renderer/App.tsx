@@ -10,7 +10,7 @@ export default function App() {
     window.electron
       .invoke('config:get', 'llmApiKey')
       .then((val) => { if (val) setApiKeySet(true) })
-      .catch(() => {})
+      .catch((err) => console.error('Failed to load API key:', err))
   }, [setApiKeySet])
 
   if (!apiKeySet) return <ApiKeySetup onComplete={() => setApiKeySet(true)} />

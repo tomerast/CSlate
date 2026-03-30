@@ -36,5 +36,3 @@ export function MessageList() {
     </div>
   )
 }
-
-export default MessageList

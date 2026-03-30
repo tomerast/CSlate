@@ -20,7 +20,8 @@ export function ApiKeySetup({ onComplete }: Props) {
     try {
       await window.electron.invoke('config:set', { key: 'llmApiKey', value: trimmed })
       onComplete()
-    } catch {
+    } catch (error) {
+      console.error('Failed to save API key:', error)
       setError('Failed to save key. Try again.')
     } finally {
       setSaving(false)
@@ -59,5 +60,3 @@ export function ApiKeySetup({ onComplete }: Props) {
     </div>
   )
 }
-
-export default ApiKeySetup

@@ -69,5 +69,3 @@ export function ChatPanel({ onSubmit, onClose }: Props) {
     </div>
   )
 }
-
-export default ChatPanel

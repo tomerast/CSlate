@@ -1,31 +1,35 @@
 import { useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
-import type { AgentRequest, AgentResponse } from '@shared/agentTypes'
+
+const MAX_HISTORY_MESSAGES = 6
 
 export function useChat() {
   const { addMessage, setStatus, setCurrentCode, setPanelOpen } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
     // Capture history BEFORE adding user message to avoid double-sending
-    const history = useChatStore.getState().messages.slice(-6)
-    const currentCode = useChatStore.getState().currentCode ?? undefined
+    const history = useChatStore.getState().messages.slice(-MAX_HISTORY_MESSAGES)
 
     addMessage({ role: 'user', content: text })
     setStatus('generating')
     setPanelOpen(true)
 
-    const request: AgentRequest = {
-      message: text,
-      history,
-      currentCode,
-      sessionId: `session-${Date.now()}`
-    }
-
     try {
-      const response = await window.electron.invoke('agent:generate', request) as AgentResponse
-      if (response.componentCode) setCurrentCode(response.componentCode)
+      const result = await window.electron.invoke('agent:run', {
+        message: text,
+        projectDir: '',
+        tabId: crypto.randomUUID(),
+        conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
+      })
+
+      // agent:run returns { ok: true } — actual responses come via agent:token/agent:done events
+      // For now, mark as idle after the stream completes
       setStatus('idle')
-      addMessage({ role: 'assistant', content: response.message })
+
+      // TODO: listen to agent:token events for streaming updates
+      if (result && typeof result === 'object' && 'message' in result) {
+        addMessage({ role: 'assistant', content: (result as { message: string }).message })
+      }
     } catch (e) {
       setStatus('error')
       addMessage({

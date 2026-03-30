@@ -24,5 +24,3 @@ export function ComponentError({ message, code }: Props) {
     </div>
   )
 }
-
-export default ComponentError

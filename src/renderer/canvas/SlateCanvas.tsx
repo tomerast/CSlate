@@ -4,7 +4,7 @@ import { DynamicComponent } from '../sandbox/DynamicComponent'
 
 export function SlateCanvas() {
   const currentCode = useChatStore((s) => s.currentCode)
-  const shortcut = window.electron?.platform === 'darwin' ? '⌘K' : 'Ctrl+K'
+  const shortcut = window.electron.platform === 'darwin' ? '⌘K' : 'Ctrl+K'
 
   return (
     <div className="flex-1 bg-background relative overflow-hidden">
@@ -31,5 +31,3 @@ export function SlateCanvas() {
     </div>
   )
 }
-
-export default SlateCanvas

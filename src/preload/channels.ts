@@ -23,7 +23,6 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'component:list',
   'app:get-version',
   'window:set-title',
-  'agent:generate',
   'agent:run'
 ] as const
 
