@@ -11,6 +11,7 @@ import { createWriteComponentTool } from './tools/writeComponent'
 import { createReadManifestTool } from './tools/readManifest'
 import { createReadProjectContextTool } from './tools/readProjectContext'
 import { createSearchBlueprintsTool } from './tools/searchBlueprints'
+import { CSlateServerClient } from '../server/CSlateServerClient'
 
 export interface EngineOptions {
   serverUrl: string
@@ -56,6 +57,9 @@ export class AgentEngine {
     // 3. Build tools
     // Cast registry to a looser type for dynamic model ID support
     const reg = this.registry as { languageModel: (id: string) => any }
+    const serverClient = (this.options.serverUrl && this.options.serverApiKey)
+      ? new CSlateServerClient(this.options.serverUrl, this.options.serverApiKey)
+      : null
     const tools = {
       validateManifest,
       reviewCode: createReviewCodeTool(reg, fastModelId(this.config)),
@@ -63,7 +67,7 @@ export class AgentEngine {
       writeComponent: createWriteComponentTool(this.projectDir),
       readManifest: createReadManifestTool(this.projectDir),
       readProjectContext: createReadProjectContextTool(this.projectDir),
-      searchBlueprints: createSearchBlueprintsTool(this.options.serverUrl, this.options.serverApiKey),
+      searchBlueprints: createSearchBlueprintsTool(serverClient),
     }
 
     // 4. Select skill
