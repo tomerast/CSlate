@@ -15,6 +15,7 @@ import { validateManifest } from '../tools/validateManifest'
 import { createRenderComponentTool } from '../tools/renderComponent'
 import { createWriteComponentTool } from '../tools/writeComponent'
 import { engineLog } from '../../lib/logger'
+import { bundlePartialUiTsx } from '../lib/bundler'
 
 
 export class Orchestrator {
@@ -60,6 +61,12 @@ export class Orchestrator {
             { componentId: plan.componentId, taskCount: plan.tasks.length },
             'plan created'
           )
+          ctx.sender.send('agent:build:plan', {
+            buildId: ctx.tabId,
+            componentId: plan.componentId,
+            description: plan.requirements,
+            tasks: plan.tasks.map(t => ({ file: t.file, assignment: t.assignment })),
+          })
           return {
             planned: true,
             componentId: plan.componentId,
@@ -105,13 +112,25 @@ export class Orchestrator {
                 contract: input.contract,
                 modelId,
                 registry: ctx.registry,
-              }).then((result) => {
+              }).then(async (result) => {
                 ctx.sender.send('agent:orchestrator:status', {
                   phase: 'worker',
                   workerId: i,
                   file: task.file,
                   status: 'done',
                 })
+                // Attempt partial bundle for ui.tsx so the renderer can show a preview
+                if (task.file === 'ui.tsx' && result.status === 'success') {
+                  try {
+                    const bundle = await bundlePartialUiTsx(result.code)
+                    ctx.sender.send('agent:build:partial', { buildId: ctx.tabId, bundle })
+                  } catch {
+                    ctx.sender.send('agent:build:partial', {
+                      buildId: ctx.tabId,
+                      source: result.code,
+                    })
+                  }
+                }
                 return result
               })
             })
@@ -262,6 +281,7 @@ export class Orchestrator {
 
     // Run the orchestrator agent loop
     this.log.info({ modelId, message }, 'orchestrator starting')
+    ctx.sender.send('agent:build:start', { buildId: ctx.tabId })
     ctx.sender.send('agent:orchestrator:status', { phase: 'understand' })
     const t0 = Date.now()
 
