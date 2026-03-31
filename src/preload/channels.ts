@@ -40,7 +40,10 @@ export const ALLOWED_LISTEN_CHANNELS = [
   'agent:tool-result',
   'agent:done',
   'agent:error',
-  'agent:orchestrator:status'
+  'agent:orchestrator:status',
+  'agent:build:start',
+  'agent:build:plan',
+  'agent:build:partial'
 ] as const
 
 export type SendChannel = typeof ALLOWED_SEND_CHANNELS[number]
