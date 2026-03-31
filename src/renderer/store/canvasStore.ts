@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { BuildingCard } from '../canvas/building/types'
 
 export interface Placement {
   x: number
@@ -24,17 +25,22 @@ export interface CanvasPreview {
 interface CanvasState {
   components: CanvasComponent[]
   preview: CanvasPreview | null
+  buildingCards: BuildingCard[]
 
   hydrate(components: CanvasComponent[]): void
   addComponent(comp: CanvasComponent): void
   removeComponent(componentId: string): void
   setPreview(preview: CanvasPreview): void
   clearPreview(): void
+  addBuildingCard(card: BuildingCard): void
+  updateBuildingCard(buildId: string, patch: Partial<Omit<BuildingCard, 'buildId'>>): void
+  removeBuildingCard(buildId: string): void
 }
 
 export const useCanvasStore = create<CanvasState>((set) => ({
   components: [],
   preview: null,
+  buildingCards: [],
 
   hydrate: (components) => set({ components }),
 
@@ -51,4 +57,18 @@ export const useCanvasStore = create<CanvasState>((set) => ({
 
   setPreview: (preview) => set({ preview }),
   clearPreview: () => set({ preview: null }),
+
+  addBuildingCard: (card) => set((s) => ({
+    buildingCards: [...s.buildingCards, card],
+  })),
+
+  updateBuildingCard: (buildId, patch) => set((s) => ({
+    buildingCards: s.buildingCards.map(c =>
+      c.buildId === buildId ? { ...c, ...patch } : c
+    ),
+  })),
+
+  removeBuildingCard: (buildId) => set((s) => ({
+    buildingCards: s.buildingCards.filter(c => c.buildId !== buildId),
+  })),
 }))
