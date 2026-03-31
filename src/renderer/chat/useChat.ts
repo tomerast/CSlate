@@ -1,11 +1,12 @@
 import { useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { useAppStore } from '../store/appStore'
+import { useCanvasStore, type Placement } from '../store/canvasStore'
 
 const MAX_HISTORY_MESSAGES = 6
 
 export function useChat() {
-  const { addMessage, setStatus, setCurrentCode, setPublishState, incrementTurnCount } = useChatStore()
+  const { addMessage, setStatus, setPanelOpen, setPublishState } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
     // Capture history BEFORE adding user message to avoid double-sending
@@ -13,6 +14,7 @@ export function useChat() {
 
     addMessage({ role: 'user', content: text })
     setStatus('generating')
+    setPanelOpen(true)
     setPublishState('hidden')
 
     // Buffer streaming tokens into a single assistant message
@@ -38,26 +40,37 @@ export function useChat() {
       }
     })
 
-    // Track code from renderComponent tool calls so we can trigger the publish toast
-    let pendingCode: string | null = null
-    const offToolCall = window.electron.on('agent:tool-call', (data: unknown) => {
-      const d = data as { tool: string; input: { files?: { 'ui.tsx'?: string } } }
-      if (d.tool === 'renderComponent' && d.input?.files?.['ui.tsx']) {
-        pendingCode = d.input.files['ui.tsx']
-      }
-    })
+    // Route tool results to canvasStore
     const offToolResult = window.electron.on('agent:tool-result', (data: unknown) => {
-      const d = data as { tool: string; result: { success?: boolean } }
-      if (d.tool === 'renderComponent' && d.result?.success && pendingCode) {
-        setCurrentCode(pendingCode)
-        setPublishState('prompting')
-        pendingCode = null
+      const d = data as {
+        tool: string
+        result: {
+          success?: boolean
+          bundle?: string
+          files?: Record<string, string>
+          manifest?: unknown
+          placement?: Placement
+          componentId?: string
+        }
+      }
+
+      if (d.tool === 'renderComponent' && d.result?.success) {
+        const { bundle, files, manifest, placement } = d.result
+        if (bundle && files && manifest) {
+          useCanvasStore.getState().setPreview({ bundle, files, manifest, placement })
+          setPublishState('prompting')
+        }
+      } else if (d.tool === 'writeComponent' && d.result?.success) {
+        const { componentId, bundle, placement, manifest } = d.result
+        if (componentId && bundle && placement && manifest) {
+          useCanvasStore.getState().addComponent({ componentId, bundle, placement, manifest })
+          useCanvasStore.getState().clearPreview()
+          setPublishState('prompting')
+        }
       }
     })
-    let didError = false
     const offError = window.electron.on('agent:error', (data: unknown) => {
       const d = data as { message: string; code?: string }
-      didError = true
       if (d.code === 'UNCONFIGURED_LLM') {
         useAppStore.getState().openConfig('models')
         setStatus('idle')
@@ -78,10 +91,7 @@ export function useChat() {
         tabId: crypto.randomUUID(),
         conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
       })
-      if (!didError) {
-        setStatus('idle')
-        incrementTurnCount()
-      }
+      setStatus('idle')
     } catch (e) {
       setStatus('error')
       addMessage({
@@ -90,11 +100,10 @@ export function useChat() {
       })
     } finally {
       offToken()
-      offToolCall()
       offToolResult()
       offError()
     }
-  }, [addMessage, setStatus, setCurrentCode, setPublishState, incrementTurnCount])
+  }, [addMessage, setStatus, setPanelOpen, setPublishState])
 
   return { submit }
 }
