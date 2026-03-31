@@ -6,7 +6,7 @@ import { useCanvasStore, type Placement } from '../store/canvasStore'
 const MAX_HISTORY_MESSAGES = 6
 
 export function useChat() {
-  const { addMessage, setStatus, setPublishState, incrementTurnCount } = useChatStore()
+  const { addMessage, setStatus, incrementTurnCount, setPublishState } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
     // Capture history BEFORE adding user message to avoid double-sending
@@ -68,10 +68,24 @@ export function useChat() {
         }
       }
     })
-    let didError = false
+    const offOrchestratorStatus = window.electron.on('agent:orchestrator:status', (data: unknown) => {
+      const d = data as { phase: string; workerId?: number; file?: string; workerCount?: number }
+      const phaseLabels: Record<string, string> = {
+        understand: 'Understanding your request...',
+        search: 'Searching for blueprints...',
+        plan: 'Planning component...',
+        dispatch: `Building ${d.workerCount ?? ''} files in parallel...`,
+        worker: d.file ? `Building ${d.file}...` : 'Building...',
+        validate: 'Validating component...',
+        fix: 'Fixing issues...',
+        ship: 'Component ready!',
+      }
+      const label = phaseLabels[d.phase] ?? d.phase
+      useChatStore.setState({ statusLabel: label })
+    })
+
     const offError = window.electron.on('agent:error', (data: unknown) => {
       const d = data as { message: string; code?: string }
-      didError = true
       if (d.code === 'UNCONFIGURED_LLM') {
         useAppStore.getState().openConfig('models')
         setStatus('idle')
@@ -92,10 +106,8 @@ export function useChat() {
         tabId: crypto.randomUUID(),
         conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
       })
-      if (!didError) {
-        setStatus('idle')
-        incrementTurnCount()
-      }
+      setStatus('idle')
+      incrementTurnCount()
     } catch (e) {
       setStatus('error')
       addMessage({
@@ -105,9 +117,11 @@ export function useChat() {
     } finally {
       offToken()
       offToolResult()
+      offOrchestratorStatus()
       offError()
+      useChatStore.setState({ statusLabel: '' })
     }
-  }, [addMessage, setStatus, setPublishState, incrementTurnCount])
+  }, [addMessage, setStatus, incrementTurnCount, setPublishState])
 
   return { submit }
 }

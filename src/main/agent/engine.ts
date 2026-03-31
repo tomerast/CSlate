@@ -1,9 +1,11 @@
 import { streamText, stepCountIs } from 'ai'
 import type { WebContents } from 'electron'
 import { buildRegistry, mainModelId, fastModelId, type LLMConfig } from './providers'
-import { parseIntent } from './intent'
+import { classifyIntent } from './router'
 import { readMemory, writeMemoryEntry } from './memory/index'
 import { buildSkillRegistry, type AgentContext } from './skills/index'
+import { Orchestrator } from './orchestrator/index'
+import type { OrchestratorContext } from './orchestrator/types'
 import { validateManifest } from './tools/validateManifest'
 import { createReviewCodeTool } from './tools/reviewCode'
 import { createRenderComponentTool } from './tools/renderComponent'
@@ -41,31 +43,81 @@ export class AgentEngine {
   async *stream(input: RunInput): AsyncGenerator<unknown> {
     const log = engineLog.child({ tabId: this.options.tabId })
 
-    // 1. Parse intent
-    log.debug({ message: input.message }, 'parsing intent')
-    const intent = await parseIntent(input.message, this.config, this.registry)
-    log.info({ skill: intent.skill, targetComponentId: intent.targetComponentId, summary: intent.summary }, 'intent parsed')
+    // 1. Route intent
+    log.debug({ message: input.message }, 'routing intent')
+    const reg = this.registry as { languageModel: (id: string) => any }
+    const route = await classifyIntent(input.message, this.config, reg)
+    log.info({ route: route.route, skill: route.skill, summary: route.summary }, 'intent routed')
 
     // 2. Load context
     const memory = await readMemory(this.projectDir)
     const activeComponents = await this.loadActiveComponents()
-    log.debug({ activeComponentCount: activeComponents.length }, 'context loaded')
+
+    // 3. Dispatch based on route
+    if (route.route === 'orchestrator') {
+      yield* this.runOrchestrator(input, route, memory, activeComponents, reg, log)
+    } else if (route.route === 'skill' && route.skill) {
+      yield* this.runSkill(route.skill, input, memory, activeComponents, log)
+    } else {
+      yield* this.runDirect(input, memory, log)
+    }
+  }
+
+  private async *runOrchestrator(
+    input: RunInput,
+    route: { summary: string; targetComponentId?: string | null },
+    memory: Awaited<ReturnType<typeof readMemory>>,
+    activeComponents: Array<{ componentId: string; manifest: unknown }>,
+    reg: { languageModel: (id: string) => any },
+    log: ReturnType<typeof engineLog.child>
+  ): AsyncGenerator<unknown> {
+    const serverClient = (this.options.serverUrl && this.options.serverApiKey)
+      ? new CSlateServerClient(this.options.serverUrl, this.options.serverApiKey)
+      : null
+
+    const orchCtx: OrchestratorContext = {
+      projectDir: this.projectDir,
+      tabId: this.options.tabId,
+      memory,
+      activeComponents,
+      targetComponentId: input.targetComponentId ?? route.targetComponentId ?? undefined,
+      conversationHistory: input.conversationHistory,
+      config: this.config,
+      registry: reg,
+      serverClient,
+      sender: this.options.sender,
+    }
+
+    const orchestrator = new Orchestrator(orchCtx)
+    const t0 = Date.now()
+    for await (const part of orchestrator.stream(input.message)) {
+      yield part
+    }
+    this.writeSessionMemory(route.summary, null).catch(() => {})
+    log.info({ durationMs: Date.now() - t0 }, 'orchestrator stream finished')
+  }
+
+  private async *runSkill(
+    skillName: string,
+    input: RunInput,
+    memory: Awaited<ReturnType<typeof readMemory>>,
+    activeComponents: Array<{ componentId: string; manifest: unknown }>,
+    log: ReturnType<typeof engineLog.child>
+  ): AsyncGenerator<unknown> {
+    const reg = this.registry as { languageModel: (id: string) => any }
+    const serverClient = (this.options.serverUrl && this.options.serverApiKey)
+      ? new CSlateServerClient(this.options.serverUrl, this.options.serverApiKey)
+      : null
 
     const ctx: AgentContext = {
       projectDir: this.projectDir,
       tabId: this.options.tabId,
       memory,
       activeComponents,
-      targetComponentId: input.targetComponentId ?? intent.targetComponentId ?? undefined,
+      targetComponentId: input.targetComponentId,
       conversationHistory: input.conversationHistory,
     }
 
-    // 3. Build tools
-    // Cast registry to a looser type for dynamic model ID support
-    const reg = this.registry as { languageModel: (id: string) => any }
-    const serverClient = (this.options.serverUrl && this.options.serverApiKey)
-      ? new CSlateServerClient(this.options.serverUrl, this.options.serverApiKey)
-      : null
     const tools = {
       validateManifest,
       reviewCode: createReviewCodeTool(reg, fastModelId(this.config)),
@@ -76,14 +128,17 @@ export class AgentEngine {
       searchBlueprints: createSearchBlueprintsTool(serverClient),
     }
 
-    // 4. Select skill
     const skillRegistry = buildSkillRegistry(tools)
-    const skill = skillRegistry[intent.skill]
+    const skill = skillRegistry[skillName as keyof typeof skillRegistry]
+    if (!skill) {
+      yield { type: 'text-delta', text: `Unknown skill: ${skillName}` }
+      return
+    }
 
-    // 5. Stream
     const modelId = mainModelId(this.config)
-    log.info({ modelId, skill: intent.skill, maxSteps: skill.maxSteps }, 'streamText starting')
+    log.info({ modelId, skill: skillName }, 'running legacy skill')
     const t0 = Date.now()
+
     const result = streamText({
       model: reg.languageModel(modelId),
       system: skill.systemPrompt(ctx),
@@ -97,18 +152,37 @@ export class AgentEngine {
       temperature: skill.temperature,
     })
 
-    let partCount = 0
     for await (const part of result.fullStream) {
-      if (partCount === 0) log.debug({ durationMs: Date.now() - t0 }, 'first token received')
-      partCount++
       yield part
     }
 
-    // 6. Fire-and-forget memory write
     Promise.resolve(result.usage).then(usage => {
-      log.info({ durationMs: Date.now() - t0, totalTokens: usage?.totalTokens, partCount }, 'stream finished')
-      this.writeSessionMemory(intent.summary, usage).catch(() => {/* non-critical */})
-    }).catch(() => {/* non-critical */})
+      log.info({ durationMs: Date.now() - t0, totalTokens: usage?.totalTokens }, 'skill stream finished')
+    }).catch(() => {})
+  }
+
+  private async *runDirect(
+    input: RunInput,
+    _memory: Awaited<ReturnType<typeof readMemory>>,
+    log: ReturnType<typeof engineLog.child>
+  ): AsyncGenerator<unknown> {
+    const reg = this.registry as { languageModel: (id: string) => any }
+    const modelId = mainModelId(this.config)
+    log.info({ modelId }, 'running direct response')
+
+    const result = streamText({
+      model: reg.languageModel(modelId),
+      system: 'You are the CSlate assistant. Answer the user\'s question helpfully and concisely. You do not have access to tools in this mode.',
+      messages: [
+        ...input.conversationHistory,
+        { role: 'user' as const, content: input.message },
+      ],
+      maxOutputTokens: 1000,
+    })
+
+    for await (const part of result.fullStream) {
+      yield part
+    }
   }
 
   private async loadActiveComponents(): Promise<Array<{ componentId: string; manifest: unknown }>> {

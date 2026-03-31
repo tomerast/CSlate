@@ -4,41 +4,11 @@ import { buildSkillRegistry } from '../index'
 const mockTools = {}
 
 describe('buildSkillRegistry', () => {
-  it('returns all 7 skills', () => {
+  it('returns only the 2 legacy skills', () => {
     const registry = buildSkillRegistry(mockTools)
-    expect(Object.keys(registry)).toHaveLength(7)
-    expect(registry['component-builder']).toBeDefined()
-    expect(registry['component-modifier']).toBeDefined()
+    expect(Object.keys(registry)).toHaveLength(2)
     expect(registry['state-wirer']).toBeDefined()
-  })
-
-  it('component-builder systemPrompt includes platform knowledge', () => {
-    const registry = buildSkillRegistry(mockTools)
-    const skill = registry['component-builder']
-    const prompt = skill.systemPrompt({
-      projectDir: '/tmp/test',
-      tabId: 'tab1',
-      memory: { userPreferences: '', projectContext: '', componentHistory: '', feedbackPatterns: '' },
-      activeComponents: [],
-      conversationHistory: [],
-    })
-    expect(prompt).toContain('bridge.fetch')
-    expect(prompt).toContain('bg-primary')
-    expect(prompt).toContain('manifest.json')
-    expect(prompt).toContain('sandbox')
-  })
-
-  it('component-builder systemPrompt includes memory context when present', () => {
-    const registry = buildSkillRegistry(mockTools)
-    const skill = registry['component-builder']
-    const prompt = skill.systemPrompt({
-      projectDir: '/tmp/test',
-      tabId: 'tab1',
-      memory: { userPreferences: 'Prefers dark themes.', projectContext: '', componentHistory: '', feedbackPatterns: '' },
-      activeComponents: [],
-      conversationHistory: [],
-    })
-    expect(prompt).toContain('Prefers dark themes.')
+    expect(registry['component-search']).toBeDefined()
   })
 
   it('state-wirer systemPrompt lists active components', () => {

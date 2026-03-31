@@ -1,0 +1,91 @@
+import { generateText } from 'ai'
+import { PLATFORM_KNOWLEDGE } from '../prompts/fragments'
+import { stripFences } from '../lib/stripFences'
+import type { BuildTask, SubAgentResult } from './types'
+import { engineLog } from '../../lib/logger'
+
+const log = engineLog.child({ component: 'sub-agent' })
+
+const BUILD_SYSTEM = `You are a CSlate component file builder. You produce ONE file of production-quality React/TypeScript code for the CSlate platform.
+
+Rules:
+- Return ONLY the file content — no markdown fences, no explanations, no preamble.
+- Follow the contract exactly. Do not add props or types not in the contract.
+- Follow all platform rules below.
+
+${PLATFORM_KNOWLEDGE}`
+
+const FIX_SYSTEM = `You are a CSlate component fixer. You receive broken code and an error message. Fix the code and return ONLY the fixed file content — no markdown fences, no explanations.
+
+${PLATFORM_KNOWLEDGE}`
+
+export function buildSubAgentPrompt(params: {
+  task: BuildTask
+  contract: string
+}): string {
+  const { task, contract } = params
+  const blueprintSection = task.blueprint
+    ? `\n## BLUEPRINT — ADAPT this code to match the assignment:\n\`\`\`\n${task.blueprint}\n\`\`\``
+    : '\n## No blueprint available — build from scratch.'
+
+  return `## CONTRACT (shared types — follow exactly):\n\`\`\`typescript\n${contract}\n\`\`\`\n${blueprintSection}\n\n## ASSIGNMENT:\nBuild file \`${task.file}\`: ${task.assignment}`
+}
+
+export async function spawnBuildAgent(params: {
+  task: BuildTask
+  contract: string
+  modelId: string
+  registry: { languageModel: (id: string) => any }
+}): Promise<SubAgentResult> {
+  const { task, contract, modelId, registry } = params
+  log.info({ file: task.file, hasBlueprint: !!task.blueprint }, 'build agent spawned')
+  const t0 = Date.now()
+
+  try {
+    const prompt = buildSubAgentPrompt({ task, contract })
+    const { text } = await generateText({
+      model: registry.languageModel(modelId),
+      system: BUILD_SYSTEM,
+      prompt,
+      maxOutputTokens: 8000,
+    })
+
+    log.info({ file: task.file, durationMs: Date.now() - t0 }, 'build agent done')
+    return { file: task.file, code: stripFences(text), status: 'success', error: null }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    log.error({ file: task.file, err: msg }, 'build agent failed')
+    return { file: task.file, code: '', status: 'error', error: msg }
+  }
+}
+
+export async function spawnFixAgent(params: {
+  file: string
+  brokenCode: string
+  error: string
+  contract: string
+  modelId: string
+  registry: { languageModel: (id: string) => any }
+}): Promise<SubAgentResult> {
+  const { file, brokenCode, error, contract, modelId, registry } = params
+  log.info({ file, error }, 'fix agent spawned')
+  const t0 = Date.now()
+
+  try {
+    const prompt = `## CONTRACT:\n\`\`\`typescript\n${contract}\n\`\`\`\n\n## BROKEN CODE (file: ${file}):\n\`\`\`\n${brokenCode}\n\`\`\`\n\n## ERROR:\n${error}\n\nFix the code. Return ONLY the corrected file content.`
+
+    const { text } = await generateText({
+      model: registry.languageModel(modelId),
+      system: FIX_SYSTEM,
+      prompt,
+      maxOutputTokens: 8000,
+    })
+
+    log.info({ file, durationMs: Date.now() - t0 }, 'fix agent done')
+    return { file, code: stripFences(text), status: 'success', error: null }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    log.error({ file, err: msg }, 'fix agent failed')
+    return { file, code: '', status: 'error', error: msg }
+  }
+}

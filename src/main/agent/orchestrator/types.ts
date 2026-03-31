@@ -1,0 +1,63 @@
+import { z } from 'zod'
+import type { MemoryFiles } from '../memory/index'
+
+// --- Zod Schemas ---
+
+export const BuildTaskSchema = z.object({
+  file: z.string().describe('Filename to build, e.g. "ui.tsx", "logic.ts", "types.ts"'),
+  assignment: z.string().describe('What to build or adapt in this file'),
+  blueprint: z.string().nullable().describe('Base code to adapt, or null to build from scratch'),
+})
+
+export const BlueprintMatchSchema = z.object({
+  componentId: z.string(),
+  name: z.string(),
+  similarity: z.number().min(0).max(1),
+  source: z.record(z.string()),
+  strength: z.enum(['strong', 'weak', 'none']),
+})
+
+export const SubAgentResultSchema = z.object({
+  file: z.string(),
+  code: z.string(),
+  status: z.enum(['success', 'error']),
+  error: z.string().nullable(),
+})
+
+export const ComponentPlanSchema = z.object({
+  componentId: z.string(),
+  requirements: z.string(),
+  contract: z.string().describe('Shared TypeScript interfaces / prop types'),
+  tasks: z.array(BuildTaskSchema).min(1),
+  blueprintMatch: BlueprintMatchSchema.nullable(),
+})
+
+// --- TypeScript Types ---
+
+export type BuildTask = z.infer<typeof BuildTaskSchema>
+export type BlueprintMatch = z.infer<typeof BlueprintMatchSchema>
+export type SubAgentResult = z.infer<typeof SubAgentResultSchema>
+export type ComponentPlan = z.infer<typeof ComponentPlanSchema>
+
+export interface OrchestratorContext {
+  projectDir: string
+  tabId: string
+  memory: MemoryFiles
+  activeComponents: Array<{ componentId: string; manifest: unknown }>
+  targetComponentId?: string
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
+  config: import('../providers').LLMConfig
+  registry: { languageModel: (id: string) => any }
+  serverClient: import('../../server/CSlateServerClient').CSlateServerClient | null
+  sender: import('electron').WebContents
+}
+
+export type OrchestratorPhase =
+  | 'understand'
+  | 'search'
+  | 'plan'
+  | 'dispatch'
+  | 'assemble'
+  | 'validate'
+  | 'ship'
+  | 'fix'

@@ -9,6 +9,7 @@ interface ChatState {
   panelOpen: boolean
   turnCount: number
   publishState: 'hidden' | 'prompting' | 'publishing' | 'published' | 'declined'
+  statusLabel: string
   addMessage(msg: NewMessage): void
   setStatus(s: ChatState['status']): void
   setPanelOpen(v: boolean): void
@@ -23,17 +24,12 @@ export const useChatStore = create<ChatState>((set) => ({
   panelOpen: false,
   turnCount: 0,
   publishState: 'hidden',
+  statusLabel: '',
   addMessage: (msg) =>
     set((s) => ({ messages: [...s.messages, { ...msg, timestamp: Date.now() }] })),
   setStatus: (status) => set({ status }),
   setPanelOpen: (v) => set({ panelOpen: v }),
   incrementTurnCount: () => set((s) => ({ turnCount: s.turnCount + 1 })),
   setPublishState: (s) => set({ publishState: s }),
-  reset: () => set({
-    messages: [],
-    status: 'idle',
-    panelOpen: false,
-    turnCount: 0,
-    publishState: 'hidden',
-  }),
+  reset: () => set({ messages: [], status: 'idle', panelOpen: false, turnCount: 0, publishState: 'hidden', statusLabel: '' })
 }))
