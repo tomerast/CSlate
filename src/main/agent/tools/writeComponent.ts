@@ -75,7 +75,7 @@ export function createWriteComponentTool(projectDir: string): Tool<WriteInput, W
       await Promise.all(
         Object.entries(cleanFiles).map(async ([filePath, content]) => {
           const target = join(componentDir, filePath)
-          if (!target.startsWith(componentDir + sep) && target !== componentDir + sep + filePath) {
+          if (!target.startsWith(componentDir + sep)) {
             throw new Error(`Path traversal in files: "${filePath}"`)
           }
           await mkdir(dirname(target), { recursive: true })

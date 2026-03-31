@@ -177,7 +177,7 @@ export function register(ipcMain: IpcMain): void {
       manifest: unknown
     }> = []
 
-    for (const entry of canvas.components) {
+    for (const entry of (canvas.components ?? [])) {
       try { safeComponentId(entry.componentId) } catch { continue }
       const componentDir = path.join(args.projectDir, 'components', entry.componentId)
       try {
