@@ -62,7 +62,6 @@ export function FloatingChatBar({ open, onSubmit, onDismiss, onOpenPanel }: Prop
               <div className={agentResponseLong ? 'max-h-[120px] overflow-hidden' : ''}>
                 <ReactMarkdown
                   components={{
-                    // @ts-expect-error react-markdown v8 types
                     code({ node, inline, className, children, ...props }) {
                       return inline
                         ? <code className="bg-[#1a1a1a] rounded px-1 text-[#e0e0e0] font-mono text-xs" {...props}>{children}</code>
