@@ -69,6 +69,22 @@ export function useChat() {
         }
       }
     })
+    const offOrchestratorStatus = window.electron.on('agent:orchestrator:status', (data: unknown) => {
+      const d = data as { phase: string; workerId?: number; file?: string; workerCount?: number }
+      const phaseLabels: Record<string, string> = {
+        understand: 'Understanding your request...',
+        search: 'Searching for blueprints...',
+        plan: 'Planning component...',
+        dispatch: `Building ${d.workerCount ?? ''} files in parallel...`,
+        worker: d.file ? `Building ${d.file}...` : 'Building...',
+        validate: 'Validating component...',
+        fix: 'Fixing issues...',
+        ship: 'Component ready!',
+      }
+      const label = phaseLabels[d.phase] ?? d.phase
+      useChatStore.setState({ statusLabel: label })
+    })
+
     const offError = window.electron.on('agent:error', (data: unknown) => {
       const d = data as { message: string; code?: string }
       if (d.code === 'UNCONFIGURED_LLM') {
@@ -101,7 +117,9 @@ export function useChat() {
     } finally {
       offToken()
       offToolResult()
+      offOrchestratorStatus()
       offError()
+      useChatStore.setState({ statusLabel: '' })
     }
   }, [addMessage, setStatus, setPanelOpen, setPublishState])
 
