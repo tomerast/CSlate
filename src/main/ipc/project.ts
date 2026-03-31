@@ -159,4 +159,40 @@ export function register(ipcMain: IpcMain): void {
     writeComponent(args.projectDir, args.componentId, args.pkg))
   ipcMain.handle('component:list', (_e, args: { projectDir: string }) =>
     listComponents(args.projectDir))
+  ipcMain.handle('canvas:load', async (_e, args: { projectDir: string }) => {
+    const canvasPath = path.join(args.projectDir, 'canvas.json')
+    let canvas: { components: Array<{ componentId: string; placement: { x: number; y: number; width: number; height: number } }> }
+    try {
+      const raw = await fs.readFile(canvasPath, 'utf-8')
+      canvas = JSON.parse(raw)
+    } catch {
+      return { components: [] }
+    }
+
+    const components: Array<{
+      componentId: string
+      bundle: string
+      placement: { x: number; y: number; width: number; height: number }
+      manifest: unknown
+    }> = []
+
+    for (const entry of canvas.components) {
+      const componentDir = path.join(args.projectDir, 'components', entry.componentId)
+      try {
+        const bundle = await fs.readFile(path.join(componentDir, 'bundle.js'), 'utf-8')
+        const manifestRaw = await fs.readFile(path.join(componentDir, 'manifest.json'), 'utf-8')
+        const manifest = JSON.parse(manifestRaw)
+        components.push({
+          componentId: entry.componentId,
+          bundle,
+          placement: entry.placement,
+          manifest,
+        })
+      } catch {
+        continue // Skip corrupted/missing components
+      }
+    }
+
+    return { components }
+  })
 }
