@@ -100,10 +100,18 @@ Styling only — no structural or logic changes.
 - No timestamp, no avatar
 
 ### Agent Messages
-- No bubble — plain text on dark background
+- No bubble — rendered markdown on dark background (bold, italics, lists, code blocks)
+- Use `react-markdown` to render agent message content — replaces raw `<p>` text rendering
 - Full width with right padding
 - Text: `text-sm leading-relaxed text-[#e0e0e0]`
 - Below each message: subtle muted action row — copy, thumbs up, thumbs down icons (`text-[#555]`, `gap-3`)
+
+### Markdown Rendering
+- Agent messages in both `FloatingChatBar` and `ChatPanel` must render via `react-markdown`
+- User messages remain plain text (pills — no markdown needed)
+- Code blocks: monospace, `bg-[#1a1a1a]` background, subtle border
+- Inline code: `bg-[#1a1a1a] rounded px-1`
+- Lists: standard `ul`/`ol` with left padding
 
 ### Input Bar
 - Pill-shaped, full-width: `rounded-full bg-[#1a1a1a] border border-[#2a2a2a]`

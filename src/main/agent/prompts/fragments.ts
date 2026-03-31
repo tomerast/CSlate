@@ -29,6 +29,33 @@ Every component is a multi-file package:
 - YES: React state, hooks, props, Tailwind classes, bridge.*, Zustand store
 - The sandbox environment enforces all of the above constraints at runtime
 
+### ui.tsx Code Generation Rules (CRITICAL — follow exactly or component will not render)
+
+**1. Name the component \`Component\` — no other name works:**
+\`\`\`tsx
+// CORRECT — sandbox finds this variable:
+function Component(props) { ... }
+
+// WRONG — sandbox cannot find these:
+export default function WeatherApp(props) { ... }
+const WeatherWidget = (props) => { ... }
+\`\`\`
+
+**2. ui.tsx must be 100% self-contained — no imports from other files:**
+\`\`\`tsx
+// CORRECT — all logic inline:
+function useWeatherData(city: string) { ... }
+function Component(props) { ... }
+
+// WRONG — sandbox cannot resolve these:
+import { useWeatherData } from './logic'
+import type { WeatherData } from './types'
+\`\`\`
+If you write a logic.ts or types.ts, duplicate any code needed for preview inline in ui.tsx.
+
+**3. Only these globals are available in ui.tsx:**
+React, useState, useEffect, useRef, useMemo, useCallback, useContext, bridge
+
 ### Bridge API (for external data)
 \`\`\`typescript
 // Declared in manifest.json > dataSources
