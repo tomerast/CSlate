@@ -64,3 +64,49 @@ export async function bundleComponentDir(componentDir: string): Promise<string> 
 
   return result.outputFiles[0].text
 }
+
+/**
+ * Bundle a single ui.tsx string for partial preview.
+ * Stubs all relative imports with empty objects so missing
+ * hook/type files don't block the bundle.
+ */
+export async function bundlePartialUiTsx(uiTsxContent: string): Promise<string> {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'cslate-partial-'))
+  try {
+    await writeFile(join(tmpDir, 'ui.tsx'), uiTsxContent, 'utf-8')
+
+    const result = await esbuild.build({
+      entryPoints: [join(tmpDir, 'ui.tsx')],
+      bundle: true,
+      format: 'cjs',
+      target: 'es2020',
+      write: false,
+      logLevel: 'silent',
+      external: EXTERNALS,
+      plugins: [
+        {
+          name: 'stub-missing-locals',
+          setup(build) {
+            // Stub every relative import — only ui.tsx exists in tmpDir
+            build.onResolve({ filter: /^\./ }, () => ({
+              path: 'stub',
+              namespace: 'stub-missing',
+            }))
+            build.onLoad({ filter: /.*/, namespace: 'stub-missing' }, () => ({
+              contents: 'module.exports = {}',
+              loader: 'js',
+            }))
+          },
+        },
+      ],
+    })
+
+    if (result.errors.length > 0) {
+      throw new Error(result.errors.map(e => e.text).join('\n'))
+    }
+
+    return result.outputFiles[0].text
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true })
+  }
+}
