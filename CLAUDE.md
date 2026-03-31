@@ -74,13 +74,6 @@ Key env vars: `ANTHROPIC_API_KEY`, `VITE_SERVER_URL`.
 
 `@cslate/shared` — `ComponentManifest` Zod schema + `validateComponentPackage()`. Published to npm. Source: `~/Projects/CSlate-shared`.
 
-## Docs
-
-- Architecture decisions: `docs/decisions/`
-- API contract: `docs/contracts/server-api-contract.md`
-
-> `docs/superpowers/` contains Claude Code development artifacts (specs, plans, brainstorming) for building this platform. These are not part of the app's runtime documentation and are not relevant to the CSlate agent or its tools.
-
 ## Agent Dispatch Rules
 
 When dispatching implementer subagents for this project, always include this section in their prompt:

@@ -17,3 +17,6 @@ release/
 .env
 *.log
 .claude/worktrees/
+
+agent/memory/
+

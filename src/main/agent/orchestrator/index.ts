@@ -16,6 +16,7 @@ import { createRenderComponentTool } from '../tools/renderComponent'
 import { createWriteComponentTool } from '../tools/writeComponent'
 import { engineLog } from '../../lib/logger'
 import { bundlePartialUiTsx } from '../lib/bundler'
+import { saveStaging, clearStaging, listStaging, type StagingState } from './staging'
 
 
 export class Orchestrator {
@@ -45,6 +46,46 @@ export class Orchestrator {
       canvasContext,
     })
 
+    // Persistent build state — survives crashes, restarts, rate limits.
+    // Saved to disk after each phase; restored at start of next run.
+    let lastBuildResults: import('./types').SubAgentResult[] = []
+    let componentShipped = false
+    let stagedComponentId: string | null = null
+
+    // Check for an incomplete build to resume
+    const existingStates = await listStaging(ctx.projectDir)
+    const resumeFrom: StagingState | null = existingStates[0] ?? null
+    if (resumeFrom) {
+      this.log.info(
+        { componentId: resumeFrom.componentId, phase: resumeFrom.phase },
+        'resuming from staged build state'
+      )
+      lastBuildResults = resumeFrom.buildResults
+      stagedComponentId = resumeFrom.componentId
+      ctx.sender.send('agent:orchestrator:status', { phase: 'validate' })
+    }
+
+    // Accumulate AI SDK response messages across steps for staging persistence.
+    // Seeded with prior history on resume so the LLM resumes in full context.
+    let accumulatedMessages: unknown[] = [...(resumeFrom?.messages ?? [])]
+
+    // Parse resumed history to know which tools were already called.
+    // prepareStep only sees `steps` from the current streamText call, so without
+    // this set it would restart from Phase 0 on every resume.
+    const calledInHistory = new Set<string>()
+    if (resumeFrom?.messages) {
+      for (const msg of resumeFrom.messages as Array<{ role?: string; content?: unknown }>) {
+        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+          for (const block of msg.content as Array<{ type?: string; toolName?: string }>) {
+            if (block.type === 'tool-call' && block.toolName) {
+              calledInHistory.add(block.toolName)
+            }
+          }
+        }
+      }
+      this.log.info({ calledInHistory: [...calledInHistory] }, 'parsed resume history')
+    }
+
     // Build orchestrator tools
     const tools = {
       searchBlueprints: createSearchBlueprintsTool(ctx.serverClient),
@@ -61,12 +102,15 @@ export class Orchestrator {
             { componentId: plan.componentId, taskCount: plan.tasks.length },
             'plan created'
           )
+          stagedComponentId = plan.componentId
           ctx.sender.send('agent:build:plan', {
             buildId: ctx.tabId,
             componentId: plan.componentId,
             description: plan.requirements,
             tasks: plan.tasks.map(t => ({ file: t.file, assignment: t.assignment })),
           })
+          // Staging is saved in onStepFinish after this step completes so
+          // accumulatedMessages includes the plan tool call + result.
           return {
             planned: true,
             componentId: plan.componentId,
@@ -99,7 +143,7 @@ export class Orchestrator {
             workerCount: input.tasks.length,
           })
 
-          const results = await Promise.all(
+          const results: import('./types').SubAgentResult[] = await Promise.all(
             input.tasks.map((task, i) => {
               ctx.sender.send('agent:orchestrator:status', {
                 phase: 'worker',
@@ -136,6 +180,21 @@ export class Orchestrator {
             })
           )
 
+          // Store for use by assembleAndValidate — model doesn't need to echo code back
+          lastBuildResults = results
+
+          // Persist built files to disk — survives crashes, rate limit drops, restarts
+          if (stagedComponentId) {
+            await saveStaging(ctx.projectDir, {
+              componentId: stagedComponentId,
+              buildId: ctx.tabId,
+              phase: 'dispatched',
+              timestamp: Date.now(),
+              messages: [],  // messages snapshotted at plan phase; files are what matter now
+              buildResults: results,
+            })
+          }
+
           const succeeded = results.filter((r) => r.status === 'success')
           const failed = results.filter((r) => r.status === 'error')
           this.log.info(
@@ -143,9 +202,9 @@ export class Orchestrator {
             'sub-agents done'
           )
           return {
-            results,
             succeeded: succeeded.length,
             failed: failed.length,
+            files: results.map(r => ({ file: r.file, status: r.status, error: r.error })),
           }
         },
       }),
@@ -155,14 +214,6 @@ export class Orchestrator {
           'Assemble the component from sub-agent results, validate manifest, and render in sandbox. Call after dispatchSubAgents returns.',
         inputSchema: z.object({
           componentId: z.string(),
-          results: z.array(
-            z.object({
-              file: z.string(),
-              code: z.string(),
-              status: z.enum(['success', 'error']),
-              error: z.string().nullable(),
-            })
-          ),
           manifest: z.any(),
           contextMd: z.string(),
         }),
@@ -173,9 +224,9 @@ export class Orchestrator {
           )
           ctx.sender.send('agent:orchestrator:status', { phase: 'validate' })
 
-          // Build files map from results
+          // Read build results from closure — not passed by model to avoid token blowout
           const files: Record<string, string> = {}
-          for (const r of input.results) {
+          for (const r of lastBuildResults) {
             if (r.status === 'success') {
               files[r.file] = r.code
             }
@@ -234,6 +285,9 @@ export class Orchestrator {
           // Notify renderer so it can add the component to the canvas
           ctx.sender.send('agent:tool-result', { tool: 'writeComponent', result: writeResult })
 
+          componentShipped = true
+          // Clear staging — build is complete
+          await clearStaging(ctx.projectDir, input.componentId)
           ctx.sender.send('agent:orchestrator:status', { phase: 'ship' })
           this.log.info(
             { componentId: input.componentId },
@@ -245,13 +299,12 @@ export class Orchestrator {
 
       dispatchFixAgents: defineTool({
         description:
-          'Dispatch fix sub-agents for files that failed to render. Returns fixed results.',
+          'Dispatch fix sub-agents for files that failed to render. Provide the contract and which files need fixing with their errors.',
         inputSchema: z.object({
           contract: z.string(),
           fixes: z.array(
             z.object({
               file: z.string(),
-              brokenCode: z.string(),
               error: z.string(),
             })
           ),
@@ -264,17 +317,29 @@ export class Orchestrator {
           ctx.sender.send('agent:orchestrator:status', { phase: 'fix' })
 
           const results = await Promise.all(
-            input.fixes.map((fix) =>
-              spawnFixAgent({
-                ...fix,
+            input.fixes.map((fix) => {
+              // Read broken code from stored results — model doesn't echo it back
+              const stored = lastBuildResults.find(r => r.file === fix.file)
+              return spawnFixAgent({
+                file: fix.file,
+                brokenCode: stored?.code ?? '',
+                error: fix.error,
                 contract: input.contract,
                 modelId,
                 registry: ctx.registry,
               })
-            )
+            })
           )
 
-          return { results }
+          // Merge fixed results back into lastBuildResults for the next assembleAndValidate
+          for (const fixed of results) {
+            const idx = lastBuildResults.findIndex(r => r.file === fixed.file)
+            if (idx >= 0) lastBuildResults[idx] = fixed
+          }
+
+          return {
+            fixed: results.map(r => ({ file: r.file, status: r.status, error: r.error })),
+          }
         },
       }),
     }
@@ -294,17 +359,64 @@ export class Orchestrator {
       messages: [
         ...ctx.conversationHistory,
         { role: 'user' as const, content: message },
+        // On resume: inject prior tool call/result history so the LLM continues
+        // in-context rather than re-executing phases already completed.
+        ...(accumulatedMessages as any[]),
       ],
       tools,
       stopWhen: stepCountIs(15),
-      maxOutputTokens: 4000,
+      maxOutputTokens: 16000,
       temperature: 0.2,
+      onStepFinish: async ({ toolCalls, response }) => {
+        // Accumulate response messages (assistant turn + tool results) for resume
+        accumulatedMessages.push(...response.messages)
+
+        const calledThisStep = new Set(toolCalls.map(c => c.toolName))
+
+        // After plan step: save checkpoint so dispatch crash is recoverable
+        if (calledThisStep.has('planComponent') && stagedComponentId) {
+          await saveStaging(ctx.projectDir, {
+            componentId: stagedComponentId,
+            buildId: ctx.tabId,
+            phase: 'planned',
+            timestamp: Date.now(),
+            messages: accumulatedMessages,
+            buildResults: [],
+          })
+        }
+
+        // After dispatch step: update with built file results
+        if (calledThisStep.has('dispatchSubAgents') && stagedComponentId) {
+          await saveStaging(ctx.projectDir, {
+            componentId: stagedComponentId,
+            buildId: ctx.tabId,
+            phase: 'dispatched',
+            timestamp: Date.now(),
+            messages: accumulatedMessages,
+            buildResults: lastBuildResults,
+          })
+        }
+      },
       prepareStep: ({ steps }) => {
-        const called = new Set(
+        // Union current-run tool calls with those parsed from resume history
+        // so phase detection works correctly on both fresh and resumed runs.
+        const calledNow = new Set(
           steps.flatMap(s => (s.toolCalls ?? []).map(c => c.toolName))
         )
-        // Count how many times assembleAndValidate has been called (max 2: initial + after fix)
-        const validateCount = steps.reduce(
+        const called = new Set([...calledInHistory, ...calledNow])
+        // Count how many times assembleAndValidate has been called (max 2: initial + after fix).
+        // Include calls from resumed history so we don't re-validate on a resumed run.
+        const validateCountHistory = resumeFrom?.messages
+          ? (resumeFrom.messages as Array<{ role?: string; content?: unknown }>).reduce((n, msg) => {
+              if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+                return n + (msg.content as Array<{ type?: string; toolName?: string }>).filter(
+                  b => b.type === 'tool-call' && b.toolName === 'assembleAndValidate'
+                ).length
+              }
+              return n
+            }, 0)
+          : 0
+        const validateCount = validateCountHistory + steps.reduce(
           (n, s) => n + (s.toolCalls ?? []).filter(c => c.toolName === 'assembleAndValidate').length,
           0
         )
@@ -359,6 +471,21 @@ export class Orchestrator {
 
     for await (const part of result.fullStream) {
       yield part
+    }
+
+    // Recovery: if build results exist but the stream ended without shipping,
+    // surface a clear error rather than silently dropping the work.
+    // We can't recover without the manifest (model-generated), so prompt the user to retry.
+    if (!componentShipped && lastBuildResults.length > 0) {
+      const successCount = lastBuildResults.filter(r => r.status === 'success').length
+      this.log.warn(
+        { successCount, total: lastBuildResults.length },
+        'stream ended without shipping — build results were dropped'
+      )
+      ctx.sender.send('agent:error', {
+        message: `${successCount} of ${lastBuildResults.length} files built successfully but the component wasn't assembled — the LLM stopped before finishing. Please send the same request again to complete it.`,
+        code: 'ASSEMBLY_DROPPED',
+      })
     }
 
     this.log.info({ durationMs: Date.now() - t0 }, 'orchestrator done')
