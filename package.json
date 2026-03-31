@@ -9,6 +9,10 @@
   "build": {
     "appId": "com.cslate.app",
     "icon": "build/icon.icns",
+    "asarUnpack": [
+      "**/node_modules/esbuild/**",
+      "**/node_modules/@esbuild/**"
+    ],
     "extraResources": [
       {
         "from": "resources/",

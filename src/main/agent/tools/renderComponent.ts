@@ -23,6 +23,8 @@ type RenderOutput = {
   componentId: string
   bundle?: string
   files?: Record<string, string>
+  manifest?: unknown
+  placement?: z.infer<typeof PlacementSchema>
   errors?: string[]
 }
 
@@ -58,7 +60,7 @@ export function createRenderComponentTool(): Tool<RenderInput, RenderOutput> {
       }
 
       const componentId = `preview_${Date.now()}`
-      return { success: true, componentId, bundle, files: cleanFiles }
+      return { success: true, componentId, bundle, files: cleanFiles, manifest: input.manifest, placement: input.placement }
     },
   }
 }
