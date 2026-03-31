@@ -78,7 +78,8 @@ Key env vars: `ANTHROPIC_API_KEY`, `VITE_SERVER_URL`.
 
 - Architecture decisions: `docs/decisions/`
 - API contract: `docs/contracts/server-api-contract.md`
-- Design specs: `docs/superpowers/specs/`
+
+> `docs/superpowers/` contains Claude Code development artifacts (specs, plans, brainstorming) for building this platform. These are not part of the app's runtime documentation and are not relevant to the CSlate agent or its tools.
 
 ## Agent Dispatch Rules
 
