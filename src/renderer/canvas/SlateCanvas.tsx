@@ -1,14 +1,35 @@
 import React from 'react'
-import { useChatStore } from '../store/chatStore'
+import { useCanvasStore, type CanvasComponent } from '../store/canvasStore'
 import { DynamicComponent } from '../sandbox/DynamicComponent'
 
+const GRID_PX = 8
+
+function CanvasItem({ component }: { component: CanvasComponent }) {
+  const { x, y, width, height } = component.placement
+  return (
+    <div
+      className="absolute bg-surface rounded-lg shadow-lg overflow-auto"
+      style={{
+        left: x * GRID_PX,
+        top: y * GRID_PX,
+        width: width * GRID_PX,
+        height: height * GRID_PX,
+      }}
+    >
+      <DynamicComponent bundle={component.bundle} />
+    </div>
+  )
+}
+
 export function SlateCanvas() {
-  const currentCode = useChatStore((s) => s.currentCode)
+  const components = useCanvasStore((s) => s.components)
+  const preview = useCanvasStore((s) => s.preview)
   const shortcut = window.electron.platform === 'darwin' ? '⌘K' : 'Ctrl+K'
+  const isEmpty = components.length === 0 && !preview
 
   return (
-    <div className="flex-1 bg-background relative overflow-hidden">
-      {!currentCode ? (
+    <div className="flex-1 bg-background relative overflow-auto">
+      {isEmpty ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center select-none">
             <img
@@ -28,11 +49,30 @@ export function SlateCanvas() {
           </div>
         </div>
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center p-8">
-          <div className="bg-surface rounded-lg shadow-lg overflow-auto max-w-full max-h-full">
-            <DynamicComponent code={currentCode} />
-          </div>
-        </div>
+        <>
+          {components.map((comp) => (
+            <CanvasItem key={comp.componentId} component={comp} />
+          ))}
+          {preview && (
+            <div
+              className="absolute bg-surface rounded-lg shadow-lg overflow-auto ring-2 ring-primary/30"
+              style={preview.placement ? {
+                left: preview.placement.x * GRID_PX,
+                top: preview.placement.y * GRID_PX,
+                width: preview.placement.width * GRID_PX,
+                height: preview.placement.height * GRID_PX,
+              } : {
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                maxWidth: '80%',
+                maxHeight: '80%',
+              }}
+            >
+              <DynamicComponent bundle={preview.bundle} />
+            </div>
+          )}
+        </>
       )}
     </div>
   )

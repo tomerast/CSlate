@@ -1,49 +1,44 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
+import ReactDOM from 'react-dom'
 import { ComponentError } from './ComponentError'
 
 interface Props {
-  code: string
+  bundle: string
 }
 
-interface CompileResult {
+interface EvalResult {
   Component: React.ComponentType | null
   error: string | null
 }
 
-let babelPromise: Promise<typeof import('@babel/standalone')> | null = null
-
-function getBabel() {
-  if (!babelPromise) babelPromise = import('@babel/standalone')
-  return babelPromise
-}
-
-async function compileCode(code: string): Promise<CompileResult> {
+function evalBundle(bundle: string): EvalResult {
   try {
-    const babelModule = await getBabel()
-    const Babel = (babelModule as unknown as { default: typeof babelModule }).default ?? babelModule
-    const result = Babel.transform(code, { presets: ['react'] })
-    if (!result?.code) return { Component: null, error: 'Babel produced no output' }
+    const _module = { exports: {} as Record<string, unknown> }
+    const _require = (mod: string): unknown => {
+      if (mod === 'react') return React
+      if (mod === 'react-dom') return ReactDOM
+      throw new Error(
+        `Module "${mod}" is not available in the CSlate sandbox. ` +
+        `Use bridge.fetch() for external data, or inline your logic.`
+      )
+    }
 
     // eslint-disable-next-line no-new-func
-    const factory = new Function(
-      'React',
-      'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback', 'useContext',
-      `${result.code}\n; return typeof Component !== 'undefined' ? Component : null;`
-    )
-    const Component = factory(
-      React,
-      React.useState, React.useEffect, React.useRef,
-      React.useMemo, React.useCallback, React.useContext
-    )
+    const factory = new Function('require', 'module', 'exports', bundle)
+    factory(_require, _module, _module.exports)
+
+    const Component = _module.exports['default'] as React.ComponentType | undefined
     if (typeof Component !== 'function') {
       return {
         Component: null,
-        error: 'Code did not define a Component function. Make sure your code contains: function Component() { ... }'
+        error:
+          'No default export found. ' +
+          'Your ui.tsx must have: export default function MyComponent() { ... }',
       }
     }
     return { Component, error: null }
   } catch (e) {
-    return { Component: null, error: `Failed to compile: ${String(e)}` }
+    return { Component: null, error: `Failed to evaluate: ${String(e)}` }
   }
 }
 
@@ -57,21 +52,21 @@ class ErrorBoundary extends React.Component<
   render() { return this.state.caught ? null : this.props.children }
 }
 
-export function DynamicComponent({ code }: Props) {
-  const [result, setResult] = useState<CompileResult>({ Component: null, error: null })
-  const [runtimeError, setRuntimeError] = useState<string | null>(null)
+export function DynamicComponent({ bundle }: Props) {
+  const [result, setResult] = React.useState<EvalResult>({ Component: null, error: null })
+  const [runtimeError, setRuntimeError] = React.useState<string | null>(null)
 
-  useEffect(() => {
+  React.useEffect(() => {
     setRuntimeError(null)
-    compileCode(code).then(setResult)
-  }, [code])
+    setResult(evalBundle(bundle))
+  }, [bundle])
 
-  if (result.error) return <ComponentError message={result.error} code={code} />
-  if (runtimeError) return <ComponentError message={`Runtime error: ${runtimeError}`} code={code} />
+  if (result.error) return <ComponentError message={result.error} code={bundle} />
+  if (runtimeError) return <ComponentError message={`Runtime: ${runtimeError}`} code={bundle} />
   if (!result.Component) return null
 
   return (
-    <ErrorBoundary key={code} onError={(e) => setRuntimeError(e.message)}>
+    <ErrorBoundary key={bundle} onError={(e) => setRuntimeError(e.message)}>
       <result.Component />
     </ErrorBoundary>
   )

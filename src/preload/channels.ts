@@ -26,7 +26,8 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'server:search',
   'server:publish',
   'shell:openExternal',
-  'models:fetch'
+  'models:fetch',
+  'canvas:load'
 ] as const
 
 export const ALLOWED_LISTEN_CHANNELS = [
@@ -38,7 +39,8 @@ export const ALLOWED_LISTEN_CHANNELS = [
   'agent:tool-call',
   'agent:tool-result',
   'agent:done',
-  'agent:error'
+  'agent:error',
+  'agent:orchestrator:status'
 ] as const
 
 export type SendChannel = typeof ALLOWED_SEND_CHANNELS[number]

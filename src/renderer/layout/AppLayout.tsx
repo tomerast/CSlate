@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
+import { useCanvasStore } from '../store/canvasStore'
 import { useChat } from '../chat/useChat'
 import { FloatingChatBar } from '../chat/FloatingChatBar'
 import { ChatPanel } from '../chat/ChatPanel'
@@ -27,6 +28,16 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  useEffect(() => {
+    window.electron.invoke('canvas:load', { projectDir: '' }).then((result: any) => {
+      if (result?.components?.length > 0) {
+        useCanvasStore.getState().hydrate(result.components)
+      }
+    }).catch(() => {
+      // No project open yet — canvas starts empty
+    })
   }, [])
 
   const handleSubmit = useCallback(async (text: string) => {
