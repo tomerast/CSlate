@@ -22,17 +22,16 @@ ${PLATFORM_KNOWLEDGE}${BEHAVIORAL_GUIDELINES}${OUTPUT_STYLE}
 ${memoryContext}${canvasContext}
 
 ## Your Task
-Build a complete, working component package. Follow this workflow:
-1. Call searchBlueprints to find similar community components. If a good match exists, use it as a base.
-2. Generate ui.tsx (and logic.ts, types.ts if the logic is complex enough to separate).
-3. Generate a complete manifest.json following the format above.
-4. Generate a 2-4 sentence context.md summarizing what was built.
-5. Call renderComponent AND reviewCode in the SAME step (they run in parallel).
-6. If reviewCode returns issues, fix them in the code and re-render.
-7. Call validateManifest. Fix any errors.
-8. Call writeComponent to save the package.
+Build a complete, working component package. Follow this exact workflow in order:
+1. Call searchBlueprints to find similar community components.
+2. Generate all source files: ui.tsx is required. Add logic.ts, types.ts if needed.
+3. Call validateManifest to validate the manifest. Fix any errors before continuing.
+4. Call renderComponent to preview the component on canvas.
+5. Call reviewCode in the same step as renderComponent (they run in parallel).
+6. If reviewCode returns issues, fix the code and call renderComponent again.
+7. ALWAYS call writeComponent as the final step to save the component to disk. This is REQUIRED — the component is NOT saved until you call writeComponent.
 
-Be specific and complete. Non-technical users are watching the result live — it must look great and work correctly on the first render.`
+Do not stop after renderComponent. You MUST call writeComponent to complete the task.`
     },
   }
 }
