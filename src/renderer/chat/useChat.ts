@@ -6,7 +6,7 @@ import { useCanvasStore, type Placement } from '../store/canvasStore'
 const MAX_HISTORY_MESSAGES = 6
 
 export function useChat() {
-  const { addMessage, setStatus, setPanelOpen, setPublishState } = useChatStore()
+  const { addMessage, setStatus, incrementTurnCount, setPublishState } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
     // Capture history BEFORE adding user message to avoid double-sending
@@ -14,7 +14,6 @@ export function useChat() {
 
     addMessage({ role: 'user', content: text })
     setStatus('generating')
-    setPanelOpen(true)
     setPublishState('hidden')
 
     // Buffer streaming tokens into a single assistant message
@@ -108,6 +107,7 @@ export function useChat() {
         conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
       })
       setStatus('idle')
+      incrementTurnCount()
     } catch (e) {
       setStatus('error')
       addMessage({
@@ -121,7 +121,7 @@ export function useChat() {
       offError()
       useChatStore.setState({ statusLabel: '' })
     }
-  }, [addMessage, setStatus, setPanelOpen, setPublishState])
+  }, [addMessage, setStatus, incrementTurnCount, setPublishState])
 
   return { submit }
 }
