@@ -29,9 +29,6 @@ export default defineConfig({
         '@shared': resolve(__dirname, 'src/shared')
       }
     },
-    optimizeDeps: {
-      include: ['@babel/standalone']
-    },
     css: {
       postcss: './postcss.config.js'
     }

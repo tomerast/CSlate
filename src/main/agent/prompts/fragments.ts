@@ -29,32 +29,22 @@ Every component is a multi-file package:
 - YES: React state, hooks, props, Tailwind classes, bridge.*, Zustand store
 - The sandbox environment enforces all of the above constraints at runtime
 
-### ui.tsx Code Generation Rules (CRITICAL — follow exactly or component will not render)
+### Component Code Rules
 
-**1. Name the component \`Component\` — no other name works:**
-\`\`\`tsx
-// CORRECT — sandbox finds this variable:
-function Component(props) { ... }
+- ui.tsx is the entry point. It must have a **default export** — this is the component rendered on the canvas.
+  \`\`\`tsx
+  // CORRECT:
+  export default function WeatherDashboard() { ... }
 
-// WRONG — sandbox cannot find these:
-export default function WeatherApp(props) { ... }
-const WeatherWidget = (props) => { ... }
-\`\`\`
-
-**2. ui.tsx must be 100% self-contained — no imports from other files:**
-\`\`\`tsx
-// CORRECT — all logic inline:
-function useWeatherData(city: string) { ... }
-function Component(props) { ... }
-
-// WRONG — sandbox cannot resolve these:
-import { useWeatherData } from './logic'
-import type { WeatherData } from './types'
-\`\`\`
-If you write a logic.ts or types.ts, duplicate any code needed for preview inline in ui.tsx.
-
-**3. Only these globals are available in ui.tsx:**
-React, useState, useEffect, useRef, useMemo, useCallback, useContext, bridge
+  // WRONG (no default export):
+  function Component() { ... }
+  \`\`\`
+- You may import from other files in the package: \`import { useWeatherData } from './hooks/useWeatherData'\`
+- You may use any directory structure: hooks/, components/, utils/, types/ etc.
+- React and react-dom are available via import as normal.
+- Do NOT import npm packages other than react/react-dom — they are not available in the sandbox.
+  Use bridge.fetch() for external data instead.
+- Do NOT use fetch(), localStorage, or window APIs — use the bridge API.
 
 ### Bridge API (for external data)
 \`\`\`typescript
