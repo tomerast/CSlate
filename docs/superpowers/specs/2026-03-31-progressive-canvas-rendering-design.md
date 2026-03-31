@@ -45,6 +45,10 @@ type BuildPhase = 'think' | 'plan' | 'build' | 'test' | 'done'
 
 Actions: `addBuildingCard`, `updateBuildingCard`, `removeBuildingCard`.
 
+`buildId` is the `tabId` from the `agent:run` invocation — already a UUID, already unique per run.
+
+**Initial placement**: Before the plan arrives, the card uses a default placement (`x: 0, y: 0, width: 400, height: 300`) offset to avoid colliding with any already-placed components (find the first free grid slot). When `agent:build:plan` arrives with the actual placement, the card animates to the planned position.
+
 The card is removed when `writeComponent` succeeds; the real component takes its slot at the same coordinates.
 
 ### New IPC Events
