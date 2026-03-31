@@ -16,7 +16,6 @@ import { createRenderComponentTool } from '../tools/renderComponent'
 import { createWriteComponentTool } from '../tools/writeComponent'
 import { engineLog } from '../../lib/logger'
 
-const MAX_FIX_CYCLES = 2
 
 export class Orchestrator {
   private ctx: OrchestratorContext

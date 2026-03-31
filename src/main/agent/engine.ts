@@ -131,7 +131,7 @@ export class AgentEngine {
     const skillRegistry = buildSkillRegistry(tools)
     const skill = skillRegistry[skillName as keyof typeof skillRegistry]
     if (!skill) {
-      yield { type: 'text-delta', textDelta: `Unknown skill: ${skillName}` }
+      yield { type: 'text-delta', text: `Unknown skill: ${skillName}` }
       return
     }
 
