@@ -19,6 +19,7 @@ export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onO
   const status = useChatStore((s) => s.status)
   const turnCount = useChatStore((s) => s.turnCount)
   const panelOpen = useChatStore((s) => s.panelOpen)
+  const messageQueue = useChatStore((s) => s.messageQueue)
 
   const hasMessages = messages.length > 0
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
@@ -26,6 +27,8 @@ export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onO
 
   const agentResponseLong = (lastAgentMsg?.content.length ?? 0) > 300
   const showNudge = !nudgeDismissed && (agentResponseLong || turnCount >= 5)
+  const isBuilding = status === 'generating'
+  const queueCount = messageQueue.length
 
   useEffect(() => {
     if (open && !hasMessages) inputRef.current?.focus()
@@ -33,7 +36,7 @@ export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onO
 
   function handleSubmit() {
     const trimmed = value.trim()
-    if (!trimmed || status === 'generating') return
+    if (!trimmed) return
     onSubmit(trimmed)
     setValue('')
   }
@@ -102,7 +105,7 @@ export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onO
         </div>
       )}
 
-      {/* Input bar — glass pill */}
+      {/* Input bar */}
       <div className="bg-[rgba(26,26,35,0.88)] backdrop-blur-xl border border-white/[0.08] rounded-full px-4 py-2.5 flex items-center gap-3 shadow-[0_16px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.04)] pointer-events-auto">
         <input
           ref={inputRef}
@@ -113,15 +116,22 @@ export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onO
             if (e.key === 'Enter') handleSubmit()
             if (e.key === 'Escape' && !hasMessages) onDismiss()
           }}
-          placeholder={status === 'generating' ? '' : 'Ask anything (⌘K)'}
-          disabled={status === 'generating'}
+          placeholder={isBuilding
+            ? queueCount > 0
+              ? `${queueCount} queued...`
+              : 'Queue a message...'
+            : 'Ask anything (⌘K)'}
           className="flex-1 bg-transparent text-text text-sm outline-none placeholder:text-muted/50"
         />
-        {status === 'generating' ? (
+        {isBuilding && queueCount === 0 ? (
           <span className="flex items-center gap-1 flex-shrink-0">
             <span className="generating-dot" />
             <span className="generating-dot" />
             <span className="generating-dot" />
+          </span>
+        ) : isBuilding && queueCount > 0 ? (
+          <span className="text-[10px] text-primary/60 bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5 flex-shrink-0">
+            {queueCount} queued
           </span>
         ) : value ? (
           <button
