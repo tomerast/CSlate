@@ -58,7 +58,12 @@ export function createScanLocalComponentsTool(projectDir: string): Tool<ScanInpu
         const manifestPath = join(compDir, 'manifest.json')
         if (!existsSync(manifestPath)) continue
 
-        const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
+        let manifest: any
+        try {
+          manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
+        } catch {
+          continue // skip components with invalid manifest.json
+        }
         const name = manifest.name ?? dir
         const description = manifest.description ?? ''
         const tags: string[] = manifest.tags ?? []

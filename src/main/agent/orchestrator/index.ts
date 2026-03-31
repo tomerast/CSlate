@@ -182,32 +182,20 @@ export class Orchestrator {
             }
           }
 
-          // Render in sandbox
+          // Render in sandbox — pass all built files, not just hardcoded names
           const renderTool = createRenderComponentTool()
           const renderResult = (await renderTool.execute!(
-            {
-              files: {
-                'ui.tsx': files['ui.tsx'],
-                ...(files['logic.ts'] ? { 'logic.ts': files['logic.ts'] } : {}),
-                ...(files['types.ts']
-                  ? { 'types.ts': files['types.ts'] }
-                  : {}),
-              },
-              manifest: input.manifest,
-            },
+            { files, manifest: input.manifest },
             {} as any
-          )) as { success: boolean; componentId: string }
+          )) as { success: boolean; componentId: string; errors?: string[] }
           if (!renderResult.success) {
-            return { success: false, error: 'Render failed' }
+            const errDetail = (renderResult.errors ?? []).join(', ')
+            return { success: false, error: errDetail ? `Render failed: ${errDetail}` : 'Render failed' }
           }
 
-          // Write to disk (include context.md in files)
+          // Write to disk — pass all built files + context.md
           const writeTool = createWriteComponentTool(ctx.projectDir)
-          const writeFiles: Record<string, string> = {
-            'ui.tsx': files['ui.tsx'],
-            ...(files['logic.ts'] ? { 'logic.ts': files['logic.ts'] } : {}),
-            ...(files['types.ts'] ? { 'types.ts': files['types.ts'] } : {}),
-          }
+          const writeFiles: Record<string, string> = { ...files }
           if (input.contextMd) {
             writeFiles['context.md'] = input.contextMd
           }

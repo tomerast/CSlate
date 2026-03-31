@@ -34,13 +34,17 @@ export async function classifyIntent(
   log.debug({ modelId, message }, 'classifyIntent start')
   const t0 = Date.now()
 
-  const { object } = await generateObject({
-    model: registry.languageModel(modelId),
-    system: ROUTER_SYSTEM,
-    prompt: message,
-    schema: RouteSchema,
-  })
-
-  log.debug({ modelId, durationMs: Date.now() - t0, route: object.route }, 'classifyIntent done')
-  return object
+  try {
+    const { object } = await generateObject({
+      model: registry.languageModel(modelId),
+      system: ROUTER_SYSTEM,
+      prompt: message,
+      schema: RouteSchema,
+    })
+    log.debug({ modelId, durationMs: Date.now() - t0, route: object.route }, 'classifyIntent done')
+    return object
+  } catch (err) {
+    log.warn({ modelId, err }, 'classifyIntent failed, defaulting to orchestrator')
+    return { route: 'orchestrator', summary: message, targetComponentId: null }
+  }
 }
