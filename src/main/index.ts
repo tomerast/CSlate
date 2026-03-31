@@ -17,9 +17,9 @@ function installCSP(): void {
     ? `'self' ${serverUrl} ws://localhost:5173 ws://localhost:5174`
     : `'self' ${serverUrl}`
 
-  // Dev mode: Vite's @vitejs/plugin-react injects inline scripts for React Refresh/HMR.
-  // These require 'unsafe-inline' for script-src. Production builds have no inline scripts.
-  const scriptSrc = is.dev ? `'self' 'unsafe-inline'` : `'self'`
+  // 'unsafe-eval' is required for DynamicComponent which evaluates CJS bundles via new Function().
+  // Dev mode also needs 'unsafe-inline' for Vite's React Refresh/HMR inline scripts.
+  const scriptSrc = is.dev ? `'self' 'unsafe-inline' 'unsafe-eval'` : `'self' 'unsafe-eval'`
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
