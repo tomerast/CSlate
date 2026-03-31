@@ -69,7 +69,7 @@ export class AgentEngine {
     const tools = {
       validateManifest,
       reviewCode: createReviewCodeTool(reg, fastModelId(this.config)),
-      renderComponent: createRenderComponentTool(this.options.sender, this.options.tabId),
+      renderComponent: createRenderComponentTool(),
       writeComponent: createWriteComponentTool(this.projectDir),
       readManifest: createReadManifestTool(this.projectDir),
       readProjectContext: createReadProjectContextTool(this.projectDir),
