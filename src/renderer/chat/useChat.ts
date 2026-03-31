@@ -54,8 +54,10 @@ export function useChat() {
         pendingCode = null
       }
     })
+    let didError = false
     const offError = window.electron.on('agent:error', (data: unknown) => {
       const d = data as { message: string; code?: string }
+      didError = true
       if (d.code === 'UNCONFIGURED_LLM') {
         useAppStore.getState().openConfig('models')
         setStatus('idle')
@@ -76,8 +78,10 @@ export function useChat() {
         tabId: crypto.randomUUID(),
         conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
       })
-      setStatus('idle')
-      incrementTurnCount()
+      if (!didError) {
+        setStatus('idle')
+        incrementTurnCount()
+      }
     } catch (e) {
       setStatus('error')
       addMessage({

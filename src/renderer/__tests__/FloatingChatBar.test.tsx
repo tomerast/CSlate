@@ -14,9 +14,11 @@ beforeEach(() => {
 
 const defaultProps = {
   open: false,
+  nudgeDismissed: false,
   onSubmit: vi.fn(),
   onDismiss: vi.fn(),
   onOpenPanel: vi.fn(),
+  onDismissNudge: vi.fn(),
 }
 
 describe('FloatingChatBar', () => {

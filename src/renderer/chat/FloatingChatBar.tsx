@@ -4,14 +4,15 @@ import { useChatStore } from '../store/chatStore'
 
 interface Props {
   open: boolean
+  nudgeDismissed: boolean
   onSubmit(text: string): void
   onDismiss(): void
   onOpenPanel(): void
+  onDismissNudge(): void
 }
 
-export function FloatingChatBar({ open, onSubmit, onDismiss, onOpenPanel }: Props) {
+export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onOpenPanel, onDismissNudge }: Props) {
   const [value, setValue] = useState('')
-  const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const messages = useChatStore((s) => s.messages)
@@ -83,14 +84,14 @@ export function FloatingChatBar({ open, onSubmit, onDismiss, onOpenPanel }: Prop
               <span>
                 Conversation getting long —{' '}
                 <button
-                  onClick={() => { onOpenPanel(); setNudgeDismissed(true) }}
+                  onClick={() => { onOpenPanel(); onDismissNudge() }}
                   className="text-muted hover:text-text underline transition-colors duration-150"
                 >
                   Open full chat →
                 </button>
               </span>
               <button
-                onClick={() => setNudgeDismissed(true)}
+                onClick={onDismissNudge}
                 className="text-muted/40 hover:text-muted transition-colors duration-150 ml-2"
                 aria-label="Dismiss"
               >

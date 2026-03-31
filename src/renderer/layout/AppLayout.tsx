@@ -11,6 +11,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ onOpenConfig }: AppLayoutProps) {
   const [cmdBarOpen, setCmdBarOpen] = useState(false)
+  const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const panelOpen = useChatStore((s) => s.panelOpen)
   const setPanelOpen = useChatStore((s) => s.setPanelOpen)
   const messages = useChatStore((s) => s.messages)
@@ -75,9 +76,11 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
 
       <FloatingChatBar
         open={cmdBarOpen}
+        nudgeDismissed={nudgeDismissed}
         onSubmit={handleSubmit}
         onDismiss={() => setCmdBarOpen(false)}
         onOpenPanel={() => setPanelOpen(true)}
+        onDismissNudge={() => setNudgeDismissed(true)}
       />
     </div>
   )
