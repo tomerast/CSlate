@@ -1,6 +1,7 @@
 import React from 'react'
 import { useCanvasStore, type CanvasComponent } from '../store/canvasStore'
 import { DynamicComponent } from '../sandbox/DynamicComponent'
+import { BuildingCard } from './building/BuildingCard'
 
 const GRID_PX = 8
 
@@ -24,8 +25,9 @@ function CanvasItem({ component }: { component: CanvasComponent }) {
 export function SlateCanvas() {
   const components = useCanvasStore((s) => s.components)
   const preview = useCanvasStore((s) => s.preview)
+  const buildingCards = useCanvasStore((s) => s.buildingCards)
   const shortcut = window.electron.platform === 'darwin' ? '⌘K' : 'Ctrl+K'
-  const isEmpty = components.length === 0 && !preview
+  const isEmpty = components.length === 0 && !preview && buildingCards.length === 0
 
   return (
     <div className="flex-1 bg-background relative overflow-auto">
@@ -52,6 +54,9 @@ export function SlateCanvas() {
         <>
           {components.map((comp) => (
             <CanvasItem key={comp.componentId} component={comp} />
+          ))}
+          {buildingCards.map((card) => (
+            <BuildingCard key={card.buildId} card={card} />
           ))}
           {preview && (
             <div
