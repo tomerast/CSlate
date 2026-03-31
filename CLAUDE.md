@@ -74,11 +74,29 @@ Key env vars: `ANTHROPIC_API_KEY`, `VITE_SERVER_URL`.
 
 `@cslate/shared` — `ComponentManifest` Zod schema + `validateComponentPackage()`. Published to npm. Source: `~/Projects/CSlate-shared`.
 
-## Docs
+## Agent Dispatch Rules
 
-- Architecture decisions: `docs/decisions/`
-- API contract: `docs/contracts/server-api-contract.md`
-- Design specs: `docs/superpowers/specs/`
+When dispatching implementer subagents for this project, always include this section in their prompt:
+
+```
+## Fix-First Policy
+
+When you encounter an issue **within the scope of your task**, fix it and keep going — do not stop and ask. This includes:
+- TypeScript errors in files you created or modified
+- Test failures caused by your changes
+- Missing imports or deps that your implementation requires
+- Lint / build errors introduced by your work
+- Runtime gotchas you discover while testing (e.g. a missing IPC channel, a CSP directive needed by a component you're building)
+
+**Cross-cutting side-effects** (changes to files outside your task's File Map) must be made if needed but flagged explicitly in your report under "Side effects". Examples: adding a channel to `channels.ts` because your component needs it, adding `unsafe-eval` to the CSP because you're using `new Function()`.
+
+Only escalate (BLOCKED / NEEDS_CONTEXT) when:
+- The fix requires redesigning something outside your task scope
+- You genuinely don't know how to fix it after investigating
+- The fix would contradict or expand the plan's intent
+```
+
+This policy prevents agents from stopping on fixable issues and ensures cross-cutting changes are surfaced in reports for review.
 
 ## Gotchas
 

@@ -24,3 +24,37 @@ describe('chatStore turnCount', () => {
     expect(useChatStore.getState().turnCount).toBe(0)
   })
 })
+
+describe('chatStore messageQueue', () => {
+  beforeEach(() => {
+    useChatStore.getState().reset()
+  })
+
+  it('starts with empty queue', () => {
+    expect(useChatStore.getState().messageQueue).toEqual([])
+  })
+
+  it('enqueues a message', () => {
+    useChatStore.getState().enqueueMessage('hello')
+    expect(useChatStore.getState().messageQueue).toEqual(['hello'])
+  })
+
+  it('shiftQueue removes and returns first message', () => {
+    useChatStore.getState().enqueueMessage('first')
+    useChatStore.getState().enqueueMessage('second')
+    const next = useChatStore.getState().shiftQueue()
+    expect(next).toBe('first')
+    expect(useChatStore.getState().messageQueue).toEqual(['second'])
+  })
+
+  it('shiftQueue returns undefined when empty', () => {
+    const next = useChatStore.getState().shiftQueue()
+    expect(next).toBeUndefined()
+  })
+
+  it('reset clears the queue', () => {
+    useChatStore.getState().enqueueMessage('hello')
+    useChatStore.getState().reset()
+    expect(useChatStore.getState().messageQueue).toEqual([])
+  })
+})

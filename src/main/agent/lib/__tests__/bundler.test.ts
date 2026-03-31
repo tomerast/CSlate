@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { bundleComponentFiles } from '../bundler'
+import { bundlePartialUiTsx } from '../bundler'
 
 describe('bundleComponentFiles', () => {
   it('bundles a single-file component with default export', async () => {
@@ -82,5 +83,38 @@ describe('bundleComponentFiles', () => {
       'utils/format.ts': `export function format(n: number) { return String(n) }`,
     })
     expect(bundle).toBeTruthy()
+  })
+})
+
+describe('bundlePartialUiTsx', () => {
+  it('bundles ui.tsx that has no imports', async () => {
+    const bundle = await bundlePartialUiTsx(
+      'export default function App() { return null }'
+    )
+    const _module = { exports: {} as Record<string, unknown> }
+    const _require = (mod: string) => {
+      if (mod === 'react') return { createElement: () => null }
+      throw new Error(`unexpected: ${mod}`)
+    }
+    new Function('require', 'module', 'exports', bundle)(_require, _module, _module.exports)
+    expect(typeof _module.exports['default']).toBe('function')
+  })
+
+  it('stubs missing relative imports instead of throwing', async () => {
+    const bundle = await bundlePartialUiTsx(`
+      import { useWeather } from './hooks/useWeather'
+      import type { WeatherData } from './types'
+      export default function App() { return null }
+    `)
+    expect(bundle).toBeTruthy()
+    expect(typeof bundle).toBe('string')
+  })
+
+  it('still externalizes react', async () => {
+    const bundle = await bundlePartialUiTsx(
+      "import React from 'react'\nexport default function App() { return React.createElement('div') }"
+    )
+    expect(bundle).toContain('require')
+    expect(bundle).toContain('react')
   })
 })
