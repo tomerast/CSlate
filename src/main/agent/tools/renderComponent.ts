@@ -1,13 +1,9 @@
+// src/main/agent/tools/renderComponent.ts
 import type { Tool } from 'ai'
 import { z } from 'zod'
-import type { WebContents } from 'electron'
+import { validateComponentPackage } from '@cslate/shared'
+import { bundleComponentFiles } from '../lib/bundler'
 import { stripFences } from '../lib/stripFences'
-
-const FilesSchema = z.object({
-  'ui.tsx': z.string(),
-  'logic.ts': z.string().optional(),
-  'types.ts': z.string().optional(),
-})
 
 const PlacementSchema = z.object({
   x: z.number().describe('Grid units from left'),
@@ -16,28 +12,53 @@ const PlacementSchema = z.object({
   height: z.number().describe('Height in grid units'),
 })
 
-type FilesInput = z.infer<typeof FilesSchema>
-type PlacementInput = z.infer<typeof PlacementSchema>
-type RenderInput = { files: FilesInput; manifest: unknown; placement?: PlacementInput }
-type RenderOutput = { success: boolean; componentId: string }
+type RenderInput = {
+  files: Record<string, string>
+  manifest: unknown
+  placement?: z.infer<typeof PlacementSchema>
+}
 
-export function createRenderComponentTool(sender: WebContents, tabId: string): Tool<RenderInput, RenderOutput> {
+type RenderOutput = {
+  success: boolean
+  componentId: string
+  bundle?: string
+  files?: Record<string, string>
+  errors?: string[]
+}
+
+export function createRenderComponentTool(): Tool<RenderInput, RenderOutput> {
   return {
-    description: 'Render a generated component in the sandbox iframe on the Slate canvas. Call this to show the component to the user. The component will appear immediately.',
+    description:
+      'Preview a component on the canvas. Bundles all files with esbuild and renders ' +
+      'the default export from ui.tsx. This is an ephemeral preview — call writeComponent to persist.',
     inputSchema: z.object({
-      files: FilesSchema,
+      files: z.record(z.string()).describe(
+        'Component files keyed by relative path. ui.tsx is required. ' +
+        'May include any structure: "hooks/useData.ts", "components/Chart.tsx", etc.'
+      ),
       manifest: z.any().describe('The ComponentManifest object'),
-      placement: PlacementSchema.optional().describe('Where to place the component on the canvas. Omit to auto-place.'),
+      placement: PlacementSchema.optional().describe('Where to place the preview on canvas.'),
     }) as any,
     execute: async (input: RenderInput): Promise<RenderOutput> => {
-      const componentId = `comp_${Date.now()}`
-      const cleanFiles = {
-        'ui.tsx': stripFences(input.files['ui.tsx']),
-        ...(input.files['logic.ts'] ? { 'logic.ts': stripFences(input.files['logic.ts']!) } : {}),
-        ...(input.files['types.ts'] ? { 'types.ts': stripFences(input.files['types.ts']!) } : {}),
+      const cleanFiles: Record<string, string> = {}
+      for (const [path, content] of Object.entries(input.files)) {
+        cleanFiles[path] = stripFences(content)
       }
-      sender.send('sandbox:load', { tabId, componentId, files: cleanFiles, manifest: input.manifest, placement: input.placement })
-      return { success: true, componentId }
+
+      const validation = validateComponentPackage({ manifest: input.manifest, files: cleanFiles })
+      if (!validation.valid) {
+        return { success: false, componentId: '', errors: validation.errors }
+      }
+
+      let bundle: string
+      try {
+        bundle = await bundleComponentFiles(cleanFiles)
+      } catch (e) {
+        return { success: false, componentId: '', errors: [e instanceof Error ? e.message : String(e)] }
+      }
+
+      const componentId = `preview_${Date.now()}`
+      return { success: true, componentId, bundle, files: cleanFiles }
     },
   }
 }
