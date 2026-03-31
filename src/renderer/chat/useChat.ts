@@ -5,7 +5,7 @@ import { useAppStore } from '../store/appStore'
 const MAX_HISTORY_MESSAGES = 6
 
 export function useChat() {
-  const { addMessage, setStatus, setCurrentCode, setPanelOpen, setPublishState } = useChatStore()
+  const { addMessage, setStatus, setCurrentCode, setPublishState, incrementTurnCount } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
     // Capture history BEFORE adding user message to avoid double-sending
@@ -13,7 +13,6 @@ export function useChat() {
 
     addMessage({ role: 'user', content: text })
     setStatus('generating')
-    setPanelOpen(true)
     setPublishState('hidden')
 
     // Buffer streaming tokens into a single assistant message
@@ -55,8 +54,10 @@ export function useChat() {
         pendingCode = null
       }
     })
+    let didError = false
     const offError = window.electron.on('agent:error', (data: unknown) => {
       const d = data as { message: string; code?: string }
+      didError = true
       if (d.code === 'UNCONFIGURED_LLM') {
         useAppStore.getState().openConfig('models')
         setStatus('idle')
@@ -77,7 +78,10 @@ export function useChat() {
         tabId: crypto.randomUUID(),
         conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
       })
-      setStatus('idle')
+      if (!didError) {
+        setStatus('idle')
+        incrementTurnCount()
+      }
     } catch (e) {
       setStatus('error')
       addMessage({
@@ -90,7 +94,7 @@ export function useChat() {
       offToolResult()
       offError()
     }
-  }, [addMessage, setStatus, setCurrentCode, setPanelOpen, setPublishState])
+  }, [addMessage, setStatus, setCurrentCode, setPublishState, incrementTurnCount])
 
   return { submit }
 }

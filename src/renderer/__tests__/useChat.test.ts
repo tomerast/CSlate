@@ -160,14 +160,14 @@ describe('useChat', () => {
       })
     })
 
-    it('should set panelOpen to true on submit', async () => {
+    it('should NOT auto-open the panel on submit (FloatingChatBar handles visibility)', async () => {
       const { result } = renderHook(() => useChat())
 
       expect(useChatStore.getState().panelOpen).toBe(false)
 
       await result.current.submit('Test')
 
-      expect(useChatStore.getState().panelOpen).toBe(true)
+      expect(useChatStore.getState().panelOpen).toBe(false)
     })
 
     it('should handle errors and add error message', async () => {
@@ -186,6 +186,18 @@ describe('useChat', () => {
       expect(messages[1]).toMatchObject({
         role: 'assistant',
         content: 'Failed: Network error'
+      })
+    })
+
+    it('should increment turnCount after successful exchange', async () => {
+      const { result } = renderHook(() => useChat())
+
+      expect(useChatStore.getState().turnCount).toBe(0)
+
+      await result.current.submit('Test')
+
+      await waitFor(() => {
+        expect(useChatStore.getState().turnCount).toBe(1)
       })
     })
   })
