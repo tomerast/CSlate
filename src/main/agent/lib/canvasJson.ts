@@ -1,12 +1,15 @@
 import { readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
+import { z } from 'zod'
 
-export interface Placement {
-  x: number
-  y: number
-  width: number
-  height: number
-}
+export const PlacementSchema = z.object({
+  x: z.number().describe('Grid units from left'),
+  y: z.number().describe('Grid units from top'),
+  width: z.number().describe('Width in grid units (1 unit = 8px)'),
+  height: z.number().describe('Height in grid units'),
+})
+
+export type Placement = z.infer<typeof PlacementSchema>
 
 export interface CanvasEntry {
   componentId: string

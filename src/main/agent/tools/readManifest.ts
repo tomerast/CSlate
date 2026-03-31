@@ -2,7 +2,7 @@ import type { Tool } from 'ai'
 import { z } from 'zod'
 import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
-import { join, resolve } from 'path'
+import { join, resolve, sep } from 'path'
 
 type ReadManifestInput = { componentId: string }
 type ReadManifestOutput = { manifest: unknown } | { error: string }
@@ -16,7 +16,7 @@ export function createReadManifestTool(projectDir: string): Tool<ReadManifestInp
     execute: async (input: ReadManifestInput): Promise<ReadManifestOutput> => {
       const componentsRoot = resolve(projectDir, 'components')
       const componentDir = resolve(componentsRoot, input.componentId)
-      if (!componentDir.startsWith(componentsRoot + '/')) {
+      if (!componentDir.startsWith(componentsRoot + sep)) {
         return { error: 'Invalid component ID' }
       }
       const manifestPath = join(componentDir, 'manifest.json')

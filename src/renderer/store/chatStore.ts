@@ -30,6 +30,6 @@ export const useChatStore = create<ChatState>((set) => ({
   setStatus: (status) => set({ status }),
   setPanelOpen: (v) => set({ panelOpen: v }),
   incrementTurnCount: () => set((s) => ({ turnCount: s.turnCount + 1 })),
-  setPublishState: (s) => set({ publishState: s }),
+  setPublishState: (publishState) => set({ publishState }),
   reset: () => set({ messages: [], status: 'idle', panelOpen: false, turnCount: 0, publishState: 'hidden', statusLabel: '' })
 }))

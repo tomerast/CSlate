@@ -5,15 +5,8 @@ import { writeFile, mkdir } from 'fs/promises'
 import { join, resolve, sep, dirname } from 'path'
 import { validateComponentPackage } from '@cslate/shared'
 import { bundleComponentDir } from '../lib/bundler'
-import { updateCanvasJson, type Placement } from '../lib/canvasJson'
+import { PlacementSchema, updateCanvasJson, type Placement } from '../lib/canvasJson'
 import { stripFences } from '../lib/stripFences'
-
-const PlacementSchema = z.object({
-  x: z.number().describe('Grid units from left'),
-  y: z.number().describe('Grid units from top'),
-  width: z.number().describe('Width in grid units (1 unit = 8px)'),
-  height: z.number().describe('Height in grid units'),
-})
 
 type WriteInput = {
   componentId: string
@@ -95,11 +88,12 @@ export function createWriteComponentTool(projectDir: string): Tool<WriteInput, W
       await writeFile(join(componentDir, 'bundle.js'), bundle, 'utf-8')
 
       // 7. Update canvas.json
+      const defaultSize = input.manifest.defaultSize as { width?: number; height?: number } | undefined
       const placement: Placement = input.placement ?? {
         x: 0,
         y: 0,
-        width: (input.manifest as any)?.defaultSize?.width ?? 30,
-        height: (input.manifest as any)?.defaultSize?.height ?? 25,
+        width: defaultSize?.width ?? 30,
+        height: defaultSize?.height ?? 25,
       }
       await updateCanvasJson(projectDir, input.componentId, placement)
 

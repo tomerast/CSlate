@@ -4,6 +4,30 @@ import { getConfigValue } from '../ipc/config'
 import type { LLMConfig } from './providers'
 import { agentLog, logFile } from '../lib/logger'
 
+const DIRECT_MODEL_IDS: Record<string, string> = {
+  'anthropic/claude-sonnet-4-6': 'claude-sonnet-4-6',
+  'anthropic/claude-haiku-4-5': 'claude-haiku-4-5',
+  'anthropic/claude-opus-4-6': 'claude-opus-4-6',
+  'openai/gpt-4o': 'gpt-4o',
+  'openai/gpt-4o-mini': 'gpt-4o-mini',
+  'google/gemini-2.5-pro': 'gemini-2.5-pro-preview',
+  'google/gemini-2.5-flash': 'gemini-2.5-flash-preview',
+  'google/gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
+}
+
+function parseModelId(llmModel: string): { provider: LLMConfig['provider']; model: string } {
+  if (llmModel.startsWith('anthropic/')) {
+    return { provider: 'anthropic', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('anthropic/'.length) }
+  }
+  if (llmModel.startsWith('openai/')) {
+    return { provider: 'openai', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('openai/'.length) }
+  }
+  if (llmModel.startsWith('google/')) {
+    return { provider: 'google', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('google/'.length) }
+  }
+  return { provider: 'local', model: llmModel }
+}
+
 export function register(ipcMain: IpcMain): void {
   agentLog.info({ logFile }, 'agent IPC registered')
 
@@ -32,17 +56,6 @@ export function register(ipcMain: IpcMain): void {
     const serverUrl = (getConfigValue('serverUrl') as string) ?? 'http://localhost:3000'
     const serverApiKey = (getConfigValue('serverApiKey') as string | null) ?? ''
 
-    const DIRECT_MODEL_IDS: Record<string, string> = {
-      'anthropic/claude-sonnet-4-6': 'claude-sonnet-4-6',
-      'anthropic/claude-haiku-4-5': 'claude-haiku-4-5',
-      'anthropic/claude-opus-4-6': 'claude-opus-4-6',
-      'openai/gpt-4o': 'gpt-4o',
-      'openai/gpt-4o-mini': 'gpt-4o-mini',
-      'google/gemini-2.5-pro': 'gemini-2.5-pro-preview',
-      'google/gemini-2.5-flash': 'gemini-2.5-flash-preview',
-      'google/gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
-    }
-
     let provider: LLMConfig['provider']
     let model: string
     let baseUrl: string | undefined
@@ -52,19 +65,7 @@ export function register(ipcMain: IpcMain): void {
       model = llmModel
       baseUrl = gatewayUrl
     } else {
-      if (llmModel.startsWith('anthropic/')) {
-        provider = 'anthropic'
-        model = DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('anthropic/'.length)
-      } else if (llmModel.startsWith('openai/')) {
-        provider = 'openai'
-        model = DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('openai/'.length)
-      } else if (llmModel.startsWith('google/')) {
-        provider = 'google'
-        model = DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('google/'.length)
-      } else {
-        provider = 'local'
-        model = llmModel
-      }
+      ({ provider, model } = parseModelId(llmModel))
     }
 
     log.debug({ provider, model, baseUrl: baseUrl ?? '(direct)', hasApiKey: !!apiKey }, 'config resolved')

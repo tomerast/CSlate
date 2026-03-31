@@ -6,9 +6,9 @@ import { engineLog } from '../lib/logger'
 
 const RouteSchema = z.object({
   route: z.enum(['orchestrator', 'skill', 'direct']),
-  skill: z.enum(['state-wirer', 'component-search']).nullable().optional(),
+  skill: z.enum(['state-wirer', 'component-search']).nullable(),
   summary: z.string(),
-  targetComponentId: z.string().nullable().optional(),
+  targetComponentId: z.string().nullable(),
 })
 
 export type RouteResult = z.infer<typeof RouteSchema>
@@ -45,6 +45,6 @@ export async function classifyIntent(
     return object
   } catch (err) {
     log.warn({ modelId, err }, 'classifyIntent failed, defaulting to orchestrator')
-    return { route: 'orchestrator', summary: message, targetComponentId: null }
+    return { route: 'orchestrator', skill: null, summary: message, targetComponentId: null }
   }
 }

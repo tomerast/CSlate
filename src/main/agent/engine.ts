@@ -1,5 +1,6 @@
 import { streamText, stepCountIs } from 'ai'
 import type { WebContents } from 'electron'
+import type { Logger } from 'pino'
 import { buildRegistry, mainModelId, fastModelId, type LLMConfig } from './providers'
 import { classifyIntent } from './router'
 import { readMemory, writeMemoryEntry } from './memory/index'
@@ -69,7 +70,7 @@ export class AgentEngine {
     memory: Awaited<ReturnType<typeof readMemory>>,
     activeComponents: Array<{ componentId: string; manifest: unknown }>,
     reg: { languageModel: (id: string) => any },
-    log: ReturnType<typeof engineLog.child>
+    log: Logger
   ): AsyncGenerator<unknown> {
     const serverClient = (this.options.serverUrl && this.options.serverApiKey)
       ? new CSlateServerClient(this.options.serverUrl, this.options.serverApiKey)
@@ -102,7 +103,7 @@ export class AgentEngine {
     input: RunInput,
     memory: Awaited<ReturnType<typeof readMemory>>,
     activeComponents: Array<{ componentId: string; manifest: unknown }>,
-    log: ReturnType<typeof engineLog.child>
+    log: Logger
   ): AsyncGenerator<unknown> {
     const reg = this.registry as { languageModel: (id: string) => any }
     const serverClient = (this.options.serverUrl && this.options.serverApiKey)
@@ -164,7 +165,7 @@ export class AgentEngine {
   private async *runDirect(
     input: RunInput,
     _memory: Awaited<ReturnType<typeof readMemory>>,
-    log: ReturnType<typeof engineLog.child>
+    log: Logger
   ): AsyncGenerator<unknown> {
     const reg = this.registry as { languageModel: (id: string) => any }
     const modelId = mainModelId(this.config)

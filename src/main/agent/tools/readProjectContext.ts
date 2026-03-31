@@ -2,7 +2,7 @@ import type { Tool } from 'ai'
 import { z } from 'zod'
 import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
-import { join, resolve } from 'path'
+import { join, resolve, sep } from 'path'
 import { readdirSync } from 'fs'
 
 type ReadContextInput = { includeSourceSummaries: boolean }
@@ -31,7 +31,7 @@ export function createReadProjectContextTool(projectDir: string): Tool<ReadConte
         for (const name of dirs) {
           const componentDir = resolve(componentsDir, name)
           // Path traversal protection
-          if (!componentDir.startsWith(componentsDir + '/')) {
+          if (!componentDir.startsWith(componentsDir + sep)) {
             continue
           }
           const manifestPath = join(componentDir, 'manifest.json')

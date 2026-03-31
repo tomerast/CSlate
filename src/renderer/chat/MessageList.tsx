@@ -28,8 +28,8 @@ export function MessageList() {
 
   return (
     <div className="p-4 space-y-5">
-      {messages.map((msg, i) => (
-        <div key={i} className="msg-enter">
+      {messages.map((msg) => (
+        <div key={msg.timestamp} className="msg-enter">
           {msg.role === 'user' ? (
             <div className="flex justify-end">
               <span className="bg-primary/10 border border-primary/20 text-accent text-sm px-3 py-1.5 rounded-full max-w-[60%] break-words">

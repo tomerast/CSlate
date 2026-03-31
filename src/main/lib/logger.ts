@@ -15,7 +15,5 @@ export const logger = pino(
 /** Pre-bound child loggers for each module */
 export const agentLog = logger.child({ module: 'agent' })
 export const engineLog = logger.child({ module: 'engine' })
-export const intentLog = logger.child({ module: 'intent' })
-export const providerLog = logger.child({ module: 'providers' })
 
 export { logFile }

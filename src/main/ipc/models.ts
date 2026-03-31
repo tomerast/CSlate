@@ -50,8 +50,7 @@ export function register(ipcMain: IpcMain): void {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
 
-      const request = net.fetch(modelsUrl, { headers })
-      const res = await request
+      const res = await net.fetch(modelsUrl, { headers })
       if (!res.ok) return { models: [], error: `HTTP ${res.status}` }
 
       const data = await res.json() as { data?: Array<{ id: string; description?: string; context_length?: number }> }

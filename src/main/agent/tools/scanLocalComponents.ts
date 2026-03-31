@@ -2,7 +2,7 @@ import type { Tool } from 'ai'
 import { z } from 'zod'
 import { readFile, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
-import { join, resolve } from 'path'
+import { join, resolve, sep } from 'path'
 
 type ScanInput = { query: string }
 type MatchEntry = {
@@ -54,19 +54,19 @@ export function createScanLocalComponentsTool(projectDir: string): Tool<ScanInpu
 
       for (const dir of dirs) {
         const compDir = resolve(componentsDir, dir)
-        if (!compDir.startsWith(componentsDir + '/')) continue
+        if (!compDir.startsWith(componentsDir + sep)) continue
         const manifestPath = join(compDir, 'manifest.json')
         if (!existsSync(manifestPath)) continue
 
-        let manifest: any
+        let manifest: Record<string, unknown>
         try {
-          manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
+          manifest = JSON.parse(await readFile(manifestPath, 'utf-8')) as Record<string, unknown>
         } catch {
           continue // skip components with invalid manifest.json
         }
-        const name = manifest.name ?? dir
-        const description = manifest.description ?? ''
-        const tags: string[] = manifest.tags ?? []
+        const name = typeof manifest.name === 'string' ? manifest.name : dir
+        const description = typeof manifest.description === 'string' ? manifest.description : ''
+        const tags: string[] = Array.isArray(manifest.tags) ? manifest.tags as string[] : []
 
         const score = scoreMatch(queryTokens, name, description, tags)
         if (score < 0.3) continue

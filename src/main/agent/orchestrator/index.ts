@@ -34,7 +34,7 @@ export class Orchestrator {
         ? ctx.activeComponents
             .map(
               (c) =>
-                `- ${c.componentId}: ${JSON.stringify((c.manifest as any).name)}`
+                `- ${c.componentId}: ${JSON.stringify((c.manifest as Record<string, unknown>).name)}`
             )
             .join('\n')
         : ''
@@ -54,8 +54,8 @@ export class Orchestrator {
       planComponent: defineTool({
         description:
           'Define the component build plan. Call this after understanding requirements and searching for blueprints.',
-        parameters: ComponentPlanSchema,
-        execute: async (plan: ComponentPlan) => {
+        inputSchema: ComponentPlanSchema,
+        execute: async (plan) => {
           this.log.info(
             { componentId: plan.componentId, taskCount: plan.tasks.length },
             'plan created'
@@ -71,7 +71,7 @@ export class Orchestrator {
       dispatchSubAgents: defineTool({
         description:
           'Dispatch parallel sub-agents to build all files in the plan. Each sub-agent builds one file. Returns results for all files.',
-        parameters: z.object({
+        inputSchema: z.object({
           componentId: z.string(),
           contract: z.string(),
           tasks: z.array(
@@ -134,7 +134,7 @@ export class Orchestrator {
       assembleAndValidate: defineTool({
         description:
           'Assemble the component from sub-agent results, validate manifest, and render in sandbox. Call after dispatchSubAgents returns.',
-        parameters: z.object({
+        inputSchema: z.object({
           componentId: z.string(),
           results: z.array(
             z.object({
@@ -199,14 +199,21 @@ export class Orchestrator {
             writeFiles['context.md'] = input.contextMd
           }
 
-          await writeTool.execute!(
+          const writeResult = await writeTool.execute!(
             {
               componentId: input.componentId,
               files: writeFiles,
               manifest: input.manifest as Record<string, unknown>,
             },
             {} as any
-          )
+          ) as { success: boolean; componentId?: string; bundle?: string; placement?: unknown; manifest?: unknown; errors?: string[] }
+
+          if (!writeResult.success) {
+            return { success: false, error: (writeResult.errors ?? []).join(', ') || 'Write failed' }
+          }
+
+          // Notify renderer so it can add the component to the canvas
+          ctx.sender.send('agent:tool-result', { tool: 'writeComponent', result: writeResult })
 
           ctx.sender.send('agent:orchestrator:status', { phase: 'ship' })
           this.log.info(
@@ -220,7 +227,7 @@ export class Orchestrator {
       dispatchFixAgents: defineTool({
         description:
           'Dispatch fix sub-agents for files that failed to render. Returns fixed results.',
-        parameters: z.object({
+        inputSchema: z.object({
           contract: z.string(),
           fixes: z.array(
             z.object({
@@ -258,6 +265,9 @@ export class Orchestrator {
     ctx.sender.send('agent:orchestrator:status', { phase: 'understand' })
     const t0 = Date.now()
 
+    const SEARCH_TOOLS = ['searchBlueprints', 'scanLocalComponents', 'readProjectContext', 'readManifest'] as const
+    type ToolName = keyof typeof tools
+
     const result = streamText({
       model: ctx.registry.languageModel(modelId),
       system: systemPrompt,
@@ -269,6 +279,62 @@ export class Orchestrator {
       stopWhen: stepCountIs(15),
       maxOutputTokens: 4000,
       temperature: 0.2,
+      prepareStep: ({ steps }) => {
+        const called = new Set(
+          steps.flatMap(s => (s.toolCalls ?? []).map(c => c.toolName))
+        )
+        // Count how many times assembleAndValidate has been called (max 2: initial + after fix)
+        const validateCount = steps.reduce(
+          (n, s) => n + (s.toolCalls ?? []).filter(c => c.toolName === 'assembleAndValidate').length,
+          0
+        )
+
+        // Phase 5: second validate done (fix cycle complete) — stop
+        if (validateCount >= 2) {
+          return { toolChoice: 'none' as const }
+        }
+        // Phase 4b: after fix dispatch — must validate again
+        if (called.has('dispatchFixAgents')) {
+          return {
+            toolChoice: { type: 'tool' as const, toolName: 'assembleAndValidate' as ToolName },
+            activeTools: ['assembleAndValidate' as ToolName],
+          }
+        }
+        // Phase 4a: after first validate — allow fix or finish naturally (model decides based on result)
+        if (called.has('assembleAndValidate')) {
+          return {
+            toolChoice: 'auto' as const,
+            activeTools: ['dispatchFixAgents' as ToolName],
+          }
+        }
+        // Phase 3: after dispatch — must validate
+        if (called.has('dispatchSubAgents')) {
+          return {
+            toolChoice: { type: 'tool' as const, toolName: 'assembleAndValidate' as ToolName },
+            activeTools: ['assembleAndValidate' as ToolName],
+          }
+        }
+        // Phase 2: after plan — must dispatch
+        if (called.has('planComponent')) {
+          return {
+            toolChoice: { type: 'tool' as const, toolName: 'dispatchSubAgents' as ToolName },
+            activeTools: ['dispatchSubAgents' as ToolName],
+          }
+        }
+        // Phase 1: after first search — allow remaining search tools + plan (model decides when ready)
+        if (SEARCH_TOOLS.some(t => called.has(t))) {
+          const remainingSearch = SEARCH_TOOLS.filter(t => !called.has(t)) as ToolName[]
+          return {
+            toolChoice: 'required' as const,
+            activeTools: [...remainingSearch, 'planComponent' as ToolName],
+          }
+        }
+        // Phase 0: no tools called yet — must search first
+        return {
+          toolChoice: 'required' as const,
+          activeTools: [...SEARCH_TOOLS] as ToolName[],
+        }
+      },
     })
 
     for await (const part of result.fullStream) {

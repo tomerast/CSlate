@@ -4,18 +4,12 @@ import { z } from 'zod'
 import { validateComponentPackage } from '@cslate/shared'
 import { bundleComponentFiles } from '../lib/bundler'
 import { stripFences } from '../lib/stripFences'
-
-const PlacementSchema = z.object({
-  x: z.number().describe('Grid units from left'),
-  y: z.number().describe('Grid units from top'),
-  width: z.number().describe('Width in grid units (1 unit = 8px)'),
-  height: z.number().describe('Height in grid units'),
-})
+import { PlacementSchema, type Placement } from '../lib/canvasJson'
 
 type RenderInput = {
   files: Record<string, string>
   manifest: unknown
-  placement?: z.infer<typeof PlacementSchema>
+  placement?: Placement
 }
 
 type RenderOutput = {
@@ -24,7 +18,7 @@ type RenderOutput = {
   bundle?: string
   files?: Record<string, string>
   manifest?: unknown
-  placement?: z.infer<typeof PlacementSchema>
+  placement?: Placement
   errors?: string[]
 }
 

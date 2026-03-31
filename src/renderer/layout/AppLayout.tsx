@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
-import { useCanvasStore } from '../store/canvasStore'
+import { useCanvasStore, type CanvasComponent } from '../store/canvasStore'
 import { useChat } from '../chat/useChat'
 import { FloatingChatBar } from '../chat/FloatingChatBar'
 import { ChatPanel } from '../chat/ChatPanel'
@@ -31,9 +31,10 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
   }, [])
 
   useEffect(() => {
-    window.electron.invoke('canvas:load', { projectDir: '' }).then((result: any) => {
-      if (result?.components?.length > 0) {
-        useCanvasStore.getState().hydrate(result.components)
+    window.electron.invoke('canvas:load', { projectDir: '' }).then((result: unknown) => {
+      const r = result as { components?: CanvasComponent[] } | null
+      if (Array.isArray(r?.components) && r.components.length > 0) {
+        useCanvasStore.getState().hydrate(r.components)
       }
     }).catch(() => {
       // No project open yet — canvas starts empty

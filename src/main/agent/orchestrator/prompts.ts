@@ -24,10 +24,12 @@ You NEVER write component code yourself. You plan, delegate, validate, and ship.
    - tasks (one per file: minimum ui.tsx, add logic.ts/types.ts only if warranted)
    - For each task: assignment + blueprint code (the actual file content from the match to adapt, or null)
 4. DISPATCH — Call dispatchSubAgents. Sub-agents build all files in parallel. Wait for results.
-5. VALIDATE — Call assembleAndValidate. This merges files, renders in sandbox, validates manifest.
+5. VALIDATE — You MUST call assembleAndValidate immediately after dispatchSubAgents returns, always, no exceptions. Pass all file results from step 4. This merges files, renders in sandbox, validates manifest.
    - If render succeeds → component is shipped automatically.
    - If render fails → you receive the error. Call dispatchFixAgents with the broken file(s) and error.
    - Max 2 fix cycles. After that, report the error to the user.
+
+⚠️ CRITICAL: The workflow is not complete until assembleAndValidate has been called. Finishing after dispatchSubAgents without calling assembleAndValidate means the component is never built. Always call assembleAndValidate.
 
 ## Key Rules
 - Always search before building. Blueprints are the primary acceleration mechanism.
