@@ -1,11 +1,12 @@
 import { useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { useAppStore } from '../store/appStore'
+import { useCanvasStore, type Placement } from '../store/canvasStore'
 
 const MAX_HISTORY_MESSAGES = 6
 
 export function useChat() {
-  const { addMessage, setStatus, setCurrentCode, setPublishState, incrementTurnCount } = useChatStore()
+  const { addMessage, setStatus, setPublishState, incrementTurnCount } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
     // Capture history BEFORE adding user message to avoid double-sending
@@ -38,20 +39,33 @@ export function useChat() {
       }
     })
 
-    // Track code from renderComponent tool calls so we can trigger the publish toast
-    let pendingCode: string | null = null
-    const offToolCall = window.electron.on('agent:tool-call', (data: unknown) => {
-      const d = data as { tool: string; input: { files?: { 'ui.tsx'?: string } } }
-      if (d.tool === 'renderComponent' && d.input?.files?.['ui.tsx']) {
-        pendingCode = d.input.files['ui.tsx']
-      }
-    })
+    // Route tool results to canvasStore
     const offToolResult = window.electron.on('agent:tool-result', (data: unknown) => {
-      const d = data as { tool: string; result: { success?: boolean } }
-      if (d.tool === 'renderComponent' && d.result?.success && pendingCode) {
-        setCurrentCode(pendingCode)
-        setPublishState('prompting')
-        pendingCode = null
+      const d = data as {
+        tool: string
+        result: {
+          success?: boolean
+          bundle?: string
+          files?: Record<string, string>
+          manifest?: unknown
+          placement?: Placement
+          componentId?: string
+        }
+      }
+
+      if (d.tool === 'renderComponent' && d.result?.success) {
+        const { bundle, files, manifest, placement } = d.result
+        if (bundle && files && manifest) {
+          useCanvasStore.getState().setPreview({ bundle, files, manifest, placement })
+          setPublishState('prompting')
+        }
+      } else if (d.tool === 'writeComponent' && d.result?.success) {
+        const { componentId, bundle, placement, manifest } = d.result
+        if (componentId && bundle && placement && manifest) {
+          useCanvasStore.getState().addComponent({ componentId, bundle, placement, manifest })
+          useCanvasStore.getState().clearPreview()
+          setPublishState('prompting')
+        }
       }
     })
     let didError = false
@@ -90,11 +104,10 @@ export function useChat() {
       })
     } finally {
       offToken()
-      offToolCall()
       offToolResult()
       offError()
     }
-  }, [addMessage, setStatus, setCurrentCode, setPublishState, incrementTurnCount])
+  }, [addMessage, setStatus, setPublishState, incrementTurnCount])
 
   return { submit }
 }

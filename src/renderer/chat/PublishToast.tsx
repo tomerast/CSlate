@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react'
 import { useChatStore } from '../store/chatStore'
+import { useCanvasStore } from '../store/canvasStore'
 
 export function PublishToast() {
   const publishState = useChatStore((s) => s.publishState)
   const setPublishState = useChatStore((s) => s.setPublishState)
-  const currentCode = useChatStore((s) => s.currentCode)
+  const preview = useCanvasStore((s) => s.preview)
 
   useEffect(() => {
     if (publishState === 'published') {
@@ -22,7 +23,7 @@ export function PublishToast() {
         name: 'Untitled Component',
         description: 'A CSlate component',
         tags: [],
-        source: { 'ui.tsx': currentCode ?? '' },
+        source: preview?.files ?? {},
       })
       setPublishState('published')
     } catch (error) {
