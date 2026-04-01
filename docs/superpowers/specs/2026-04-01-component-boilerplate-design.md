@@ -211,6 +211,29 @@ orchestrator plans tasks
 
 ---
 
+## Research Refinements (vs Initial Design)
+
+The initial spec used a `{ data, loading, error }` flat object for `DataState`. Research (bulletproof-react, react.dev 2024) showed that a **discriminated union** is superior:
+
+```typescript
+// Initial spec — allows impossible states (loading: true, data: {...})
+type DataState = { readonly data: unknown | null; readonly loading: boolean; readonly error: string | null }
+
+// Implemented — impossible states unrepresentable; TypeScript narrows per branch
+type DataState<T = unknown> =
+  | { readonly status: 'idle' }
+  | { readonly status: 'loading' }
+  | { readonly status: 'success'; readonly data: T }
+  | { readonly status: 'error'; readonly error: string }
+```
+
+Other refinements applied:
+- Pure transform functions hoisted to module scope (not inside `useCallback`) — from react-native-boilerplate
+- `role="alert"` on error states — from bulletproof-react accessibility conventions
+- Structured `context.md` with five labelled sections — enables orchestrator to parse component history
+
+---
+
 ## Files Changed
 
 | Repo | File | Change |

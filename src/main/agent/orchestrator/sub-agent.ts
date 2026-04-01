@@ -1,4 +1,5 @@
 import { generateText } from 'ai'
+import { COMPONENT_TEMPLATE } from '@cslate/shared'
 import { PLATFORM_KNOWLEDGE } from '../prompts/fragments'
 import { stripFences } from '../lib/stripFences'
 import type { BuildTask, SubAgentResult } from './types'
@@ -24,9 +25,13 @@ export function buildSubAgentPrompt(params: {
   contract: string
 }): string {
   const { task, contract } = params
+
+  const fallback = COMPONENT_TEMPLATE[task.file as keyof typeof COMPONENT_TEMPLATE]
   const blueprintSection = task.blueprint
     ? `\n## BLUEPRINT — ADAPT this code to match the assignment:\n\`\`\`\n${task.blueprint}\n\`\`\``
-    : '\n## No blueprint available — build from scratch.'
+    : fallback
+      ? `\n## STARTING POINT — ADAPT this template to the assignment:\n\`\`\`\n${fallback}\n\`\`\``
+      : '\n## No template available — build from scratch.'
 
   return `## CONTRACT (shared types — follow exactly):\n\`\`\`typescript\n${contract}\n\`\`\`\n${blueprintSection}\n\n## ASSIGNMENT:\nBuild file \`${task.file}\`: ${task.assignment}`
 }

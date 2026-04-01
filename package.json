@@ -61,7 +61,7 @@
     "@ai-sdk/google": "^3.0.53",
     "@ai-sdk/openai": "^3.0.48",
     "@anthropic-ai/sdk": "^0.80.0",
-    "@cslate/shared": "github:tomerast/CSlate-shared",
+    "@cslate/shared": "github:tomerast/CSlate-shared#feature/component-boilerplate",
     "@electron-toolkit/utils": "^3.0.0",
     "ai": "^6.0.141",
     "electron-store": "^8.2.0",
