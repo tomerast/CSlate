@@ -1,5 +1,5 @@
 // src/main/agent/tools/types.ts
-import type { Tool } from 'ai'
+import type { Tool, ToolExecutionOptions } from 'ai'
 import { z } from 'zod'
 
 /**
@@ -75,7 +75,7 @@ export function buildTool<INPUT = any, OUTPUT = any>(
       return {
         description: def.description,
         inputSchema: def.inputSchema as any,
-        execute: async (input: INPUT, options) => {
+        execute: async (input: INPUT, options: ToolExecutionOptions) => {
           // Run validation if provided
           if (validateInput) {
             const validationResult = await validateInput(input)
@@ -93,7 +93,7 @@ export function buildTool<INPUT = any, OUTPUT = any>(
           const result = await def.call(input, context)
           return result.data
         },
-      } as Tool<INPUT, OUTPUT>
+      } as unknown as Tool<INPUT, OUTPUT>
     },
   }
 }

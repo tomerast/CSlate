@@ -278,7 +278,7 @@ export class Orchestrator {
           }
 
           // Render in sandbox — pass all built files, not just hardcoded names
-          const renderTool = createRenderComponentTool()
+          const renderTool = createRenderComponentTool().toAISDKTool()
           const renderResult = (await renderTool.execute!(
             { files, manifest },
             {} as any
@@ -289,7 +289,7 @@ export class Orchestrator {
           }
 
           // Write to disk — pass all built files + context.md
-          const writeTool = createWriteComponentTool(ctx.projectDir)
+          const writeTool = createWriteComponentTool(ctx.projectDir).toAISDKTool()
           const writeFiles: Record<string, string> = { ...files }
           if (input.contextMd) {
             writeFiles['context.md'] = input.contextMd

@@ -14,7 +14,7 @@ describe('reviewCode sub-agent tool', () => {
       text: JSON.stringify({ passed: true, issues: [], suggestions: ['Consider adding aria-labels'] })
     } as any)
 
-    const tool = createReviewCodeTool({ languageModel: vi.fn().mockReturnValue({}) } as any, 'local:test')
+    const tool = createReviewCodeTool({ languageModel: vi.fn().mockReturnValue({}) } as any, 'local:test').toAISDKTool()
     const result = await tool.execute!({
       files: { 'ui.tsx': 'export default function Foo() { return <div>hi</div> }' },
       manifest: {
@@ -32,7 +32,7 @@ describe('reviewCode sub-agent tool', () => {
       text: JSON.stringify({ passed: false, issues: ['Uses eval()'], suggestions: [] })
     } as any)
 
-    const tool = createReviewCodeTool({ languageModel: vi.fn().mockReturnValue({}) } as any, 'local:test')
+    const tool = createReviewCodeTool({ languageModel: vi.fn().mockReturnValue({}) } as any, 'local:test').toAISDKTool()
     const result = await tool.execute!({
       files: { 'ui.tsx': 'eval("bad")' },
       manifest: { name: 'Bad', description: '', tags: [], inputs: {}, outputs: {},

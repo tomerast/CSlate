@@ -1,6 +1,6 @@
 import { generateText } from 'ai'
-import type { Tool } from 'ai'
 import { z } from 'zod'
+import { buildTool } from './types'
 
 const REVIEWER_SYSTEM = `You are a CSlate code reviewer. Review the provided React component code and manifest for:
 1. Sandbox compliance: no fetch(), no localStorage, no window.location, no eval(), no dangerouslySetInnerHTML with user input
@@ -26,14 +26,17 @@ type ReviewResult = { passed: boolean; issues: string[]; suggestions: string[] }
 export function createReviewCodeTool(
   registry: { languageModel: (id: string) => any },
   fastModelId: string
-): Tool<ReviewInput, ReviewResult> {
-  return {
+) {
+  return buildTool<ReviewInput, ReviewResult>({
+    name: 'reviewCode',
     description: 'Spawn an isolated code review sub-agent to check the generated component. Run in parallel with renderComponent. If issues are found, fix them before calling writeComponent.',
     inputSchema: z.object({
       files: FilesSchema,
       manifest: z.any().describe('The ComponentManifest object'),
-    }) as any,
-    execute: async (input: ReviewInput): Promise<ReviewResult> => {
+    }),
+    isReadOnly: () => true,
+    isConcurrencySafe: () => false,
+    call: async (input: ReviewInput) => {
       const filesText = Object.entries(input.files)
         .map(([name, content]) => `### ${name}\n\`\`\`tsx\n${content}\n\`\`\``)
         .join('\n\n')
@@ -46,10 +49,11 @@ export function createReviewCodeTool(
       })
 
       try {
-        return JSON.parse(text) as ReviewResult
+        const result = JSON.parse(text) as ReviewResult
+        return { data: result }
       } catch {
-        return { passed: false, issues: ['Reviewer returned invalid JSON'], suggestions: [] }
+        return { data: { passed: false, issues: ['Reviewer returned invalid JSON'], suggestions: [] } }
       }
     },
-  }
+  })
 }

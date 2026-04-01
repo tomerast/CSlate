@@ -129,9 +129,9 @@ export class AgentEngine {
 
     const tools = {
       validateManifest,
-      reviewCode: createReviewCodeTool(reg, fastModelId(this.config)),
-      renderComponent: createRenderComponentTool(),
-      writeComponent: createWriteComponentTool(this.projectDir),
+      reviewCode: createReviewCodeTool(reg, fastModelId(this.config)).toAISDKTool(),
+      renderComponent: createRenderComponentTool().toAISDKTool(),
+      writeComponent: createWriteComponentTool(this.projectDir).toAISDKTool(),
       readManifest: createReadManifestTool(this.projectDir),
       readProjectContext: createReadProjectContextTool(this.projectDir),
       searchBlueprints: createSearchBlueprintsTool(serverClient),

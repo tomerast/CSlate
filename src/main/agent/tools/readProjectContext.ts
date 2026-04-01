@@ -4,17 +4,19 @@ import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, resolve, sep } from 'path'
 import { readdirSync } from 'fs'
+import { buildTool, type CSTool } from './types'
 
 type ReadContextInput = { includeSourceSummaries: boolean }
 type ReadContextOutput = { app: Record<string, unknown>; components: Record<string, unknown>[] }
 
-export function createReadProjectContextTool(projectDir: string): Tool<ReadContextInput, ReadContextOutput> {
-  return {
+function createReadProjectContextCSTool(projectDir: string): CSTool<ReadContextInput, ReadContextOutput> {
+  return buildTool({
+    name: 'readProjectContext',
     description: 'Read the current project context: the app name/description and all component manifests currently on the canvas.',
     inputSchema: z.object({
       includeSourceSummaries: z.boolean().default(false).describe('Whether to include context.md summaries for each component'),
-    }) as any,
-    execute: async (input: ReadContextInput): Promise<ReadContextOutput> => {
+    }),
+    call: async (input: ReadContextInput) => {
       const appManifestPath = join(projectDir, 'cslate.json')
       let appManifest: Record<string, unknown> = {}
       if (existsSync(appManifestPath)) {
@@ -48,7 +50,18 @@ export function createReadProjectContextTool(projectDir: string): Tool<ReadConte
         }
       }
 
-      return { app: appManifest, components }
+      return { data: { app: appManifest, components } }
     },
-  }
+    isReadOnly: () => true,
+    isConcurrencySafe: () => true,
+    maxResultSizeChars: 100_000,
+  })
+}
+
+/**
+ * @deprecated Use createReadProjectContextCSTool() instead.
+ * Kept for backward compatibility with code calling .execute().
+ */
+export function createReadProjectContextTool(projectDir: string): Tool<ReadContextInput, ReadContextOutput> {
+  return createReadProjectContextCSTool(projectDir).toAISDKTool()
 }

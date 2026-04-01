@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { readFile, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, resolve, sep } from 'path'
+import { buildTool, type CSTool } from './types'
 
 type ScanInput = { query: string }
 type MatchEntry = {
@@ -35,15 +36,16 @@ function scoreMatch(queryTokens: Set<string>, name: string, description: string,
 
 const SOURCE_FILES = ['ui.tsx', 'logic.ts', 'types.ts']
 
-export function createScanLocalComponentsTool(projectDir: string): Tool<ScanInput, ScanOutput> {
-  return {
+function createScanLocalComponentsCSTool(projectDir: string): CSTool<ScanInput, ScanOutput> {
+  return buildTool({
+    name: 'scanLocalComponents',
     description: 'Scan local project components for ones similar to a query. Used as fallback when server search has no results.',
     inputSchema: z.object({
       query: z.string().describe('Natural language description of what you are looking for'),
-    }) as any,
-    execute: async (input: ScanInput): Promise<ScanOutput> => {
+    }),
+    call: async (input: ScanInput) => {
       const componentsDir = resolve(projectDir, 'components')
-      if (!existsSync(componentsDir)) return { matches: [] }
+      if (!existsSync(componentsDir)) return { data: { matches: [] } }
 
       const dirs = (await readdir(componentsDir, { withFileTypes: true }))
         .filter(d => d.isDirectory())
@@ -83,7 +85,17 @@ export function createScanLocalComponentsTool(projectDir: string): Tool<ScanInpu
       }
 
       scored.sort((a, b) => b.score - a.score)
-      return { matches: scored.slice(0, 5) }
+      return { data: { matches: scored.slice(0, 5) } }
     },
-  }
+    isReadOnly: () => true,
+    isConcurrencySafe: () => true,
+  })
+}
+
+/**
+ * @deprecated Use createScanLocalComponentsCSTool() instead.
+ * Kept for backward compatibility with code calling .execute().
+ */
+export function createScanLocalComponentsTool(projectDir: string): Tool<ScanInput, ScanOutput> {
+  return createScanLocalComponentsCSTool(projectDir).toAISDKTool()
 }
