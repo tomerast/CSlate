@@ -55,6 +55,34 @@ const unsub = bridge.subscribe('sourceId', 'endpointId', params, (data) => setSt
 const apiKey = bridge.getConfig('apiKeyName')  // for userConfig fields
 \`\`\`
 
+### Bridge-Safe Loading Patterns (CRITICAL — violating this causes infinite loading)
+
+Components must render correctly when \`bridge\` is \`undefined\` — bridge is not always provided.
+
+**RULE: Never initialize loading state to \`true\` before a bridge fetch. Initialize state with seed/mock data instead.**
+
+\`\`\`tsx
+// WRONG — freezes the component when bridge is absent:
+const [data, setData] = useState([])
+const [loading, setLoading] = useState(true)  // ← true on init
+useEffect(() => {
+  if (!bridge) return  // ← exits without calling setLoading(false) → infinite spinner
+  bridge.fetch('src', 'endpoint', {}).then(d => { setData(d); setLoading(false) })
+}, [bridge])
+
+// CORRECT — renders immediately with seed data, replaces when bridge is available:
+const SEED_DATA = [{ id: 1, name: 'Example', value: 42 }]
+const [data, setData] = useState(SEED_DATA)  // ← visible immediately
+const [loading, setLoading] = useState(false)  // ← no spinner by default
+useEffect(() => {
+  if (!bridge) return  // ← safe: seed data already shown
+  setLoading(true)
+  bridge.fetch('src', 'endpoint', {}).then(d => { setData(d); setLoading(false) })
+}, [bridge])
+\`\`\`
+
+Seed data should be realistic enough to demonstrate the UI layout. One or two representative items is enough.
+
 ### Zustand State Store
 - One flat key-value store per Slate tab
 - Instance-prefixed keys: \`{componentId}.{keyName}\` e.g. \`stock_ticker.price\`
@@ -118,7 +146,7 @@ export const BEHAVIORAL_GUIDELINES = `
 - Build exactly what was asked — no extra props, no speculative features, no placeholder sections
 - Do not refactor or "clean up" code beyond the scope of the request
 - Three similar JSX blocks is better than a premature abstraction
-- Do not add error boundaries, loading states, or fallbacks the user did not ask for
+- Do not add error boundaries, loading states, or fallbacks the user did not ask for — EXCEPTION: when using bridge.fetch() for data, always initialize state with seed/mock data (never with an empty array + loading=true) so the component renders without bridge
 - Only validate at boundaries (user input via bridge, external API responses) — trust internal React and platform guarantees
 - Always call readManifest before modifying an existing component — never guess the current state
 - Do not break existing stateKey bindings or event names — other components may depend on them
