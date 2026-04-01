@@ -8,7 +8,7 @@ import { buildTool, type CSTool } from './types'
 type ReadManifestInput = { componentId: string }
 type ReadManifestOutput = { manifest: unknown } | { error: string }
 
-function createReadManifestCSTool(projectDir: string): CSTool<ReadManifestInput, ReadManifestOutput> {
+export function createReadManifestCSTool(projectDir: string): CSTool<ReadManifestInput, ReadManifestOutput> {
   return buildTool<ReadManifestInput, ReadManifestOutput>({
     name: 'readManifest',
     description: 'Read the manifest.json for a component that already exists in the project.',

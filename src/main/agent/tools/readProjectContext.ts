@@ -9,7 +9,7 @@ import { buildTool, type CSTool } from './types'
 type ReadContextInput = { includeSourceSummaries: boolean }
 type ReadContextOutput = { app: Record<string, unknown>; components: Record<string, unknown>[] }
 
-function createReadProjectContextCSTool(projectDir: string): CSTool<ReadContextInput, ReadContextOutput> {
+export function createReadProjectContextCSTool(projectDir: string): CSTool<ReadContextInput, ReadContextOutput> {
   return buildTool({
     name: 'readProjectContext',
     description: 'Read the current project context: the app name/description and all component manifests currently on the canvas.',

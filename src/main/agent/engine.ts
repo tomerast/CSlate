@@ -7,14 +7,11 @@ import { readMemory, writeMemoryEntry } from './memory/index'
 import { buildSkillRegistry, type AgentContext } from './skills/index'
 import { Orchestrator } from './orchestrator/index'
 import type { OrchestratorContext } from './orchestrator/types'
-import { validateManifest } from './tools/validateManifest'
-import { createReviewCodeTool } from './tools/reviewCode'
-import { createRenderComponentTool } from './tools/renderComponent'
-import { createWriteComponentTool } from './tools/writeComponent'
-import { createReadManifestTool } from './tools/readManifest'
-import { createReadProjectContextTool } from './tools/readProjectContext'
-import { createSearchBlueprintsTool } from './tools/searchBlueprints'
+import { buildToolSet } from './tools/index'
+import { createReadProjectContextCSTool } from './tools/readProjectContext'
 import { CSlateServerClient } from '../server/CSlateServerClient'
+import { autoCompactIfNeeded } from './lib/compact'
+import { createChildAbortController } from './lib/abortUtils'
 import { engineLog } from '../lib/logger'
 
 export interface EngineOptions {
@@ -45,6 +42,16 @@ export class AgentEngine {
     const log = engineLog.child({ tabId: this.options.tabId })
     const reg = this.registry as { languageModel: (id: string) => any }
 
+    // Create abort controller for this stream — can be cancelled via IPC
+    const abortController = new AbortController()
+
+    // Compact conversation if approaching context limit
+    const compactedHistory = autoCompactIfNeeded(
+      input.conversationHistory.map(m => ({ role: m.role, content: m.content }))
+    ).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
+    const compactedInput = { ...input, conversationHistory: compactedHistory }
+
     // Load context upfront — needed for both routing and execution
     const [memory, activeComponents] = await Promise.all([
       readMemory(this.projectDir),
@@ -55,7 +62,7 @@ export class AgentEngine {
     log.debug({ message: input.message }, 'routing intent')
     const route = await classifyIntent(
       input.message,
-      input.conversationHistory,
+      compactedInput.conversationHistory,
       activeComponents.map((c) => c.componentId),
       this.config,
       reg
@@ -64,11 +71,11 @@ export class AgentEngine {
 
     // Dispatch based on route
     if (route.route === 'orchestrator') {
-      yield* this.runOrchestrator(input, route, memory, activeComponents, reg, log)
+      yield* this.runOrchestrator(compactedInput, route, memory, activeComponents, reg, log, abortController)
     } else if (route.route === 'skill' && route.skill) {
-      yield* this.runSkill(route.skill, input, memory, activeComponents, log)
+      yield* this.runSkill(route.skill, compactedInput, memory, activeComponents, log, abortController)
     } else {
-      yield* this.runDirect(input, memory, log)
+      yield* this.runDirect(compactedInput, memory, log, abortController)
     }
   }
 
@@ -78,7 +85,8 @@ export class AgentEngine {
     memory: Awaited<ReturnType<typeof readMemory>>,
     activeComponents: Array<{ componentId: string; manifest: unknown }>,
     reg: { languageModel: (id: string) => any },
-    log: Logger
+    log: Logger,
+    abortController?: AbortController
   ): AsyncGenerator<unknown> {
     const serverClient = (this.options.serverUrl && this.options.serverApiKey)
       ? new CSlateServerClient(this.options.serverUrl, this.options.serverApiKey)
@@ -111,7 +119,8 @@ export class AgentEngine {
     input: RunInput,
     memory: Awaited<ReturnType<typeof readMemory>>,
     activeComponents: Array<{ componentId: string; manifest: unknown }>,
-    log: Logger
+    log: Logger,
+    abortController?: AbortController
   ): AsyncGenerator<unknown> {
     const reg = this.registry as { languageModel: (id: string) => any }
     const serverClient = (this.options.serverUrl && this.options.serverApiKey)
@@ -127,17 +136,14 @@ export class AgentEngine {
       conversationHistory: input.conversationHistory,
     }
 
-    const tools = {
-      validateManifest,
-      reviewCode: createReviewCodeTool(reg, fastModelId(this.config)).toAISDKTool(),
-      renderComponent: createRenderComponentTool().toAISDKTool(),
-      writeComponent: createWriteComponentTool(this.projectDir).toAISDKTool(),
-      readManifest: createReadManifestTool(this.projectDir),
-      readProjectContext: createReadProjectContextTool(this.projectDir),
-      searchBlueprints: createSearchBlueprintsTool(serverClient),
-    }
+    const { aiTools } = buildToolSet({
+      projectDir: this.projectDir,
+      registry: reg,
+      fastModelId: fastModelId(this.config),
+      serverClient,
+    })
 
-    const skillRegistry = buildSkillRegistry(tools)
+    const skillRegistry = buildSkillRegistry(aiTools)
     const skill = skillRegistry[skillName as keyof typeof skillRegistry]
     if (!skill) {
       yield { type: 'text-delta', text: `Unknown skill: ${skillName}` }
@@ -159,6 +165,7 @@ export class AgentEngine {
       stopWhen: stepCountIs(skill.maxSteps ?? 10),
       maxOutputTokens: skill.maxTokens,
       temperature: skill.temperature,
+      abortSignal: abortController?.signal,
     })
 
     for await (const part of result.fullStream) {
@@ -173,7 +180,8 @@ export class AgentEngine {
   private async *runDirect(
     input: RunInput,
     _memory: Awaited<ReturnType<typeof readMemory>>,
-    log: Logger
+    log: Logger,
+    abortController?: AbortController
   ): AsyncGenerator<unknown> {
     const reg = this.registry as { languageModel: (id: string) => any }
     const modelId = mainModelId(this.config)
@@ -187,6 +195,7 @@ export class AgentEngine {
         { role: 'user' as const, content: input.message },
       ],
       maxOutputTokens: 1000,
+      abortSignal: abortController?.signal,
     })
 
     for await (const part of result.fullStream) {
@@ -195,10 +204,10 @@ export class AgentEngine {
   }
 
   private async loadActiveComponents(): Promise<Array<{ componentId: string; manifest: unknown }>> {
-    const tool = createReadProjectContextTool(this.projectDir)
+    const tool = createReadProjectContextCSTool(this.projectDir)
     try {
-      const ctx = await tool.execute!({ includeSourceSummaries: false }, {} as any)
-      return (ctx as any).components ?? []
+      const result = await tool.call({ includeSourceSummaries: false })
+      return (result.data as any).components ?? []
     } catch {
       return []
     }

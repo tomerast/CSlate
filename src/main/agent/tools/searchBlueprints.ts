@@ -6,7 +6,7 @@ import { buildTool, type CSTool } from './types'
 type SearchInput = { query: string; limit: number }
 type SearchOutput = { results: unknown[]; error?: string }
 
-function createSearchBlueprintsCSTool(client: CSlateServerClient | null): CSTool<SearchInput, SearchOutput> {
+export function createSearchBlueprintsCSTool(client: CSlateServerClient | null): CSTool<SearchInput, SearchOutput> {
   return buildTool<SearchInput, SearchOutput>({
     name: 'searchBlueprints',
     description: 'Search the CSlate community database for existing component blueprints matching a description. Always search before building from scratch — a good blueprint saves iterations.',

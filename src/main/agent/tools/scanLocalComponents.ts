@@ -36,7 +36,7 @@ function scoreMatch(queryTokens: Set<string>, name: string, description: string,
 
 const SOURCE_FILES = ['ui.tsx', 'logic.ts', 'types.ts']
 
-function createScanLocalComponentsCSTool(projectDir: string): CSTool<ScanInput, ScanOutput> {
+export function createScanLocalComponentsCSTool(projectDir: string): CSTool<ScanInput, ScanOutput> {
   return buildTool({
     name: 'scanLocalComponents',
     description: 'Scan local project components for ones similar to a query. Used as fallback when server search has no results.',
