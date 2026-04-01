@@ -1,4 +1,4 @@
-export { validateManifest } from './validateManifest'
+export { validateManifest, validateManifestTool } from './validateManifest'
 export { createReviewCodeTool } from './reviewCode'
 export { createRenderComponentTool } from './renderComponent'
 export { createWriteComponentTool } from './writeComponent'
