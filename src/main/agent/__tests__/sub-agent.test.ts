@@ -34,12 +34,38 @@ describe('buildSubAgentPrompt', () => {
     expect(prompt).toContain('ADAPT')
   })
 
-  it('says build from scratch when no blueprint', () => {
+  it('injects STARTING POINT section for known template files when no blueprint', () => {
+    for (const file of ['ui.tsx', 'logic.ts', 'types.ts', 'manifest.json', 'context.md']) {
+      const prompt = buildSubAgentPrompt({
+        task: { file, assignment: 'Build it', blueprint: null },
+        contract: 'interface Props {}',
+      })
+      expect(prompt, `${file} should have STARTING POINT`).toContain('STARTING POINT')
+      expect(prompt, `${file} should not say No template available`).not.toContain('No template available')
+    }
+  })
+
+  it('says no template available for unknown file names when no blueprint', () => {
     const prompt = buildSubAgentPrompt({
-      task: { file: 'logic.ts', assignment: 'Build data hooks', blueprint: null },
+      task: { file: 'custom-helper.ts', assignment: 'Build a helper', blueprint: null },
       contract: 'interface Props {}',
     })
-    expect(prompt).toContain('from scratch')
+    expect(prompt).toContain('No template available')
+    expect(prompt).not.toContain('STARTING POINT')
+  })
+
+  it('community blueprint takes priority over template', () => {
+    const prompt = buildSubAgentPrompt({
+      task: {
+        file: 'ui.tsx',
+        assignment: 'Adapt card layout',
+        blueprint: 'function Component() { return <div>blueprint</div> }',
+      },
+      contract: 'interface Props {}',
+    })
+    expect(prompt).toContain('BLUEPRINT')
+    expect(prompt).toContain('blueprint')
+    expect(prompt).not.toContain('STARTING POINT')
   })
 })
 
