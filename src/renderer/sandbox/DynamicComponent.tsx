@@ -17,6 +17,16 @@ function evalBundle(bundle: string): EvalResult {
     const _require = (mod: string): unknown => {
       if (mod === 'react') return React
       if (mod === 'react-dom') return ReactDOM
+      // Support automatic JSX transform — esbuild may emit require('react/jsx-runtime')
+      // even with jsx:'transform' if source code imports it explicitly
+      if (mod === 'react/jsx-runtime' || mod === 'react/jsx-dev-runtime') {
+        return {
+          jsx: React.createElement,
+          jsxs: React.createElement,
+          jsxDEV: React.createElement,
+          Fragment: React.Fragment,
+        }
+      }
       throw new Error(
         `Module "${mod}" is not available in the CSlate sandbox. ` +
         `Use bridge.fetch() for external data, or inline your logic.`

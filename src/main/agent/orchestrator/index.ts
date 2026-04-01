@@ -41,20 +41,30 @@ export class Orchestrator {
             .join('\n')
         : ''
 
-    const systemPrompt = buildOrchestratorSystemPrompt({
-      memoryContext,
-      canvasContext,
-    })
-
     // Persistent build state — survives crashes, restarts, rate limits.
     // Saved to disk after each phase; restored at start of next run.
     let lastBuildResults: import('./types').SubAgentResult[] = []
     let componentShipped = false
     let stagedComponentId: string | null = null
 
-    // Check for an incomplete build to resume
+    // Check for an incomplete build to resume.
+    // Resume if:
+    //   (a) same tab session (crash recovery — same tabId), OR
+    //   (b) user explicitly referenced a component that has a staged build (intentional resume)
+    // This prevents a new unrelated request from accidentally hijacking a stale staged build.
     const existingStates = await listStaging(ctx.projectDir)
-    const resumeFrom: StagingState | null = existingStates[0] ?? null
+    const resumeFrom: StagingState | null =
+      existingStates.find(s => s.buildId === ctx.tabId) ??
+      (ctx.targetComponentId
+        ? existingStates.find(s => s.componentId === ctx.targetComponentId) ?? null
+        : null)
+
+    const systemPrompt = buildOrchestratorSystemPrompt({
+      memoryContext,
+      canvasContext,
+      targetComponentId: ctx.targetComponentId,
+      resumePhase: resumeFrom?.phase,
+    })
     if (resumeFrom) {
       this.log.info(
         { componentId: resumeFrom.componentId, phase: resumeFrom.phase },
@@ -66,24 +76,24 @@ export class Orchestrator {
     }
 
     // Accumulate AI SDK response messages across steps for staging persistence.
-    // Seeded with prior history on resume so the LLM resumes in full context.
-    let accumulatedMessages: unknown[] = [...(resumeFrom?.messages ?? [])]
+    // Do NOT seed with prior run messages — calledInHistory (derived from staging phase)
+    // is sufficient for phase detection, and injecting a failed run's history causes
+    // the model to loop re-planning the same component.
+    let accumulatedMessages: unknown[] = []
 
-    // Parse resumed history to know which tools were already called.
-    // prepareStep only sees `steps` from the current streamText call, so without
-    // this set it would restart from Phase 0 on every resume.
+    // Derive which phases are already complete from the staging phase field.
+    // Scanning message history is unreliable — a failed prior run may include
+    // assembleAndValidate calls that confuse phase detection into looping.
     const calledInHistory = new Set<string>()
-    if (resumeFrom?.messages) {
-      for (const msg of resumeFrom.messages as Array<{ role?: string; content?: unknown }>) {
-        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
-          for (const block of msg.content as Array<{ type?: string; toolName?: string }>) {
-            if (block.type === 'tool-call' && block.toolName) {
-              calledInHistory.add(block.toolName)
-            }
-          }
-        }
+    if (resumeFrom) {
+      // All resumes have completed: search + plan
+      calledInHistory.add('searchBlueprints')
+      calledInHistory.add('planComponent')
+      if (resumeFrom.phase === 'dispatched') {
+        // dispatch is done — next step is assembleAndValidate
+        calledInHistory.add('dispatchSubAgents')
       }
-      this.log.info({ calledInHistory: [...calledInHistory] }, 'parsed resume history')
+      this.log.info({ phase: resumeFrom.phase, calledInHistory: [...calledInHistory] }, 'resume phase seeded')
     }
 
     // Build orchestrator tools
@@ -214,7 +224,6 @@ export class Orchestrator {
           'Assemble the component from sub-agent results, validate manifest, and render in sandbox. Call after dispatchSubAgents returns.',
         inputSchema: z.object({
           componentId: z.string(),
-          manifest: z.any(),
           contextMd: z.string(),
         }),
         execute: async (input) => {
@@ -239,9 +248,26 @@ export class Orchestrator {
             }
           }
 
+          // Read manifest from built manifest.json — model doesn't pass it to avoid token blowout
+          if (!files['manifest.json']) {
+            return {
+              success: false,
+              error: 'manifest.json missing — ensure manifest.json is included as a sub-agent task',
+            }
+          }
+          let manifest: unknown
+          try {
+            manifest = JSON.parse(files['manifest.json'])
+          } catch (e) {
+            return {
+              success: false,
+              error: `manifest.json is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+            }
+          }
+
           // Validate manifest
           const validation = (await validateManifest.execute!(
-            { manifest: input.manifest },
+            { manifest },
             {} as any
           )) as { valid: boolean; errors: string[] }
           if (!validation.valid) {
@@ -254,7 +280,7 @@ export class Orchestrator {
           // Render in sandbox — pass all built files, not just hardcoded names
           const renderTool = createRenderComponentTool()
           const renderResult = (await renderTool.execute!(
-            { files, manifest: input.manifest },
+            { files, manifest },
             {} as any
           )) as { success: boolean; componentId: string; errors?: string[] }
           if (!renderResult.success) {
@@ -273,7 +299,7 @@ export class Orchestrator {
             {
               componentId: input.componentId,
               files: writeFiles,
-              manifest: input.manifest as Record<string, unknown>,
+              manifest: manifest as Record<string, unknown>,
             },
             {} as any
           ) as { success: boolean; componentId?: string; bundle?: string; placement?: unknown; manifest?: unknown; errors?: string[] }
@@ -332,9 +358,14 @@ export class Orchestrator {
           )
 
           // Merge fixed results back into lastBuildResults for the next assembleAndValidate
+          // Also push new files (e.g. manifest.json created by a fix agent)
           for (const fixed of results) {
             const idx = lastBuildResults.findIndex(r => r.file === fixed.file)
-            if (idx >= 0) lastBuildResults[idx] = fixed
+            if (idx >= 0) {
+              lastBuildResults[idx] = fixed
+            } else {
+              lastBuildResults.push(fixed)
+            }
           }
 
           return {
@@ -359,8 +390,6 @@ export class Orchestrator {
       messages: [
         ...ctx.conversationHistory,
         { role: 'user' as const, content: message },
-        // On resume: inject prior tool call/result history so the LLM continues
-        // in-context rather than re-executing phases already completed.
         ...(accumulatedMessages as any[]),
       ],
       tools,
@@ -404,19 +433,8 @@ export class Orchestrator {
           steps.flatMap(s => (s.toolCalls ?? []).map(c => c.toolName))
         )
         const called = new Set([...calledInHistory, ...calledNow])
-        // Count how many times assembleAndValidate has been called (max 2: initial + after fix).
-        // Include calls from resumed history so we don't re-validate on a resumed run.
-        const validateCountHistory = resumeFrom?.messages
-          ? (resumeFrom.messages as Array<{ role?: string; content?: unknown }>).reduce((n, msg) => {
-              if (msg.role === 'assistant' && Array.isArray(msg.content)) {
-                return n + (msg.content as Array<{ type?: string; toolName?: string }>).filter(
-                  b => b.type === 'tool-call' && b.toolName === 'assembleAndValidate'
-                ).length
-              }
-              return n
-            }, 0)
-          : 0
-        const validateCount = validateCountHistory + steps.reduce(
+        // Count assembleAndValidate calls in the current run only (max 2: initial + after fix).
+        const validateCount = steps.reduce(
           (n, s) => n + (s.toolCalls ?? []).filter(c => c.toolName === 'assembleAndValidate').length,
           0
         )
@@ -482,6 +500,10 @@ export class Orchestrator {
         { successCount, total: lastBuildResults.length },
         'stream ended without shipping — build results were dropped'
       )
+      // Clear staging — this build won't recover without a fresh attempt
+      if (stagedComponentId) {
+        await clearStaging(ctx.projectDir, stagedComponentId)
+      }
       ctx.sender.send('agent:error', {
         message: `${successCount} of ${lastBuildResults.length} files built successfully but the component wasn't assembled — the LLM stopped before finishing. Please send the same request again to complete it.`,
         code: 'ASSEMBLY_DROPPED',

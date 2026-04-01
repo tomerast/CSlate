@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile, mkdir } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join, dirname } from 'path'
 
-const EXTERNALS = ['react', 'react-dom']
+const EXTERNALS = ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime']
 
 /**
  * Bundle component files into a single CJS string.
@@ -27,6 +27,7 @@ export async function bundleComponentFiles(
       entryPoints: [join(tmpDir, 'ui.tsx')],
       bundle: true,
       format: 'cjs',
+      jsx: 'transform',
       target: 'es2020',
       write: false,
       logLevel: 'silent',
@@ -52,6 +53,7 @@ export async function bundleComponentDir(componentDir: string): Promise<string> 
     entryPoints: [join(componentDir, 'ui.tsx')],
     bundle: true,
     format: 'cjs',
+    jsx: 'transform',
     target: 'es2020',
     write: false,
     logLevel: 'silent',
@@ -79,6 +81,7 @@ export async function bundlePartialUiTsx(uiTsxContent: string): Promise<string> 
       entryPoints: [join(tmpDir, 'ui.tsx')],
       bundle: true,
       format: 'cjs',
+      jsx: 'transform',
       target: 'es2020',
       write: false,
       logLevel: 'silent',

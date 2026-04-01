@@ -61,7 +61,7 @@ export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onO
             </div>
           )}
           {lastAgentMsg && (
-            <div className="msg-enter relative bg-[rgba(26,26,35,0.85)] backdrop-blur-xl border border-white/[0.07] rounded-2xl px-4 py-3 text-sm text-text leading-relaxed overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+            <div className="msg-enter relative bg-surface/90 backdrop-blur-xl border border-border rounded-2xl px-4 py-3 text-sm text-text leading-relaxed overflow-hidden shadow-md">
               <div className={agentResponseLong ? 'max-h-[120px] overflow-hidden' : ''}>
                 <ReactMarkdown
                   components={{
@@ -78,7 +78,7 @@ export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onO
                 </ReactMarkdown>
               </div>
               {agentResponseLong && (
-                <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[rgba(26,26,35,0.95)] to-transparent pointer-events-none" />
+                <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface to-transparent pointer-events-none" />
               )}
             </div>
           )}
@@ -106,7 +106,7 @@ export function FloatingChatBar({ open, nudgeDismissed, onSubmit, onDismiss, onO
       )}
 
       {/* Input bar */}
-      <div className="bg-[rgba(26,26,35,0.88)] backdrop-blur-xl border border-white/[0.08] rounded-full px-4 py-2.5 flex items-center gap-3 shadow-[0_16px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.04)] pointer-events-auto">
+      <div className="bg-surface/90 backdrop-blur-xl border border-border rounded-full px-4 py-2.5 flex items-center gap-3 shadow-lg pointer-events-auto">
         <input
           ref={inputRef}
           type="text"
