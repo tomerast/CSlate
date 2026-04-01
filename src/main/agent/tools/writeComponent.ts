@@ -95,7 +95,7 @@ export function createWriteComponentTool(projectDir: string) {
       const placement: Placement = input.placement ?? {
         x: 0,
         y: 0,
-        width: defaultSize?.width ?? 30,
+        width: defaultSize?.width ?? 50,
         height: defaultSize?.height ?? 25,
       }
       await updateCanvasJson(projectDir, input.componentId, placement)

@@ -6,15 +6,14 @@ import { BuildingCard } from './building/BuildingCard'
 const GRID_PX = 8
 
 function CanvasItem({ component }: { component: CanvasComponent }) {
-  const { x, y, width, height } = component.placement
+  const { x, y, width } = component.placement
   return (
     <div
-      className="absolute bg-surface rounded-lg shadow-lg overflow-auto"
+      className="absolute bg-surface rounded-lg shadow-lg overflow-hidden"
       style={{
         left: x * GRID_PX,
         top: y * GRID_PX,
         width: width * GRID_PX,
-        height: height * GRID_PX,
       }}
     >
       <DynamicComponent bundle={component.bundle} />
@@ -65,13 +64,11 @@ export function SlateCanvas() {
                 left: preview.placement.x * GRID_PX,
                 top: preview.placement.y * GRID_PX,
                 width: preview.placement.width * GRID_PX,
-                height: preview.placement.height * GRID_PX,
               } : {
                 left: '50%',
                 top: '50%',
                 transform: 'translate(-50%, -50%)',
                 maxWidth: '80%',
-                maxHeight: '80%',
               }}
             >
               <DynamicComponent bundle={preview.bundle} />
