@@ -7,6 +7,7 @@ vi.mock('ai', () => ({
 import { generateText } from 'ai'
 import { spawnBuildAgent, spawnFixAgent, buildSubAgentPrompt } from '../orchestrator/sub-agent'
 import type { BuildTask } from '../orchestrator/types'
+import { PLATFORM_KNOWLEDGE } from '../prompts/fragments'
 
 const mockRegistry = { languageModel: vi.fn().mockReturnValue({}) }
 
@@ -120,5 +121,16 @@ describe('spawnFixAgent', () => {
 
     expect(result.status).toBe('success')
     expect(result.code).toContain('fixed')
+  })
+})
+
+describe('PLATFORM_KNOWLEDGE', () => {
+  it('contains bridge-safe loading guidance', () => {
+    expect(PLATFORM_KNOWLEDGE).toContain('seed data')
+    expect(PLATFORM_KNOWLEDGE).toContain('bridge')
+  })
+
+  it('warns against loading initialized to true with bridge guard', () => {
+    expect(PLATFORM_KNOWLEDGE).toContain('useState(false)')
   })
 })

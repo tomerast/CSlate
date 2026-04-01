@@ -43,18 +43,26 @@ export class AgentEngine {
 
   async *stream(input: RunInput): AsyncGenerator<unknown> {
     const log = engineLog.child({ tabId: this.options.tabId })
-
-    // 1. Route intent
-    log.debug({ message: input.message }, 'routing intent')
     const reg = this.registry as { languageModel: (id: string) => any }
-    const route = await classifyIntent(input.message, this.config, reg)
+
+    // Load context upfront — needed for both routing and execution
+    const [memory, activeComponents] = await Promise.all([
+      readMemory(this.projectDir),
+      this.loadActiveComponents(),
+    ])
+
+    // Route intent with full context
+    log.debug({ message: input.message }, 'routing intent')
+    const route = await classifyIntent(
+      input.message,
+      input.conversationHistory,
+      activeComponents.map((c) => c.componentId),
+      this.config,
+      reg
+    )
     log.info({ route: route.route, skill: route.skill, summary: route.summary }, 'intent routed')
 
-    // 2. Load context
-    const memory = await readMemory(this.projectDir)
-    const activeComponents = await this.loadActiveComponents()
-
-    // 3. Dispatch based on route
+    // Dispatch based on route
     if (route.route === 'orchestrator') {
       yield* this.runOrchestrator(input, route, memory, activeComponents, reg, log)
     } else if (route.route === 'skill' && route.skill) {
