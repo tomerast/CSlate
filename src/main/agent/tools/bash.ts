@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { buildTool, type CSTool } from './types'
 import { classifyCommand, type PermissionBroker } from './bash/permissions'
 import { execute } from './bash/executor'
+import { safePath } from '../../lib/paths'
 
 type BashInput = { command: string; cwd?: string; timeout?: number }
 type BashOutput =
@@ -35,7 +36,16 @@ export function createBashCSTool(
         }
       }
 
-      const cwd = input.cwd ? `${projectDir}/${input.cwd}` : projectDir
+      let cwd: string
+      if (input.cwd) {
+        try {
+          cwd = safePath(projectDir, input.cwd)
+        } catch {
+          return { data: { error: `Invalid cwd: ${input.cwd}` } }
+        }
+      } else {
+        cwd = projectDir
+      }
       const timeout = input.timeout ?? 30_000
 
       try {

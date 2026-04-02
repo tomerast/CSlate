@@ -33,10 +33,15 @@ function runTsc(projectDir: string): Promise<string> {
       env: { ...process.env },
     })
     let output = ''
+    let settled = false
     child.stdout.on('data', (d: Buffer) => { output += d.toString() })
     child.stderr.on('data', (d: Buffer) => { output += d.toString() })
-    child.on('close', () => resolve(output))
-    child.on('error', reject)
+    child.on('close', () => {
+      if (!settled) { settled = true; resolve(output) }
+    })
+    child.on('error', (err) => {
+      if (!settled) { settled = true; reject(err) }
+    })
   })
 }
 

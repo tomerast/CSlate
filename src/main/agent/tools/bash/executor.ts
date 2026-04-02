@@ -35,6 +35,7 @@ export async function execute(opts: ExecuteOptions): Promise<ExecuteResult> {
 
     if (opts.abortSignal) {
       opts.abortSignal.addEventListener('abort', () => {
+        clearTimeout(timer)
         child.kill('SIGTERM')
         reject(new Error('Command aborted'))
       })
