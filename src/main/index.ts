@@ -9,6 +9,8 @@ import { register as registerAgent } from './agent/ipc'
 import { register as registerServer } from './ipc/server'
 import { register as registerShell } from './ipc/shell'
 import { register as registerModels } from './ipc/models'
+// Pipeline IPC — registered when executor/bus are available (Plans 1 & 2)
+// import { register as registerPipeline } from './ipc/pipeline'
 import { createWindow } from './windowManager'
 
 function installCSP(): void {
