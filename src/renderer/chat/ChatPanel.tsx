@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { MessageList } from './MessageList'
 import { PublishToast } from './PublishToast'
+import { PipelinePanel } from '../pipeline/PipelinePanel'
+import { usePipelineStore } from '../store/pipelineStore'
 
 interface Props {
   onSubmit(text: string): void
@@ -10,8 +12,10 @@ interface Props {
 
 export function ChatPanel({ onSubmit, onClose }: Props) {
   const [input, setInput] = useState('')
+  const [pipelinesExpanded, setPipelinesExpanded] = useState(false)
   const status = useChatStore((s) => s.status)
   const statusLabel = useChatStore((s) => s.statusLabel)
+  const pipelineCount = usePipelineStore((s) => s.pipelines.length)
 
   function handleSubmit() {
     const trimmed = input.trim()
@@ -40,6 +44,27 @@ export function ChatPanel({ onSubmit, onClose }: Props) {
       </div>
 
       <PublishToast />
+
+      {/* Pipeline panel — collapsible section above input */}
+      <div className="border-t border-border">
+        <button
+          onClick={() => setPipelinesExpanded((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2 text-xs text-muted hover:text-text transition-colors"
+        >
+          <span>Data Pipelines{pipelineCount > 0 ? ` (${pipelineCount})` : ''}</span>
+          <svg
+            className={`w-3 h-3 transition-transform ${pipelinesExpanded ? 'rotate-180' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+          </svg>
+        </button>
+        {pipelinesExpanded && (
+          <div className="border-t border-border max-h-48 overflow-y-auto">
+            <PipelinePanel />
+          </div>
+        )}
+      </div>
 
       <div className="p-3 border-t border-border">
         <div className="flex gap-2">
