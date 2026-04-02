@@ -5,7 +5,7 @@ import { z } from 'zod'
 export const PipelineStrategySchema = z.object({
   type: z.enum(['on-demand', 'polling', 'streaming']),
   intervalMs: z.number().int().positive().optional(),
-  cacheTtlMs: z.number().int().nonneg().optional(),
+  cacheTtlMs: z.number().int().nonnegative().optional(),
 })
 
 // ── Manifest ──────────────────────────────────────────────

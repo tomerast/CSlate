@@ -112,7 +112,8 @@ export class PipelineExecutor {
     this.pipelines.set(pipelineId, managed)
 
     // Start polling if configured
-    if (manifest.strategy.type === 'polling' && manifest.strategy.intervalMs) {
+    const intervalMs = manifest.strategy.intervalMs
+    if (manifest.strategy.type === 'polling' && intervalMs) {
       managed.state = 'polling'
       managed.pollTimer = setInterval(async () => {
         try {
@@ -120,7 +121,7 @@ export class PipelineExecutor {
         } catch {
           // Error already captured in managed.lastError
         }
-      }, manifest.strategy.intervalMs)
+      }, intervalMs)
     }
 
     // Start streaming if configured
