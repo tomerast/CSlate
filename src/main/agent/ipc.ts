@@ -16,6 +16,9 @@ const DIRECT_MODEL_IDS: Record<string, string> = {
   'google/gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
 }
 
+// Module-level permission registry (shared across all agent:run sessions)
+const pendingPermissions = new Map<string, (approved: boolean) => void>()
+
 function parseModelId(llmModel: string): { provider: LLMConfig['provider']; model: string } {
   if (llmModel.startsWith('anthropic/')) {
     return { provider: 'anthropic', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('anthropic/'.length) }
@@ -31,6 +34,15 @@ function parseModelId(llmModel: string): { provider: LLMConfig['provider']; mode
 
 export function register(ipcMain: IpcMain): void {
   agentLog.info({ logFile }, 'agent IPC registered')
+
+  // Register permission response handler once at module level
+  ipcMain.handle('agent:permission-response', (_evt, { requestId, approved }: { requestId: string; approved: boolean }) => {
+    const resolve = pendingPermissions.get(requestId)
+    if (resolve) {
+      pendingPermissions.delete(requestId)
+      resolve(approved)
+    }
+  })
 
   ipcMain.handle('agent:run', async (event, {
     message,
@@ -51,16 +63,6 @@ export function register(ipcMain: IpcMain): void {
     log.info({ message, historyLength: conversationHistory.length }, 'agent:run received')
 
     // ---- Permission broker for bash tool ----
-    const pendingPermissions = new Map<string, (approved: boolean) => void>()
-
-    ipcMain.handle('agent:permission-response', (_evt, { requestId, approved }: { requestId: string; approved: boolean }) => {
-      const resolve = pendingPermissions.get(requestId)
-      if (resolve) {
-        pendingPermissions.delete(requestId)
-        resolve(approved)
-      }
-    })
-
     const permissionBroker: PermissionBroker = {
       request(command: string): Promise<boolean> {
         return new Promise((resolve) => {
@@ -101,7 +103,6 @@ export function register(ipcMain: IpcMain): void {
     const isLocal = provider === 'local'
     if (!apiKey && !isLocal) {
       log.warn({ provider, model }, 'no API key configured')
-      ipcMain.removeHandler('agent:permission-response')
       sender.send('agent:error', {
         message: 'No API key configured. Open Settings (⌘,) to set up your provider.',
         code: 'UNCONFIGURED_LLM'
@@ -148,8 +149,6 @@ export function register(ipcMain: IpcMain): void {
     } catch (err: unknown) {
       log.error({ err }, 'agent:run threw')
       sender.send('agent:error', { message: err instanceof Error ? err.message : String(err) })
-    } finally {
-      ipcMain.removeHandler('agent:permission-response')
     }
 
     return { ok: true }
