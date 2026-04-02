@@ -23,6 +23,7 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'app:get-version',
   'window:set-title',
   'agent:run',
+  'agent:permission-response',
   'server:search',
   'server:publish',
   'shell:openExternal',
@@ -43,7 +44,8 @@ export const ALLOWED_LISTEN_CHANNELS = [
   'agent:orchestrator:status',
   'agent:build:start',
   'agent:build:plan',
-  'agent:build:partial'
+  'agent:build:partial',
+  'agent:permission-request'
 ] as const
 
 export type SendChannel = typeof ALLOWED_SEND_CHANNELS[number]

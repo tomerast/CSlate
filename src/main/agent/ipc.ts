@@ -2,6 +2,7 @@ import type { IpcMain, WebContents } from 'electron'
 import { AgentEngine } from './engine'
 import { getConfigValue } from '../ipc/config'
 import type { LLMConfig } from './providers'
+import type { PermissionBroker } from './tools/bash/permissions'
 import { agentLog, logFile } from '../lib/logger'
 
 const DIRECT_MODEL_IDS: Record<string, string> = {
@@ -49,6 +50,33 @@ export function register(ipcMain: IpcMain): void {
 
     log.info({ message, historyLength: conversationHistory.length }, 'agent:run received')
 
+    // ---- Permission broker for bash tool ----
+    const pendingPermissions = new Map<string, (approved: boolean) => void>()
+
+    ipcMain.handle('agent:permission-response', (_evt, { requestId, approved }: { requestId: string; approved: boolean }) => {
+      const resolve = pendingPermissions.get(requestId)
+      if (resolve) {
+        pendingPermissions.delete(requestId)
+        resolve(approved)
+      }
+    })
+
+    const permissionBroker: PermissionBroker = {
+      request(command: string): Promise<boolean> {
+        return new Promise((resolve) => {
+          const requestId = `perm-${Date.now()}-${Math.random().toString(36).slice(2)}`
+          pendingPermissions.set(requestId, resolve)
+          event.sender.send('agent:permission-request', { requestId, command })
+          setTimeout(() => {
+            if (pendingPermissions.has(requestId)) {
+              pendingPermissions.delete(requestId)
+              resolve(false)
+            }
+          }, 30_000)
+        })
+      },
+    }
+
     // Load LLM config from secure storage
     const gatewayUrl = (getConfigValue('gatewayUrl') as string) ?? ''
     const llmModel = (getConfigValue('llmModel') as string) ?? 'anthropic/claude-sonnet-4-6'
@@ -73,6 +101,7 @@ export function register(ipcMain: IpcMain): void {
     const isLocal = provider === 'local'
     if (!apiKey && !isLocal) {
       log.warn({ provider, model }, 'no API key configured')
+      ipcMain.removeHandler('agent:permission-response')
       sender.send('agent:error', {
         message: 'No API key configured. Open Settings (⌘,) to set up your provider.',
         code: 'UNCONFIGURED_LLM'
@@ -87,6 +116,7 @@ export function register(ipcMain: IpcMain): void {
       serverApiKey,
       sender,
       tabId,
+      permissionBroker,
     })
 
     log.debug('engine created, starting stream')
@@ -118,6 +148,8 @@ export function register(ipcMain: IpcMain): void {
     } catch (err: unknown) {
       log.error({ err }, 'agent:run threw')
       sender.send('agent:error', { message: err instanceof Error ? err.message : String(err) })
+    } finally {
+      ipcMain.removeHandler('agent:permission-response')
     }
 
     return { ok: true }
