@@ -17,7 +17,16 @@ vi.mock('@ai-sdk/openai', () => ({ createOpenAI: vi.fn(() => ({ chat: vi.fn(() =
 vi.mock('@ai-sdk/google', () => ({ createGoogleGenerativeAI: vi.fn(() => vi.fn(() => ({}))) }))
 vi.mock('ollama-ai-provider', () => ({ createOllama: vi.fn(() => vi.fn(() => ({}))) }))
 
+vi.mock('@cslate/shared/agent', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cslate/shared/agent')>()
+  return {
+    ...actual,
+    runAgentStream: vi.fn(),
+  }
+})
+
 import { generateObject, streamText } from 'ai'
+import { runAgentStream } from '@cslate/shared/agent'
 import { AgentEngine } from '../engine'
 
 const TEST_PROJECT = join(__dirname, '__engine_test_project__')
@@ -39,6 +48,7 @@ describe('AgentEngine.stream (v2 — router + orchestrator)', () => {
       object: { route: 'orchestrator', summary: 'build a button', targetComponentId: null }
     } as any)
 
+    // Orchestrator uses streamText from 'ai' directly
     const mockFullStream = (async function* () {
       yield { type: 'text-delta', textDelta: 'Planning...' }
       yield { type: 'finish', usage: { totalTokens: 100 } }
@@ -62,7 +72,7 @@ describe('AgentEngine.stream (v2 — router + orchestrator)', () => {
     }
 
     expect(generateObject).toHaveBeenCalledOnce() // router
-    expect(streamText).toHaveBeenCalledOnce() // orchestrator
+    expect(streamText).toHaveBeenCalledOnce() // orchestrator (uses streamText directly)
   })
 
   it('routes skill request to legacy skill engine', async () => {
@@ -70,12 +80,13 @@ describe('AgentEngine.stream (v2 — router + orchestrator)', () => {
       object: { route: 'skill', skill: 'state-wirer', summary: 'wire ticker to chart', targetComponentId: null }
     } as any)
 
+    // Skill runner uses runAgentStream from shared
     const mockFullStream = (async function* () {
       yield { type: 'text-delta', textDelta: 'Wiring...' }
       yield { type: 'finish', usage: { totalTokens: 50 } }
     })()
 
-    vi.mocked(streamText).mockReturnValue({
+    vi.mocked(runAgentStream).mockReturnValue({
       fullStream: mockFullStream,
       usage: Promise.resolve({ totalTokens: 50 }),
     } as any)
@@ -93,7 +104,7 @@ describe('AgentEngine.stream (v2 — router + orchestrator)', () => {
     }
 
     expect(generateObject).toHaveBeenCalledOnce()
-    expect(streamText).toHaveBeenCalledOnce()
+    expect(runAgentStream).toHaveBeenCalledOnce()
   })
 
   it('routes direct request without skill tools', async () => {
@@ -101,12 +112,13 @@ describe('AgentEngine.stream (v2 — router + orchestrator)', () => {
       object: { route: 'direct', summary: 'general question', targetComponentId: null }
     } as any)
 
+    // Direct runner uses runAgentStream from shared
     const mockFullStream = (async function* () {
       yield { type: 'text-delta', textDelta: 'CSlate is...' }
       yield { type: 'finish', usage: { totalTokens: 30 } }
     })()
 
-    vi.mocked(streamText).mockReturnValue({
+    vi.mocked(runAgentStream).mockReturnValue({
       fullStream: mockFullStream,
       usage: Promise.resolve({ totalTokens: 30 }),
     } as any)
@@ -124,9 +136,9 @@ describe('AgentEngine.stream (v2 — router + orchestrator)', () => {
     }
 
     expect(generateObject).toHaveBeenCalledOnce()
-    expect(streamText).toHaveBeenCalledOnce()
-    // Direct mode should NOT pass tools
-    const callArgs = vi.mocked(streamText).mock.calls[0][0]
-    expect(callArgs.tools).toBeUndefined()
+    expect(runAgentStream).toHaveBeenCalledOnce()
+    // Direct mode should pass empty tools
+    const callArgs = vi.mocked(runAgentStream).mock.calls[0][0]
+    expect(callArgs.tools).toEqual({})
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createChildAbortController } from '../abortUtils'
+import { createChildAbortController } from '@cslate/shared/agent'
 
 describe('createChildAbortController', () => {
   it('child aborts when parent aborts', () => {

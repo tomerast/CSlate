@@ -1,10 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('ai', () => ({
-  generateText: vi.fn(),
-}))
+vi.mock('@cslate/shared/agent', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cslate/shared/agent')>()
+  return {
+    ...actual,
+    runSubAgent: vi.fn(),
+  }
+})
 
-import { generateText } from 'ai'
+import { runSubAgent } from '@cslate/shared/agent'
 import { spawnBuildAgent, spawnFixAgent, buildSubAgentPrompt } from '../orchestrator/sub-agent'
 import type { BuildTask } from '../orchestrator/types'
 import { PLATFORM_KNOWLEDGE } from '../prompts/fragments'
@@ -72,9 +76,11 @@ describe('buildSubAgentPrompt', () => {
 
 describe('spawnBuildAgent', () => {
   it('returns SubAgentResult on success', async () => {
-    vi.mocked(generateText).mockResolvedValue({
+    vi.mocked(runSubAgent).mockResolvedValue({
       text: 'function Component(props) { return <div>kanban</div> }',
-    } as any)
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      steps: 1,
+    })
 
     const result = await spawnBuildAgent({
       task: { file: 'ui.tsx', assignment: 'Build kanban UI', blueprint: null },
@@ -90,7 +96,7 @@ describe('spawnBuildAgent', () => {
   })
 
   it('returns error status on failure', async () => {
-    vi.mocked(generateText).mockRejectedValue(new Error('API timeout'))
+    vi.mocked(runSubAgent).mockRejectedValue(new Error('API timeout'))
 
     const result = await spawnBuildAgent({
       task: { file: 'ui.tsx', assignment: 'Build UI', blueprint: null },
@@ -103,9 +109,9 @@ describe('spawnBuildAgent', () => {
     expect(result.error).toContain('API timeout')
   })
 
-  it('spawnBuildAgent passes aiTools to generateText when provided', async () => {
-    const mockGenerateText = vi.mocked(generateText)
-    mockGenerateText.mockResolvedValue({ text: 'function Component() {}' } as any)
+  it('spawnBuildAgent passes aiTools to runSubAgent when provided', async () => {
+    const mockRunSubAgent = vi.mocked(runSubAgent)
+    mockRunSubAgent.mockResolvedValue({ text: 'function Component() {}', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, steps: 1 })
     const fakeTools = { readFile: { inputSchema: {}, execute: vi.fn() } }
     await spawnBuildAgent({
       task: { file: 'ui.tsx', assignment: 'build a button', blueprint: null },
@@ -114,17 +120,19 @@ describe('spawnBuildAgent', () => {
       registry: mockRegistry,
       aiTools: fakeTools,
     })
-    expect(mockGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({ tools: fakeTools, maxSteps: 8 })
+    expect(mockRunSubAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: fakeTools, maxOutputTokens: 12000 })
     )
   })
 })
 
 describe('spawnFixAgent', () => {
   it('returns fixed code on success', async () => {
-    vi.mocked(generateText).mockResolvedValue({
+    vi.mocked(runSubAgent).mockResolvedValue({
       text: 'function Component(props) { return <div>fixed</div> }',
-    } as any)
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      steps: 1,
+    })
 
     const result = await spawnFixAgent({
       file: 'ui.tsx',

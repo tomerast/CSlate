@@ -1,7 +1,7 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import type { LLMConfig } from './providers'
-import { fastModelId } from './providers'
+import type { LLMConfig } from '@cslate/shared/agent'
+import { fastModelId } from '@cslate/shared/agent'
 import { engineLog } from '../lib/logger'
 
 const RouteSchema = z.object({

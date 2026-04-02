@@ -17,7 +17,16 @@ vi.mock('@ai-sdk/openai', () => ({ createOpenAI: vi.fn(() => ({ chat: vi.fn(() =
 vi.mock('@ai-sdk/google', () => ({ createGoogleGenerativeAI: vi.fn(() => vi.fn(() => ({}))) }))
 vi.mock('ollama-ai-provider', () => ({ createOllama: vi.fn(() => vi.fn(() => ({}))) }))
 
+vi.mock('@cslate/shared/agent', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cslate/shared/agent')>()
+  return {
+    ...actual,
+    runAgentStream: vi.fn(),
+  }
+})
+
 import { generateObject, streamText } from 'ai'
+import { runAgentStream } from '@cslate/shared/agent'
 import { AgentEngine } from '../engine'
 
 const TEST_PROJECT = join(__dirname, '__integration_test__')
@@ -37,6 +46,7 @@ describe('Full flow: user request → router → orchestrator → stream', () =>
       object: { route: 'orchestrator', summary: 'build a todo list', targetComponentId: null }
     } as any)
 
+    // Orchestrator uses streamText from 'ai' directly
     const mockStream = (async function* () {
       yield { type: 'text-delta', textDelta: 'I will build a todo list component.' }
       yield { type: 'tool-call', toolName: 'searchBlueprints', input: { query: 'todo list', limit: 5 } }
@@ -63,7 +73,7 @@ describe('Full flow: user request → router → orchestrator → stream', () =>
     }
 
     expect(generateObject).toHaveBeenCalledOnce() // router called
-    expect(streamText).toHaveBeenCalledOnce() // orchestrator called
+    expect(streamText).toHaveBeenCalledOnce() // orchestrator (uses streamText directly)
     expect(parts.filter(p => p.type === 'text-delta').length).toBeGreaterThan(0)
     // Verify orchestrator status was sent to sender
     expect(sender.send).toHaveBeenCalledWith('agent:orchestrator:status', expect.objectContaining({ phase: 'understand' }))
@@ -74,12 +84,13 @@ describe('Full flow: user request → router → orchestrator → stream', () =>
       object: { route: 'skill', skill: 'state-wirer', summary: 'wire ticker to chart', targetComponentId: null }
     } as any)
 
+    // Skill runner uses runAgentStream from shared
     const mockStream = (async function* () {
       yield { type: 'text-delta', textDelta: 'Wiring components...' }
       yield { type: 'finish', usage: { totalTokens: 100 } }
     })()
 
-    vi.mocked(streamText).mockReturnValue({
+    vi.mocked(runAgentStream).mockReturnValue({
       fullStream: mockStream,
       usage: Promise.resolve({ totalTokens: 100 }),
     } as any)
@@ -95,7 +106,7 @@ describe('Full flow: user request → router → orchestrator → stream', () =>
       parts.push(part)
     }
 
-    expect(streamText).toHaveBeenCalledOnce()
+    expect(runAgentStream).toHaveBeenCalledOnce()
     expect(parts.some(p => p.type === 'text-delta')).toBe(true)
   })
 
@@ -104,12 +115,13 @@ describe('Full flow: user request → router → orchestrator → stream', () =>
       object: { route: 'direct', summary: 'asking about API key', targetComponentId: null }
     } as any)
 
+    // Direct runner uses runAgentStream from shared
     const mockStream = (async function* () {
       yield { type: 'text-delta', textDelta: 'Go to Settings to change your API key.' }
       yield { type: 'finish', usage: { totalTokens: 50 } }
     })()
 
-    vi.mocked(streamText).mockReturnValue({
+    vi.mocked(runAgentStream).mockReturnValue({
       fullStream: mockStream,
       usage: Promise.resolve({ totalTokens: 50 }),
     } as any)
@@ -125,9 +137,9 @@ describe('Full flow: user request → router → orchestrator → stream', () =>
       parts.push(part)
     }
 
-    expect(streamText).toHaveBeenCalledOnce()
-    // Direct path: streamText called with no tools
-    const call = vi.mocked(streamText).mock.calls[0][0]
-    expect((call as any).tools).toBeUndefined()
+    expect(runAgentStream).toHaveBeenCalledOnce()
+    // Direct path: runAgentStream called with empty tools
+    const call = vi.mocked(runAgentStream).mock.calls[0][0]
+    expect(call.tools).toEqual({})
   })
 })

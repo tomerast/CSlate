@@ -5,7 +5,7 @@ import { join, resolve, sep, dirname } from 'path'
 import { validateComponentPackage } from '@cslate/shared'
 import { bundleComponentDir } from '../lib/bundler'
 import { PlacementSchema, updateCanvasJson, type Placement } from '../lib/canvasJson'
-import { stripFences } from '../lib/stripFences'
+import { stripFences } from '@cslate/shared/agent'
 import { buildTool } from './types'
 
 type WriteInput = {

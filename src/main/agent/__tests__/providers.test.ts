@@ -21,7 +21,7 @@ vi.mock('ai', () => ({
   }))
 }))
 
-import { buildRegistry, mainModelId, fastModelId } from '../providers'
+import { buildRegistry, mainModelId, fastModelId } from '@cslate/shared/agent'
 
 describe('buildRegistry', () => {
   it('builds registry for anthropic provider', () => {

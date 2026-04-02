@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
-import { buildTool } from '../types'
+import { buildTool } from '@cslate/shared/agent'
 
 describe('buildTool', () => {
   const minimalTool = buildTool({

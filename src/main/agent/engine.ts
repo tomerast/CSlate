@@ -1,7 +1,15 @@
-import { streamText, stepCountIs } from 'ai'
 import type { WebContents } from 'electron'
 import type { Logger } from 'pino'
-import { buildRegistry, mainModelId, fastModelId, type LLMConfig } from './providers'
+import {
+  buildRegistry,
+  mainModelId,
+  fastModelId,
+  runAgentStream,
+  autoCompactIfNeeded,
+  createChildAbortController,
+  type LLMConfig,
+  type AgentRegistry,
+} from '@cslate/shared/agent'
 import { classifyIntent } from './router'
 import { readMemory, writeMemoryEntry } from './memory/index'
 import { buildSkillRegistry, type AgentContext } from './skills/index'
@@ -11,8 +19,6 @@ import { buildToolSet } from './tools/index'
 import type { PermissionBroker } from './tools/bash/permissions'
 import { createReadProjectContextCSTool } from './tools/readProjectContext'
 import { CSlateServerClient } from '../server/CSlateServerClient'
-import { autoCompactIfNeeded } from './lib/compact'
-import { createChildAbortController } from './lib/abortUtils'
 import { engineLog } from '../lib/logger'
 
 export interface EngineOptions {
@@ -30,7 +36,7 @@ export interface RunInput {
 }
 
 export class AgentEngine {
-  private registry: ReturnType<typeof buildRegistry>
+  private registry: AgentRegistry
 
   constructor(
     private config: LLMConfig,
@@ -42,7 +48,6 @@ export class AgentEngine {
 
   async *stream(input: RunInput): AsyncGenerator<unknown> {
     const log = engineLog.child({ tabId: this.options.tabId })
-    const reg = this.registry as { languageModel: (id: string) => any }
 
     // Create abort controller for this stream — can be cancelled via IPC
     const abortController = new AbortController()
@@ -67,13 +72,13 @@ export class AgentEngine {
       compactedInput.conversationHistory,
       activeComponents.map((c) => c.componentId),
       this.config,
-      reg
+      this.registry
     )
     log.info({ route: route.route, skill: route.skill, summary: route.summary }, 'intent routed')
 
     // Dispatch based on route
     if (route.route === 'orchestrator') {
-      yield* this.runOrchestrator(compactedInput, route, memory, activeComponents, reg, log, abortController)
+      yield* this.runOrchestrator(compactedInput, route, memory, activeComponents, log, abortController)
     } else if (route.route === 'skill' && route.skill) {
       yield* this.runSkill(route.skill, compactedInput, memory, activeComponents, log, abortController)
     } else {
@@ -86,7 +91,6 @@ export class AgentEngine {
     route: { summary: string; targetComponentId?: string | null },
     memory: Awaited<ReturnType<typeof readMemory>>,
     activeComponents: Array<{ componentId: string; manifest: unknown }>,
-    reg: { languageModel: (id: string) => any },
     log: Logger,
     abortController?: AbortController
   ): AsyncGenerator<unknown> {
@@ -102,7 +106,7 @@ export class AgentEngine {
       targetComponentId: input.targetComponentId ?? route.targetComponentId ?? undefined,
       conversationHistory: input.conversationHistory,
       config: this.config,
-      registry: reg,
+      registry: this.registry,
       serverClient,
       sender: this.options.sender,
       permissionBroker: this.options.permissionBroker,
@@ -125,7 +129,6 @@ export class AgentEngine {
     log: Logger,
     abortController?: AbortController
   ): AsyncGenerator<unknown> {
-    const reg = this.registry as { languageModel: (id: string) => any }
     const serverClient = (this.options.serverUrl && this.options.serverApiKey)
       ? new CSlateServerClient(this.options.serverUrl, this.options.serverApiKey)
       : null
@@ -141,7 +144,7 @@ export class AgentEngine {
 
     const { aiTools } = buildToolSet({
       projectDir: this.projectDir,
-      registry: reg,
+      registry: this.registry,
       fastModelId: fastModelId(this.config),
       serverClient,
       permissionBroker: this.options.permissionBroker,
@@ -158,15 +161,16 @@ export class AgentEngine {
     log.info({ modelId, skill: skillName }, 'running legacy skill')
     const t0 = Date.now()
 
-    const result = streamText({
-      model: reg.languageModel(modelId),
+    const result = runAgentStream({
+      modelId,
+      registry: this.registry,
       system: skill.systemPrompt(ctx),
       messages: [
         ...input.conversationHistory,
         { role: 'user' as const, content: input.message },
       ],
       tools: skill.tools,
-      stopWhen: stepCountIs(skill.maxSteps ?? 10),
+      maxSteps: skill.maxSteps ?? 10,
       maxOutputTokens: skill.maxTokens,
       temperature: skill.temperature,
       abortSignal: abortController?.signal,
@@ -177,7 +181,7 @@ export class AgentEngine {
     }
 
     Promise.resolve(result.usage).then(usage => {
-      log.info({ durationMs: Date.now() - t0, totalTokens: usage?.totalTokens }, 'skill stream finished')
+      log.info({ durationMs: Date.now() - t0, totalTokens: (usage as any)?.totalTokens }, 'skill stream finished')
     }).catch(() => {})
   }
 
@@ -187,17 +191,18 @@ export class AgentEngine {
     log: Logger,
     abortController?: AbortController
   ): AsyncGenerator<unknown> {
-    const reg = this.registry as { languageModel: (id: string) => any }
     const modelId = mainModelId(this.config)
     log.info({ modelId }, 'running direct response')
 
-    const result = streamText({
-      model: reg.languageModel(modelId),
+    const result = runAgentStream({
+      modelId,
+      registry: this.registry,
       system: 'You are the CSlate assistant. Answer the user\'s question helpfully and concisely. You do not have access to tools in this mode.',
       messages: [
         ...input.conversationHistory,
         { role: 'user' as const, content: input.message },
       ],
+      tools: {},
       maxOutputTokens: 1000,
       abortSignal: abortController?.signal,
     })

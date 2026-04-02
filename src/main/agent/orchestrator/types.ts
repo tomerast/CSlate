@@ -68,7 +68,7 @@ export interface OrchestratorContext {
   activeComponents: Array<{ componentId: string; manifest: unknown }>
   targetComponentId?: string
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
-  config: import('../providers').LLMConfig
+  config: import('@cslate/shared/agent').LLMConfig
   registry: { languageModel: (id: string) => any }
   serverClient: import('../../server/CSlateServerClient').CSlateServerClient | null
   sender: import('electron').WebContents

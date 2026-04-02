@@ -5,7 +5,7 @@ import { buildTool, type ToolResult, type ToolUseContext } from './types'
 import { isValidPipelineId, PipelineManifestSchema } from '../../pipeline/types'
 import { compilePipeline } from '../../pipeline/compiler'
 import { upsertPipelineEntry } from '../../pipeline/pipelines-json'
-import { stripFences } from '../lib/stripFences'
+import { stripFences } from '@cslate/shared/agent'
 import { safePath } from '../../lib/paths'
 
 type WritePipelineInput = { pipelineId: string; files: Record<string, string>; manifest: unknown }

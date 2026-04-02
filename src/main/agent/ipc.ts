@@ -1,7 +1,7 @@
 import type { IpcMain, WebContents } from 'electron'
 import { AgentEngine } from './engine'
 import { getConfigValue } from '../ipc/config'
-import type { LLMConfig } from './providers'
+import type { LLMConfig } from '@cslate/shared/agent'
 import type { PermissionBroker } from './tools/bash/permissions'
 import { agentLog, logFile } from '../lib/logger'
 

@@ -6,7 +6,7 @@ import { ComponentPlanSchema, PipelinePlanSchema, WiringPlanSchema } from './typ
 import { buildOrchestratorSystemPrompt } from './prompts'
 import { spawnBuildAgent, spawnFixAgent, spawnPipelineBuildAgent } from './sub-agent'
 import { buildContextString } from '../memory/context-builder'
-import { mainModelId } from '../providers'
+import { mainModelId, fastModelId } from '@cslate/shared/agent'
 import { createSearchBlueprintsTool } from '../tools/searchBlueprints'
 import { createScanLocalComponentsTool } from '../tools/scanLocalComponents'
 import { createReadProjectContextTool } from '../tools/readProjectContext'
@@ -24,7 +24,7 @@ import { engineLog } from '../../lib/logger'
 import { bundlePartialUiTsx } from '../lib/bundler'
 import { saveStaging, clearStaging, listStaging, type StagingState } from './staging'
 import { buildToolSet } from '../tools/index'
-import { fastModelId } from '../providers'
+
 
 
 export class Orchestrator {

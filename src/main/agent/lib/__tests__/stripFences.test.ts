@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { stripFences } from '../stripFences'
+import { stripFences } from '@cslate/shared/agent'
 
 describe('stripFences', () => {
   it('strips jsx fences', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { estimateTokens, shouldCompact, buildCompactSummary, autoCompactIfNeeded } from '../compact'
+import { estimateTokens, shouldCompact, buildCompactSummary, autoCompactIfNeeded } from '@cslate/shared/agent'
 
 describe('estimateTokens', () => {
   it('estimates ~4 chars per token', () => {

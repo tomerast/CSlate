@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import { validateComponentPackage } from '@cslate/shared'
 import { bundleComponentFiles } from '../lib/bundler'
-import { stripFences } from '../lib/stripFences'
+import { stripFences } from '@cslate/shared/agent'
 import { PlacementSchema, type Placement } from '../lib/canvasJson'
 import { buildTool } from './types'
 
