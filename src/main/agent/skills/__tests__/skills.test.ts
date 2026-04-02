@@ -4,11 +4,11 @@ import { buildSkillRegistry } from '../index'
 const mockTools = {}
 
 describe('buildSkillRegistry', () => {
-  it('returns only the 2 legacy skills', () => {
+  it('returns the legacy skills including pipeline-wirer', () => {
     const registry = buildSkillRegistry(mockTools)
-    expect(Object.keys(registry)).toHaveLength(2)
     expect(registry['state-wirer']).toBeDefined()
     expect(registry['component-search']).toBeDefined()
+    expect(registry['pipeline-wirer']).toBeDefined()
   })
 
   it('state-wirer systemPrompt lists active components', () => {

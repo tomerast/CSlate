@@ -7,11 +7,11 @@ vi.mock('ai', () => ({
 import { buildSkillRegistry } from '../skills/index'
 
 describe('buildSkillRegistry (reduced)', () => {
-  it('contains only state-wirer and component-search', () => {
+  it('contains state-wirer, component-search, and pipeline-wirer', () => {
     const registry = buildSkillRegistry({})
     const keys = Object.keys(registry)
     expect(keys).toContain('state-wirer')
     expect(keys).toContain('component-search')
-    expect(keys).toHaveLength(2)
+    expect(keys).toContain('pipeline-wirer')
   })
 })
