@@ -1,26 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('ai', () => ({
-  generateObject: vi.fn(),
-}))
+vi.mock('@cslate/shared/agent', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cslate/shared/agent')>()
+  return {
+    ...actual,
+    runStructuredAgent: vi.fn(),
+  }
+})
 
-import { generateObject } from 'ai'
+import { runStructuredAgent } from '@cslate/shared/agent'
 import { classifyIntent, type RouteResult } from '../router'
 
 const mockRegistry = { languageModel: vi.fn().mockReturnValue({}) }
 
 describe('classifyIntent', () => {
   beforeEach(() => {
-    vi.mocked(generateObject).mockReset()
+    vi.mocked(runStructuredAgent).mockReset()
   })
 
   it('routes component build request to orchestrator', async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        route: 'orchestrator',
-        summary: 'build a kanban board',
-        targetComponentId: null,
-      }
+    vi.mocked(runStructuredAgent).mockResolvedValue({
+      route: 'orchestrator',
+      summary: 'build a kanban board',
+      skill: null,
+      targetComponentId: null,
     } as any)
 
     const result = await classifyIntent(
@@ -36,12 +39,11 @@ describe('classifyIntent', () => {
   })
 
   it('routes modification request to orchestrator', async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        route: 'orchestrator',
-        summary: 'add dark mode to header',
-        targetComponentId: 'header',
-      }
+    vi.mocked(runStructuredAgent).mockResolvedValue({
+      route: 'orchestrator',
+      summary: 'add dark mode to header',
+      skill: null,
+      targetComponentId: 'header',
     } as any)
 
     const result = await classifyIntent(
@@ -57,13 +59,11 @@ describe('classifyIntent', () => {
   })
 
   it('routes state wiring to skill', async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        route: 'skill',
-        skill: 'state-wirer',
-        summary: 'connect ticker to chart',
-        targetComponentId: null,
-      }
+    vi.mocked(runStructuredAgent).mockResolvedValue({
+      route: 'skill',
+      skill: 'state-wirer',
+      summary: 'connect ticker to chart',
+      targetComponentId: null,
     } as any)
 
     const result = await classifyIntent(
@@ -79,12 +79,11 @@ describe('classifyIntent', () => {
   })
 
   it('routes general questions to direct', async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        route: 'direct',
-        summary: 'asking about settings',
-        targetComponentId: null,
-      }
+    vi.mocked(runStructuredAgent).mockResolvedValue({
+      route: 'direct',
+      summary: 'asking about settings',
+      skill: null,
+      targetComponentId: null,
     } as any)
 
     const result = await classifyIntent(
@@ -99,13 +98,11 @@ describe('classifyIntent', () => {
   })
 
   it('routes symptom description to orchestrator when active components exist', async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        route: 'orchestrator',
-        skill: null,
-        summary: 'fix stuck loading state in snow_tracker_v2',
-        targetComponentId: 'snow_tracker_v2',
-      },
+    vi.mocked(runStructuredAgent).mockResolvedValue({
+      route: 'orchestrator',
+      skill: null,
+      summary: 'fix stuck loading state in snow_tracker_v2',
+      targetComponentId: 'snow_tracker_v2',
     } as any)
 
     const result = await classifyIntent(
@@ -124,8 +121,8 @@ describe('classifyIntent', () => {
   })
 
   it('includes active component IDs in the prompt sent to LLM', async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: { route: 'orchestrator', skill: null, summary: 'fix', targetComponentId: 'snow_tracker_v2' },
+    vi.mocked(runStructuredAgent).mockResolvedValue({
+      route: 'orchestrator', skill: null, summary: 'fix', targetComponentId: 'snow_tracker_v2',
     } as any)
 
     await classifyIntent(
@@ -136,13 +133,13 @@ describe('classifyIntent', () => {
       mockRegistry as any
     )
 
-    const call = vi.mocked(generateObject).mock.calls[0][0] as any
+    const call = vi.mocked(runStructuredAgent).mock.calls[0][0] as any
     expect(call.prompt).toContain('snow_tracker_v2')
   })
 
   it('includes recent conversation history in the prompt sent to LLM', async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: { route: 'orchestrator', skill: null, summary: 'fix', targetComponentId: null },
+    vi.mocked(runStructuredAgent).mockResolvedValue({
+      route: 'orchestrator', skill: null, summary: 'fix', targetComponentId: null,
     } as any)
 
     await classifyIntent(
@@ -153,13 +150,13 @@ describe('classifyIntent', () => {
       mockRegistry as any
     )
 
-    const call = vi.mocked(generateObject).mock.calls[0][0] as any
+    const call = vi.mocked(runStructuredAgent).mock.calls[0][0] as any
     expect(call.prompt).toContain('create a snow tracking app for skiers')
   })
 
   it('works with empty history and no active components', async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: { route: 'direct', skill: null, summary: 'asking about settings', targetComponentId: null },
+    vi.mocked(runStructuredAgent).mockResolvedValue({
+      route: 'direct', skill: null, summary: 'asking about settings', targetComponentId: null,
     } as any)
 
     const result = await classifyIntent(

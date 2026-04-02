@@ -1,5 +1,6 @@
 // src/main/agent/orchestrator/index.ts
-import { streamText, stepCountIs, tool as defineTool } from 'ai'
+import { tool as defineTool } from 'ai'
+import { runAgentStream } from '@cslate/shared/agent'
 import { z } from 'zod'
 import type { OrchestratorContext, SubAgentResult } from './types'
 import { ComponentPlanSchema, PipelinePlanSchema, WiringPlanSchema } from './types'
@@ -447,8 +448,9 @@ export class Orchestrator {
     const CODING_TOOLS = ['readFile', 'grep', 'glob', 'bash', 'lsp', 'webFetch'] as const
     type ToolName = keyof typeof tools
 
-    const result = streamText({
-      model: ctx.registry.languageModel(modelId),
+    const result = runAgentStream({
+      modelId,
+      registry: ctx.registry,
       system: systemPrompt,
       messages: [
         ...ctx.conversationHistory,
@@ -456,7 +458,7 @@ export class Orchestrator {
         ...(accumulatedMessages as any[]),
       ],
       tools,
-      stopWhen: stepCountIs(15),
+      maxSteps: 15,
       maxOutputTokens: 16000,
       temperature: 0.2,
       onStepFinish: async ({ toolCalls, response }) => {
@@ -493,12 +495,12 @@ export class Orchestrator {
         // Union current-run tool calls with those parsed from resume history
         // so phase detection works correctly on both fresh and resumed runs.
         const calledNow = new Set(
-          steps.flatMap(s => (s.toolCalls ?? []).map(c => c.toolName))
+          steps.flatMap(s => (s.toolCalls ?? []).map((c: any) => c.toolName))
         )
         const called = new Set([...calledInHistory, ...calledNow])
         // Count assembleAndValidate calls in the current run only (max 2: initial + after fix).
         const validateCount = steps.reduce(
-          (n, s) => n + (s.toolCalls ?? []).filter(c => c.toolName === 'assembleAndValidate').length,
+          (n, s) => n + (s.toolCalls ?? []).filter((c: any) => c.toolName === 'assembleAndValidate').length,
           0
         )
 

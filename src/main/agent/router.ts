@@ -1,7 +1,5 @@
-import { generateObject } from 'ai'
 import { z } from 'zod'
-import type { LLMConfig } from '@cslate/shared/agent'
-import { fastModelId } from '@cslate/shared/agent'
+import { runStructuredAgent, fastModelId, type LLMConfig } from '@cslate/shared/agent'
 import { engineLog } from '../lib/logger'
 
 const RouteSchema = z.object({
@@ -60,8 +58,9 @@ export async function classifyIntent(
   const t0 = Date.now()
 
   try {
-    const { object } = await generateObject({
-      model: registry.languageModel(modelId),
+    const object = await runStructuredAgent({
+      modelId,
+      registry,
       system: ROUTER_SYSTEM,
       prompt: buildContextualPrompt(message, history, activeComponentIds),
       schema: RouteSchema,

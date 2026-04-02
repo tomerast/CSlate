@@ -1,18 +1,23 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('ai', () => ({
-  tool: vi.fn((config) => config),
-  generateText: vi.fn()
-}))
+vi.mock('@cslate/shared/agent', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cslate/shared/agent')>()
+  return {
+    ...actual,
+    runSubAgent: vi.fn(),
+  }
+})
 
-import { generateText } from 'ai'
+import { runSubAgent } from '@cslate/shared/agent'
 import { createReviewCodeTool } from '../reviewCode'
 
 describe('reviewCode sub-agent tool', () => {
   it('returns passed=true when reviewer finds no issues', async () => {
-    vi.mocked(generateText).mockResolvedValue({
-      text: JSON.stringify({ passed: true, issues: [], suggestions: ['Consider adding aria-labels'] })
-    } as any)
+    vi.mocked(runSubAgent).mockResolvedValue({
+      text: JSON.stringify({ passed: true, issues: [], suggestions: ['Consider adding aria-labels'] }),
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      steps: 1,
+    })
 
     const tool = createReviewCodeTool({ languageModel: vi.fn().mockReturnValue({}) } as any, 'local:test').toAISDKTool()
     const result = await tool.execute!({
@@ -28,9 +33,11 @@ describe('reviewCode sub-agent tool', () => {
   })
 
   it('returns passed=false when reviewer finds issues', async () => {
-    vi.mocked(generateText).mockResolvedValue({
-      text: JSON.stringify({ passed: false, issues: ['Uses eval()'], suggestions: [] })
-    } as any)
+    vi.mocked(runSubAgent).mockResolvedValue({
+      text: JSON.stringify({ passed: false, issues: ['Uses eval()'], suggestions: [] }),
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      steps: 1,
+    })
 
     const tool = createReviewCodeTool({ languageModel: vi.fn().mockReturnValue({}) } as any, 'local:test').toAISDKTool()
     const result = await tool.execute!({

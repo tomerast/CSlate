@@ -1,6 +1,5 @@
-import { generateText } from 'ai'
 import { z } from 'zod'
-import { buildTool } from './types'
+import { runSubAgent, buildTool } from '@cslate/shared/agent'
 
 const REVIEWER_SYSTEM = `You are a CSlate code reviewer. Review the provided React component code and manifest for:
 1. Sandbox compliance: no fetch(), no localStorage, no window.location, no eval(), no dangerouslySetInnerHTML with user input
@@ -41,8 +40,9 @@ export function createReviewCodeTool(
         .map(([name, content]) => `### ${name}\n\`\`\`tsx\n${content}\n\`\`\``)
         .join('\n\n')
 
-      const { text } = await generateText({
-        model: registry.languageModel(fastModelId),
+      const { text } = await runSubAgent({
+        modelId: fastModelId,
+        registry,
         system: REVIEWER_SYSTEM,
         prompt: `Review this component:\n\n${filesText}\n\n### manifest.json\n\`\`\`json\n${JSON.stringify(input.manifest, null, 2)}\n\`\`\``,
         maxOutputTokens: 1000,

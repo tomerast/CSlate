@@ -18,7 +18,15 @@ vi.mock('@ai-sdk/openai', () => ({ createOpenAI: vi.fn(() => vi.fn(() => ({}))) 
 vi.mock('@ai-sdk/google', () => ({ createGoogleGenerativeAI: vi.fn(() => vi.fn(() => ({}))) }))
 vi.mock('ollama-ai-provider', () => ({ createOllama: vi.fn(() => vi.fn(() => ({}))) }))
 
-import { streamText } from 'ai'
+vi.mock('@cslate/shared/agent', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cslate/shared/agent')>()
+  return {
+    ...actual,
+    runAgentStream: vi.fn(),
+  }
+})
+
+import { runAgentStream } from '@cslate/shared/agent'
 import { Orchestrator } from '../orchestrator/index'
 import type { OrchestratorContext } from '../orchestrator/types'
 
@@ -60,7 +68,7 @@ describe('Orchestrator', () => {
       yield { type: 'finish', usage: { totalTokens: 200 } }
     })()
 
-    vi.mocked(streamText).mockReturnValue({
+    vi.mocked(runAgentStream).mockReturnValue({
       fullStream: mockFullStream,
       usage: Promise.resolve({ totalTokens: 200 }),
     } as any)
@@ -73,7 +81,7 @@ describe('Orchestrator', () => {
       parts.push(part)
     }
 
-    expect(streamText).toHaveBeenCalledOnce()
+    expect(runAgentStream).toHaveBeenCalledOnce()
     expect(parts.some((p: any) => p.type === 'text-delta')).toBe(true)
   })
 })
