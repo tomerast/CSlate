@@ -11,6 +11,7 @@ export { buildTool } from './types'
 
 import type { CSTool } from './types'
 import type { CSlateServerClient } from '../../server/CSlateServerClient'
+import type { PermissionBroker } from './bash/permissions'
 import { validateManifestTool } from './validateManifest'
 import { createReviewCodeTool } from './reviewCode'
 import { createRenderComponentTool } from './renderComponent'
