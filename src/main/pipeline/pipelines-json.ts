@@ -1,10 +1,11 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { safePath } from '../lib/paths'
 import type { PipelinesJson, PipelineEntry } from './types'
 
 export async function readPipelinesJson(projectDir: string): Promise<PipelinesJson> {
   try {
-    const raw = await readFile(join(projectDir, 'pipelines.json'), 'utf-8')
+    const filePath = safePath(projectDir, 'pipelines.json')
+    const raw = await readFile(filePath, 'utf-8')
     return JSON.parse(raw) as PipelinesJson
   } catch {
     return { pipelines: [] }
@@ -15,7 +16,8 @@ export async function writePipelinesJson(
   projectDir: string,
   data: PipelinesJson,
 ): Promise<void> {
-  await writeFile(join(projectDir, 'pipelines.json'), JSON.stringify(data, null, 2))
+  const filePath = safePath(projectDir, 'pipelines.json')
+  await writeFile(filePath, JSON.stringify(data, null, 2))
 }
 
 export async function upsertPipelineEntry(
