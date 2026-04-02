@@ -1,57 +1,34 @@
 import type { IpcMain } from 'electron'
+import { PipelineExecutor } from '../pipeline/executor'
+import { DataBus } from '../pipeline/data-bus'
+import { readPipelinesJson } from '../pipeline/pipelines-json'
+import { getConfigValue } from './config'
 
-// These interfaces match the pipeline runtime from Plans 1 & 2.
-// Once the runtime is implemented, these can be replaced with direct imports.
+// Lazy-initialized singletons — created on first IPC call that needs them
+let executor: PipelineExecutor | null = null
+let bus: DataBus | null = null
 
-interface PipelineRuntimeStatus {
-  state: string
-  lastError?: string
-  uptimeMs?: number
+function getProjectDir(): string {
+  return getConfigValue('projectDir') as string ?? ''
 }
 
-interface PipelineExecutor {
-  getAllStatuses(): Map<string, PipelineRuntimeStatus>
-  getStatus(pipelineId: string): PipelineRuntimeStatus | null
-  execute(pipelineId: string, params: Record<string, unknown>): Promise<unknown>
-  startPipeline(pipelineId: string): Promise<void>
-  stopPipeline(pipelineId: string): Promise<void>
-}
-
-interface DataBus {
-  getLatest(pipelineId: string): unknown
-  subscribe(pipelineId: string, callback: (data: unknown) => void): () => void
-}
-
-interface PipelinesJson {
-  pipelines: Array<{
-    pipelineId: string
-    status: 'active' | 'inactive' | 'error'
-    lastRun?: number
-    error?: string
-    connectedComponents: string[]
-  }>
-}
-
-async function readPipelinesJson(projectDir: string): Promise<PipelinesJson> {
-  const { readFile } = await import('fs/promises')
-  const { join } = await import('path')
-  try {
-    const content = await readFile(join(projectDir, 'pipelines.json'), 'utf-8')
-    return JSON.parse(content) as PipelinesJson
-  } catch {
-    return { pipelines: [] }
+function ensureRuntime(): { executor: PipelineExecutor; bus: DataBus } {
+  if (!bus) {
+    bus = new DataBus()
   }
+  if (!executor) {
+    const projectDir = getProjectDir()
+    executor = new PipelineExecutor(projectDir, bus)
+  }
+  return { executor, bus }
 }
 
-export function register(
-  ipcMain: IpcMain,
-  executor: PipelineExecutor,
-  bus: DataBus,
-  projectDir: string,
-): void {
+export function register(ipcMain: IpcMain): void {
   ipcMain.handle('pipeline:list', async () => {
+    const { executor: ex } = ensureRuntime()
+    const projectDir = getProjectDir()
     const registry = await readPipelinesJson(projectDir)
-    const statuses = executor.getAllStatuses()
+    const statuses = ex.getAllStatuses()
     return registry.pipelines.map((entry) => ({
       ...entry,
       runtimeStatus: statuses.get(entry.pipelineId) ?? null,
@@ -59,11 +36,12 @@ export function register(
   })
 
   ipcMain.handle('pipeline:get-data', async (_event, { pipelineId }: { pipelineId: string }) => {
-    const cached = bus.getLatest(pipelineId)
+    const { executor: ex, bus: b } = ensureRuntime()
+    const cached = b.getLatest(pipelineId)
     if (cached) return cached
 
     try {
-      const output = await executor.execute(pipelineId, {})
+      const output = await ex.execute(pipelineId, {})
       return output
     } catch (err) {
       return { error: (err as Error).message }
@@ -71,23 +49,27 @@ export function register(
   })
 
   ipcMain.handle('pipeline:start', async (_event, { pipelineId }: { pipelineId: string }) => {
-    await executor.startPipeline(pipelineId)
+    const { executor: ex } = ensureRuntime()
+    await ex.startPipeline(pipelineId)
     return { success: true }
   })
 
   ipcMain.handle('pipeline:stop', async (_event, { pipelineId }: { pipelineId: string }) => {
-    await executor.stopPipeline(pipelineId)
+    const { executor: ex } = ensureRuntime()
+    await ex.stopPipeline(pipelineId)
     return { success: true }
   })
 
   ipcMain.handle('pipeline:status', async (_event, { pipelineId }: { pipelineId: string }) => {
-    return executor.getStatus(pipelineId)
+    const { executor: ex } = ensureRuntime()
+    return ex.getStatus(pipelineId)
   })
 
   // Subscription management — tracks which renderers are subscribed to which pipelines
   const subscriptions = new Map<string, Map<string, () => void>>()
 
   ipcMain.on('pipeline:subscribe', (event, { pipelineId }: { pipelineId: string }) => {
+    const { bus: b } = ensureRuntime()
     const sender = event.sender
     const senderId = String(sender.id)
 
@@ -98,7 +80,7 @@ export function register(
     // Avoid duplicate subscriptions
     if (subscriptions.get(senderId)!.has(pipelineId)) return
 
-    const unsub = bus.subscribe(pipelineId, (data) => {
+    const unsub = b.subscribe(pipelineId, (data) => {
       if (!sender.isDestroyed()) {
         sender.send('pipeline:data', { pipelineId, data })
       }
@@ -107,7 +89,7 @@ export function register(
     subscriptions.get(senderId)!.set(pipelineId, unsub)
 
     // Send latest data immediately if available
-    const latest = bus.getLatest(pipelineId)
+    const latest = b.getLatest(pipelineId)
     if (latest && !sender.isDestroyed()) {
       sender.send('pipeline:data', { pipelineId, data: latest })
     }

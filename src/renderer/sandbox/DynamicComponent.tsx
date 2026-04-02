@@ -14,11 +14,21 @@ interface EvalResult {
 function createBridge() {
   return {
     pipeline: async (pipelineId: string) => {
-      return window.electron.invoke('pipeline:get-data', { pipelineId })
+      try {
+        return await window.electron.invoke('pipeline:get-data', { pipelineId })
+      } catch (err) {
+        console.error('[bridge] pipeline fetch failed:', err)
+        return { data: null, metadata: { fetchedAt: 0, source: 'error', cached: false }, error: String(err) }
+      }
     },
 
     pipelineSubscribe: (pipelineId: string, callback: (data: unknown) => void) => {
-      window.electron.send('pipeline:subscribe', { pipelineId })
+      try {
+        window.electron.send('pipeline:subscribe', { pipelineId })
+      } catch (err) {
+        console.error('[bridge] pipeline subscribe failed:', err)
+        return () => {}
+      }
 
       const removeListener = window.electron.on('pipeline:data', (msg: unknown) => {
         const typed = msg as { pipelineId: string; data: unknown }
