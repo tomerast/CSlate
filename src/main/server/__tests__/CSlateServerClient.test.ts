@@ -26,7 +26,7 @@ describe('CSlateServerClient', () => {
       await client.search('todo component', 5)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3001/api/components/search?q=todo+component&limit=5',
+        'http://localhost:3001/api/v1/components/search?q=todo+component&limit=5',
         expect.objectContaining({
           headers: { Authorization: 'ApiKey test-api-key' },
         })
@@ -107,7 +107,7 @@ describe('CSlateServerClient', () => {
       await client.publish(payload)
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3001/api/components/upload',
+        'http://localhost:3001/api/v1/components/upload',
         expect.objectContaining({
           method: 'POST',
           headers: {
@@ -214,7 +214,7 @@ describe('CSlateServerClient', () => {
       await client.fetchSource('comp-123')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3001/api/components/comp-123/source',
+        'http://localhost:3001/api/v1/components/comp-123/source',
         expect.objectContaining({
           headers: { Authorization: 'ApiKey test-api-key' },
         })
@@ -279,7 +279,7 @@ describe('CSlateServerClient', () => {
       await client.fetchSource('comp-123-abc')
 
       const calledUrl = mockFetch.mock.calls[0][0] as string
-      expect(calledUrl).toBe('http://localhost:3001/api/components/comp-123-abc/source')
+      expect(calledUrl).toBe('http://localhost:3001/api/v1/components/comp-123-abc/source')
     })
   })
 

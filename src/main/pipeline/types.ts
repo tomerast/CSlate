@@ -29,14 +29,14 @@ export const PipelineOutputFieldSchema = z.object({
 
 export const PipelineManifestSchema = z.object({
   name: z.string().min(1).max(100),
-  description: z.string().min(1).max(500),
-  tags: z.array(z.string()).max(20),
+  description: z.string().min(1).max(1000),
+  tags: z.array(z.string()).min(1).max(20),
   secrets: z.record(PipelineSecretSchema),
   params: z.record(PipelineParamSchema),
   outputSchema: z.record(PipelineOutputFieldSchema),
   strategy: PipelineStrategySchema,
-  files: z.array(z.string()),
-  version: z.string().optional(),
+  files: z.array(z.string()).min(1),
+  version: z.string().regex(/^\d+\.\d+\.\d+$/),
 })
 
 export type PipelineManifest = z.infer<typeof PipelineManifestSchema>

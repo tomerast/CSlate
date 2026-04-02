@@ -24,6 +24,7 @@ describe('writePipeline', () => {
     outputSchema: {},
     strategy: { type: 'on-demand' },
     files: ['pipeline.ts', 'manifest.json', 'context.md'],
+    version: '1.0.0',
   }
 
   const files = {

@@ -13,6 +13,7 @@ describe('validatePipelineManifest', () => {
     outputSchema: { result: { type: 'object', description: 'Test result' } },
     strategy: { type: 'on-demand' },
     files: ['pipeline.ts', 'manifest.json'],
+    version: '1.0.0',
   }
 
   it('returns valid for correct manifest', async () => {

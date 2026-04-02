@@ -64,7 +64,7 @@ export class CSlateServerClient {
 
   async search(query: string, limit: number): Promise<SearchResponse> {
     try {
-      const url = new URL('/api/components/search', this.serverUrl)
+      const url = new URL('/api/v1/components/search', this.serverUrl)
       url.searchParams.set('q', query)
       url.searchParams.set('limit', String(limit))
 
@@ -84,7 +84,7 @@ export class CSlateServerClient {
 
   async publish(payload: PublishPayload): Promise<PublishResponse> {
     try {
-      const url = new URL('/api/components/upload', this.serverUrl)
+      const url = new URL('/api/v1/components/upload', this.serverUrl)
 
       const res = await fetch(url.toString(), {
         method: 'POST',
@@ -107,7 +107,7 @@ export class CSlateServerClient {
 
   async searchPipelines(query: string, limit: number): Promise<SearchResponse> {
     try {
-      const url = new URL('/api/pipelines/search', this.serverUrl)
+      const url = new URL('/api/v1/pipelines/search', this.serverUrl)
       url.searchParams.set('q', query)
       url.searchParams.set('limit', String(limit))
 
@@ -127,7 +127,7 @@ export class CSlateServerClient {
 
   async fetchSource(componentId: string): Promise<FetchSourceResponse> {
     try {
-      const url = new URL(`/api/components/${componentId}/source`, this.serverUrl)
+      const url = new URL(`/api/v1/components/${componentId}/source`, this.serverUrl)
 
       const res = await fetch(url.toString(), {
         headers: { Authorization: `ApiKey ${this.apiKey}` },
@@ -146,7 +146,7 @@ export class CSlateServerClient {
   async publishPipeline(payload: PipelinePublishPayload): Promise<PipelinePublishResponse> {
     try {
       const res = await fetch(
-        new URL('/api/pipelines/upload', this.serverUrl).toString(),
+        new URL('/api/v1/pipelines/upload', this.serverUrl).toString(),
         {
           method: 'POST',
           headers: {
@@ -170,7 +170,7 @@ export class CSlateServerClient {
   async fetchPipelineSource(pipelineId: string): Promise<PipelineFetchSourceResponse> {
     try {
       const res = await fetch(
-        new URL(`/api/pipelines/${pipelineId}/source`, this.serverUrl).toString(),
+        new URL(`/api/v1/pipelines/${pipelineId}/source`, this.serverUrl).toString(),
         {
           headers: { Authorization: `ApiKey ${this.apiKey}` },
         },
@@ -189,7 +189,7 @@ export class CSlateServerClient {
 
   async searchAll(query: string, limit: number): Promise<CombinedSearchResponse> {
     try {
-      const url = new URL('/api/search', this.serverUrl)
+      const url = new URL('/api/v1/search', this.serverUrl)
       url.searchParams.set('q', query)
       url.searchParams.set('limit', String(limit))
 
