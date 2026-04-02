@@ -6,6 +6,12 @@ export { createReadManifestTool } from './readManifest'
 export { createReadProjectContextTool } from './readProjectContext'
 export { createSearchBlueprintsTool } from './searchBlueprints'
 export { createScanLocalComponentsTool } from './scanLocalComponents'
+export { createValidatePipelineManifestTool } from './validatePipelineManifest'
+export { createReadPipelineManifestTool } from './readPipelineManifest'
+export { createWritePipelineTool } from './writePipeline'
+export { createDryRunPipelineTool } from './dryRunPipeline'
+export { createScanLocalPipelinesTool } from './scanLocalPipelines'
+export { createSearchPipelineBlueprintsTool } from './searchPipelineBlueprints'
 export type { CSTool, ToolResult, ToolUseContext, ValidationResult } from './types'
 export { buildTool } from './types'
 
@@ -20,6 +26,12 @@ import { createReadManifestCSTool } from './readManifest'
 import { createReadProjectContextCSTool } from './readProjectContext'
 import { createSearchBlueprintsCSTool } from './searchBlueprints'
 import { createScanLocalComponentsCSTool } from './scanLocalComponents'
+import { createValidatePipelineManifestTool } from './validatePipelineManifest'
+import { createReadPipelineManifestTool } from './readPipelineManifest'
+import { createWritePipelineTool } from './writePipeline'
+import { createDryRunPipelineTool } from './dryRunPipeline'
+import { createScanLocalPipelinesTool } from './scanLocalPipelines'
+import { createSearchPipelineBlueprintsTool } from './searchPipelineBlueprints'
 import { createReadFileCSTool } from './readFile'
 import { createGrepCSTool } from './grep'
 import { createGlobCSTool } from './glob'
@@ -55,8 +67,18 @@ export function buildToolSet(
     createReadProjectContextCSTool(deps.projectDir),
   ]
 
+  const pipelineTools: CSTool[] = [
+    createValidatePipelineManifestTool(),
+    createReadPipelineManifestTool(),
+    createWritePipelineTool(),
+    createDryRunPipelineTool(),
+    createScanLocalPipelinesTool(),
+    createSearchPipelineBlueprintsTool(deps.serverClient),
+  ]
+
   const buildTools: CSTool[] = [
     ...baseTools,
+    ...pipelineTools,
     createSearchBlueprintsCSTool(deps.serverClient),
     createScanLocalComponentsCSTool(deps.projectDir),
     createRenderComponentTool(),
@@ -79,6 +101,7 @@ export function buildToolSet(
 
   const orchestratorTools: CSTool[] = [
     ...baseTools,
+    ...pipelineTools,
     createSearchBlueprintsCSTool(deps.serverClient),
     createScanLocalComponentsCSTool(deps.projectDir),
     createRenderComponentTool(),
