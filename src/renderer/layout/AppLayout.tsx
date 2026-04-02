@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { useCanvasStore, type CanvasComponent } from '../store/canvasStore'
+import { usePipelineStore } from '../store/pipelineStore'
 import { useChat } from '../chat/useChat'
 import { FloatingChatBar } from '../chat/FloatingChatBar'
 import { ChatPanel } from '../chat/ChatPanel'
@@ -39,6 +40,25 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
     }).catch(() => {
       // No project open yet — canvas starts empty
     })
+
+    // Hydrate pipeline store with current pipeline list
+    window.electron.invoke('pipeline:list').then((pipelines: unknown) => {
+      if (Array.isArray(pipelines)) {
+        usePipelineStore.getState().hydrate(pipelines as any)
+      }
+    }).catch(() => {
+      // Pipeline runtime not yet available — store stays empty
+    })
+
+    // Listen for runtime status changes pushed from main process
+    const removeStatusListener = window.electron.on('pipeline:status-change', (msg: unknown) => {
+      const { pipelineId, status } = msg as { pipelineId: string; status: any }
+      usePipelineStore.getState().updateRuntimeStatus(pipelineId, status)
+    })
+
+    return () => {
+      removeStatusListener()
+    }
   }, [])
 
   const handleSubmit = useCallback(async (text: string) => {

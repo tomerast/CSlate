@@ -32,12 +32,34 @@ export const ComponentPlanSchema = z.object({
   blueprintMatch: BlueprintMatchSchema.nullable(),
 })
 
+export const PipelinePlanSchema = z.object({
+  pipelineId: z.string(),
+  requirements: z.string(),
+  tasks: z.array(BuildTaskSchema).min(1),
+  blueprintMatch: BlueprintMatchSchema.nullable(),
+})
+
+export const WiringPlanSchema = z.object({
+  componentId: z.string(),
+  pipelineId: z.string(),
+  mappings: z.record(z.string()),
+})
+
+export const BuildPlanSchema = z.object({
+  components: z.array(ComponentPlanSchema),
+  pipelines: z.array(PipelinePlanSchema),
+  wiring: z.array(WiringPlanSchema),
+})
+
 // --- TypeScript Types ---
 
 export type BuildTask = z.infer<typeof BuildTaskSchema>
 export type BlueprintMatch = z.infer<typeof BlueprintMatchSchema>
 export type SubAgentResult = z.infer<typeof SubAgentResultSchema>
 export type ComponentPlan = z.infer<typeof ComponentPlanSchema>
+export type PipelinePlan = z.infer<typeof PipelinePlanSchema>
+export type WiringPlan = z.infer<typeof WiringPlanSchema>
+export type BuildPlan = z.infer<typeof BuildPlanSchema>
 
 export interface OrchestratorContext {
   projectDir: string

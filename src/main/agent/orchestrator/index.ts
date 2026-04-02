@@ -1,10 +1,10 @@
 // src/main/agent/orchestrator/index.ts
 import { streamText, stepCountIs, tool as defineTool } from 'ai'
 import { z } from 'zod'
-import type { OrchestratorContext, ComponentPlan, SubAgentResult } from './types'
-import { ComponentPlanSchema } from './types'
+import type { OrchestratorContext, SubAgentResult } from './types'
+import { ComponentPlanSchema, PipelinePlanSchema, WiringPlanSchema } from './types'
 import { buildOrchestratorSystemPrompt } from './prompts'
-import { spawnBuildAgent, spawnFixAgent } from './sub-agent'
+import { spawnBuildAgent, spawnFixAgent, spawnPipelineBuildAgent } from './sub-agent'
 import { buildContextString } from '../memory/context-builder'
 import { mainModelId } from '../providers'
 import { createSearchBlueprintsTool } from '../tools/searchBlueprints'
@@ -62,6 +62,7 @@ export class Orchestrator {
     // Persistent build state — survives crashes, restarts, rate limits.
     // Saved to disk after each phase; restored at start of next run.
     let lastBuildResults: import('./types').SubAgentResult[] = []
+    let lastPipelinePlan: import('./types').PipelinePlan | null = null
     let componentShipped = false
     let stagedComponentId: string | null = null
 
@@ -129,11 +130,14 @@ export class Orchestrator {
 
       planComponent: defineTool({
         description:
-          'Define the component build plan. Call this after understanding requirements and searching for blueprints.',
-        inputSchema: ComponentPlanSchema,
+          'Define the build plan for components and optionally data pipelines. Call this after understanding requirements and searching for blueprints.',
+        inputSchema: ComponentPlanSchema.extend({
+          pipelines: z.array(PipelinePlanSchema).default([]).describe('Pipeline plans to build alongside this component'),
+          wiring: z.array(WiringPlanSchema).default([]).describe('Wiring between components and pipelines'),
+        }),
         execute: async (plan) => {
           this.log.info(
-            { componentId: plan.componentId, taskCount: plan.tasks.length },
+            { componentId: plan.componentId, taskCount: plan.tasks.length, pipelineCount: plan.pipelines.length },
             'plan created'
           )
           stagedComponentId = plan.componentId
@@ -143,19 +147,27 @@ export class Orchestrator {
             description: plan.requirements,
             tasks: plan.tasks.map(t => ({ file: t.file, assignment: t.assignment })),
           })
+          // Emit pipeline plan to renderer if pipelines are included
+          if (plan.pipelines.length > 0) {
+            ctx.sender.send('agent:build:pipeline-plan', {
+              pipelines: plan.pipelines.map(p => ({ pipelineId: p.pipelineId, requirements: p.requirements })),
+              wiring: plan.wiring,
+            })
+          }
           // Staging is saved in onStepFinish after this step completes so
           // accumulatedMessages includes the plan tool call + result.
           return {
             planned: true,
             componentId: plan.componentId,
             taskCount: plan.tasks.length,
+            pipelineCount: plan.pipelines.length,
           }
         },
       }),
 
       dispatchSubAgents: defineTool({
         description:
-          'Dispatch parallel sub-agents to build all files in the plan. Each sub-agent builds one file. Returns results for all files.',
+          'Dispatch parallel sub-agents to build all files in the plan. Each sub-agent builds one file. Also dispatches pipeline build agents in parallel. Returns results for all files.',
         inputSchema: z.object({
           componentId: z.string(),
           contract: z.string(),
@@ -166,10 +178,11 @@ export class Orchestrator {
               blueprint: z.string().nullable(),
             })
           ),
+          pipelines: z.array(PipelinePlanSchema).default([]).describe('Pipeline plans to build in parallel'),
         }),
         execute: async (input) => {
           this.log.info(
-            { componentId: input.componentId, taskCount: input.tasks.length },
+            { componentId: input.componentId, taskCount: input.tasks.length, pipelineCount: input.pipelines.length },
             'dispatching sub-agents'
           )
           ctx.sender.send('agent:orchestrator:status', {
@@ -177,46 +190,66 @@ export class Orchestrator {
             workerCount: input.tasks.length,
           })
 
-          const results: import('./types').SubAgentResult[] = await Promise.all(
-            input.tasks.map((task, i) => {
-              ctx.sender.send('agent:orchestrator:status', {
-                phase: 'worker',
-                workerId: i,
-                file: task.file,
-                status: 'building',
-              })
-              return spawnBuildAgent({
-                task,
-                contract: input.contract,
-                modelId,
-                registry: ctx.registry,
-                aiTools: buildAgentTools,
-              }).then(async (result) => {
+          // Store pipeline plan for potential use later
+          if (input.pipelines.length > 0) {
+            lastPipelinePlan = input.pipelines[0]
+          }
+
+          // Dispatch component and pipeline agents in parallel
+          const [componentResults, pipelineResultsNested] = await Promise.all([
+            Promise.all(
+              input.tasks.map((task, i) => {
                 ctx.sender.send('agent:orchestrator:status', {
                   phase: 'worker',
                   workerId: i,
                   file: task.file,
-                  status: 'done',
+                  status: 'building',
                 })
-                // Attempt partial bundle for ui.tsx so the renderer can show a preview
-                if (task.file === 'ui.tsx' && result.status === 'success') {
-                  try {
-                    const bundle = await bundlePartialUiTsx(result.code)
-                    ctx.sender.send('agent:build:partial', { buildId: ctx.tabId, bundle })
-                  } catch {
-                    ctx.sender.send('agent:build:partial', {
-                      buildId: ctx.tabId,
-                      source: result.code,
-                    })
+                return spawnBuildAgent({
+                  task,
+                  contract: input.contract,
+                  modelId,
+                  registry: ctx.registry,
+                  aiTools: buildAgentTools,
+                }).then(async (result) => {
+                  ctx.sender.send('agent:orchestrator:status', {
+                    phase: 'worker',
+                    workerId: i,
+                    file: task.file,
+                    status: 'done',
+                  })
+                  // Attempt partial bundle for ui.tsx so the renderer can show a preview
+                  if (task.file === 'ui.tsx' && result.status === 'success') {
+                    try {
+                      const bundle = await bundlePartialUiTsx(result.code)
+                      ctx.sender.send('agent:build:partial', { buildId: ctx.tabId, bundle })
+                    } catch {
+                      ctx.sender.send('agent:build:partial', {
+                        buildId: ctx.tabId,
+                        source: result.code,
+                      })
+                    }
                   }
-                }
-                return result
+                  return result
+                })
               })
-            })
-          )
+            ),
+            Promise.all(
+              input.pipelines.map((pipelinePlan) =>
+                spawnPipelineBuildAgent({
+                  pipelinePlan,
+                  modelId,
+                  registry: ctx.registry,
+                  aiTools: buildAgentTools,
+                })
+              )
+            ),
+          ])
 
-          // Store for use by assembleAndValidate — model doesn't need to echo code back
-          lastBuildResults = results
+          const pipelineResults = pipelineResultsNested.flat()
+
+          // Store component results for use by assembleAndValidate
+          lastBuildResults = componentResults
 
           // Persist built files to disk — survives crashes, rate limit drops, restarts
           if (stagedComponentId) {
@@ -226,20 +259,23 @@ export class Orchestrator {
               phase: 'dispatched',
               timestamp: Date.now(),
               messages: [],  // messages snapshotted at plan phase; files are what matter now
-              buildResults: results,
+              buildResults: componentResults,
             })
           }
 
-          const succeeded = results.filter((r) => r.status === 'success')
-          const failed = results.filter((r) => r.status === 'error')
+          const succeeded = componentResults.filter((r) => r.status === 'success')
+          const failed = componentResults.filter((r) => r.status === 'error')
+          const pipelineSucceeded = pipelineResults.filter((r) => r.status === 'success')
+          const pipelineFailed = pipelineResults.filter((r) => r.status === 'error')
           this.log.info(
-            { succeeded: succeeded.length, failed: failed.length },
+            { succeeded: succeeded.length, failed: failed.length, pipelineSucceeded: pipelineSucceeded.length, pipelineFailed: pipelineFailed.length },
             'sub-agents done'
           )
           return {
             succeeded: succeeded.length,
             failed: failed.length,
-            files: results.map(r => ({ file: r.file, status: r.status, error: r.error })),
+            files: componentResults.map(r => ({ file: r.file, status: r.status, error: r.error })),
+            pipelines: pipelineResults.map(r => ({ file: r.file, status: r.status, error: r.error })),
           }
         },
       }),

@@ -9,6 +9,7 @@ import { register as registerAgent } from './agent/ipc'
 import { register as registerServer } from './ipc/server'
 import { register as registerShell } from './ipc/shell'
 import { register as registerModels } from './ipc/models'
+import { register as registerPipeline } from './ipc/pipeline'
 import { createWindow } from './windowManager'
 
 function installCSP(): void {
@@ -51,6 +52,7 @@ app.whenReady().then(() => {
   registerServer(ipcMain)
   registerShell(ipcMain)
   registerModels(ipcMain)
+  registerPipeline(ipcMain)
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

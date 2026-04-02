@@ -11,9 +11,44 @@ interface EvalResult {
   error: string | null
 }
 
+function createBridge() {
+  return {
+    pipeline: async (pipelineId: string) => {
+      try {
+        return await window.electron.invoke('pipeline:get-data', { pipelineId })
+      } catch (err) {
+        console.error('[bridge] pipeline fetch failed:', err)
+        return { data: null, metadata: { fetchedAt: 0, source: 'error', cached: false }, error: String(err) }
+      }
+    },
+
+    pipelineSubscribe: (pipelineId: string, callback: (data: unknown) => void) => {
+      try {
+        window.electron.send('pipeline:subscribe', { pipelineId })
+      } catch (err) {
+        console.error('[bridge] pipeline subscribe failed:', err)
+        return () => {}
+      }
+
+      const removeListener = window.electron.on('pipeline:data', (msg: unknown) => {
+        const typed = msg as { pipelineId: string; data: unknown }
+        if (typed.pipelineId === pipelineId) {
+          callback(typed.data)
+        }
+      })
+
+      return () => {
+        window.electron.send('pipeline:unsubscribe', { pipelineId })
+        removeListener()
+      }
+    },
+  }
+}
+
 function evalBundle(bundle: string): EvalResult {
   try {
     const _module = { exports: {} as Record<string, unknown> }
+    const bridge = createBridge()
     const _require = (mod: string): unknown => {
       if (mod === 'react') return React
       if (mod === 'react-dom') return ReactDOM
@@ -27,9 +62,10 @@ function evalBundle(bundle: string): EvalResult {
           Fragment: React.Fragment,
         }
       }
+      if (mod === 'bridge') return bridge
       throw new Error(
         `Module "${mod}" is not available in the CSlate sandbox. ` +
-        `Use bridge.fetch() for external data, or inline your logic.`
+        `Use bridge.pipeline() for pipeline data, or bridge.fetch() for external data.`
       )
     }
 

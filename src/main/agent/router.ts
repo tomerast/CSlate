@@ -6,7 +6,7 @@ import { engineLog } from '../lib/logger'
 
 const RouteSchema = z.object({
   route: z.enum(['orchestrator', 'skill', 'direct']),
-  skill: z.enum(['state-wirer', 'component-search']).nullable(),
+  skill: z.enum(['state-wirer', 'component-search', 'pipeline-wirer']).nullable(),
   summary: z.string(),
   targetComponentId: z.string().nullable(),
 })
@@ -19,6 +19,7 @@ const ROUTER_SYSTEM = `You are the CSlate router. Classify the user's message in
 - skill: Cross-component operations that don't build/modify a single component:
   - state-wirer: "connect", "wire", "link", "when X updates Y", "share data between"
   - component-search: "find", "search", "show me components", "browse", "what components exist"
+  - pipeline-wirer: "connect pipeline", "wire pipeline", "link pipeline to", "use pipeline in" — ONLY when wiring an EXISTING pipeline to an EXISTING component; building new pipelines routes to orchestrator
 - direct: General questions, settings help, non-component tasks. Only use this when no active components are relevant and the message is clearly not about a component.
 
 targetComponentId: the snake_case ID of an existing component being referenced. Null if creating new or not applicable.

@@ -2,7 +2,7 @@ import { generateText } from 'ai'
 import { COMPONENT_TEMPLATE } from '@cslate/shared'
 import { PLATFORM_KNOWLEDGE } from '../prompts/fragments'
 import { stripFences } from '../lib/stripFences'
-import type { BuildTask, SubAgentResult } from './types'
+import type { BuildTask, PipelinePlan, SubAgentResult } from './types'
 import { engineLog } from '../../lib/logger'
 
 const log = engineLog.child({ component: 'sub-agent' })
@@ -68,6 +68,57 @@ export async function spawnBuildAgent(params: {
     log.error({ file: task.file, err: msg }, 'build agent failed')
     return { file: task.file, code: '', status: 'error', error: msg }
   }
+}
+
+const PIPELINE_BUILD_SYSTEM = `You are a CSlate pipeline file builder. You produce ONE file of production-quality TypeScript code for a CSlate data pipeline.
+
+Rules:
+- Return ONLY the file content — no markdown fences, no explanations, no preamble.
+- Pipelines must implement the DataPipeline interface: execute(params) for on-demand/polling, stream?(params, push) for streaming.
+- Follow all platform rules below.
+- You have exploration tools available (readFile, grep, glob, webFetch). Use them to read existing pipelines for patterns or fetch documentation before writing.
+
+${PLATFORM_KNOWLEDGE}`
+
+export async function spawnPipelineBuildAgent(params: {
+  pipelinePlan: PipelinePlan
+  modelId: string
+  registry: { languageModel: (id: string) => any }
+  aiTools?: Record<string, any>
+}): Promise<SubAgentResult[]> {
+  const { pipelinePlan, modelId, registry, aiTools } = params
+  log.info({ pipelineId: pipelinePlan.pipelineId, taskCount: pipelinePlan.tasks.length }, 'pipeline build agents spawned')
+
+  const results = await Promise.all(
+    pipelinePlan.tasks.map(async (task): Promise<SubAgentResult> => {
+      log.info({ pipelineId: pipelinePlan.pipelineId, file: task.file }, 'pipeline sub-agent spawned')
+      const t0 = Date.now()
+
+      const blueprintSection = task.blueprint
+        ? `\n## BLUEPRINT — ADAPT this code:\n\`\`\`\n${task.blueprint}\n\`\`\``
+        : '\n## No template available — build from scratch.'
+
+      const prompt = `## PIPELINE ID: ${pipelinePlan.pipelineId}\n## REQUIREMENTS:\n${pipelinePlan.requirements}\n${blueprintSection}\n\n## ASSIGNMENT:\nBuild file \`${task.file}\`: ${task.assignment}`
+
+      try {
+        const { text } = await generateText({
+          model: registry.languageModel(modelId),
+          system: PIPELINE_BUILD_SYSTEM,
+          prompt,
+          ...(aiTools && Object.keys(aiTools).length > 0 ? { tools: aiTools, maxSteps: 8 } : {}),
+          maxOutputTokens: 12000,
+        })
+        log.info({ pipelineId: pipelinePlan.pipelineId, file: task.file, durationMs: Date.now() - t0 }, 'pipeline sub-agent done')
+        return { file: task.file, code: stripFences(text), status: 'success', error: null }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        log.error({ pipelineId: pipelinePlan.pipelineId, file: task.file, err: msg }, 'pipeline sub-agent failed')
+        return { file: task.file, code: '', status: 'error', error: msg }
+      }
+    })
+  )
+
+  return results
 }
 
 export async function spawnFixAgent(params: {

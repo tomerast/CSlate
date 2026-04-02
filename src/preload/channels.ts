@@ -3,7 +3,9 @@ export const ALLOWED_SEND_CHANNELS = [
   'bridge:subscribe',
   'bridge:unsubscribe',
   'sandbox:load',
-  'sandbox:unload'
+  'sandbox:unload',
+  'pipeline:subscribe',
+  'pipeline:unsubscribe',
 ] as const
 
 export const ALLOWED_INVOKE_CHANNELS = [
@@ -28,7 +30,12 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'server:publish',
   'shell:openExternal',
   'models:fetch',
-  'canvas:load'
+  'canvas:load',
+  'pipeline:list',
+  'pipeline:get-data',
+  'pipeline:start',
+  'pipeline:stop',
+  'pipeline:status',
 ] as const
 
 export const ALLOWED_LISTEN_CHANNELS = [
@@ -45,7 +52,11 @@ export const ALLOWED_LISTEN_CHANNELS = [
   'agent:build:start',
   'agent:build:plan',
   'agent:build:partial',
-  'agent:permission-request'
+  'agent:permission-request',
+  'pipeline:data',
+  'pipeline:status-change',
+  'pipeline:error',
+  'agent:build:pipeline-plan',
 ] as const
 
 export type SendChannel = typeof ALLOWED_SEND_CHANNELS[number]
