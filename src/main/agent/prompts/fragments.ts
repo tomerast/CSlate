@@ -155,6 +155,76 @@ export const BEHAVIORAL_GUIDELINES = `
 `
 
 /**
+ * Pipeline interface specification: DataPipeline interface, rules, and patterns.
+ * Include in any skill that writes or modifies pipeline code.
+ */
+export const PIPELINE_INTERFACE_SPEC = `
+## Data Pipeline Interface
+
+Every pipeline must default-export a class implementing DataPipeline:
+
+\`\`\`typescript
+interface DataPipeline {
+  execute(params: Record<string, unknown>): Promise<PipelineOutput>
+  stream?(params: Record<string, unknown>, push: (data: PipelineOutput) => void): Promise<() => void>
+  dispose?(): Promise<void>
+}
+
+interface PipelineOutput {
+  data: unknown
+  metadata: { fetchedAt: number; source: string; cached: boolean }
+}
+\`\`\`
+
+### Pipeline Rules
+- Pipeline code runs in a Node.js Worker Thread — full Node.js access (http, https, etc.)
+- Access secrets via global \`getSecret(name)\` — NEVER hardcode API keys
+- Declare all required secrets in manifest.secrets
+- Return PipelineOutput with proper metadata (source name, timestamp)
+- Handle API errors gracefully — throw with descriptive messages
+- For polling pipelines: execute() is called on each tick, keep it stateless
+- For streaming pipelines: stream() opens a persistent connection, pushes data via callback
+`
+
+/**
+ * Pipeline-to-component wiring patterns using the bridge API.
+ * Include in any skill that connects pipelines to components.
+ */
+export const PIPELINE_COMPONENT_WIRING = `
+## Connecting Pipelines to Components
+
+Components access pipeline data via the bridge API:
+
+\`\`\`typescript
+// One-time read
+const data = await bridge.pipeline('pipeline_id')
+
+// Subscribe to live updates
+const unsub = bridge.pipelineSubscribe('pipeline_id', (data) => {
+  setState(data)
+})
+\`\`\`
+
+### In component manifest, declare pipeline dependencies:
+\`\`\`json
+{
+  "pipelines": {
+    "stockData": {
+      "pipelineId": "yahoo_stocks",
+      "description": "Real-time stock prices",
+      "mappings": { "prices": "yahoo_stocks.data.prices" }
+    }
+  }
+}
+\`\`\`
+
+### Loading pattern (CRITICAL — same as bridge.fetch):
+- NEVER initialize loading=true before pipeline data arrives
+- Initialize with seed/placeholder data
+- Show seed data immediately, update when pipeline delivers
+`
+
+/**
  * Output style guidance: concise, action-first responses for non-technical users.
  * Include in all skills.
  */
