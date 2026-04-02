@@ -57,33 +57,38 @@ export function createDryRunPipelineTool() {
 
       try {
         const output = await new Promise<PipelineOutput>((resolve, reject) => {
-          let worker: Worker
+          let settled = false
 
-          const timeout = setTimeout(() => {
-            worker.terminate()
-            reject(new Error(`Execution timed out after ${TIMEOUT_MS}ms`))
-          }, TIMEOUT_MS)
-
-          worker = new Worker(SHIM_PATH, {
+          const worker = new Worker(SHIM_PATH, {
             workerData: { bundlePath, secrets },
           })
+
+          const cleanup = () => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            worker.terminate()
+          }
+
+          const timeout = setTimeout(() => {
+            cleanup()
+            reject(new Error(`Execution timed out after ${TIMEOUT_MS}ms`))
+          }, TIMEOUT_MS)
 
           worker.on('message', (msg: WorkerResponse) => {
             if (msg.type === 'ready') {
               worker.postMessage({ type: 'execute', params })
             } else if (msg.type === 'data') {
-              clearTimeout(timeout)
-              worker.terminate()
+              cleanup()
               resolve(msg.output)
             } else if (msg.type === 'error') {
-              clearTimeout(timeout)
-              worker.terminate()
+              cleanup()
               reject(new Error(msg.error))
             }
           })
 
           worker.on('error', (err) => {
-            clearTimeout(timeout)
+            cleanup()
             reject(err)
           })
         })

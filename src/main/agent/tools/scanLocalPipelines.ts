@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join, resolve, sep } from 'node:path'
+import { join, resolve } from 'node:path'
 import { buildTool } from './types'
+import { safePath } from '../../lib/paths'
 
 type MatchEntry = {
   pipelineId: string
@@ -65,8 +66,12 @@ export function createScanLocalPipelinesTool() {
       const scored: MatchEntry[] = []
 
       for (const dir of dirs) {
-        const pipelineDir = resolve(pipelinesDir, dir)
-        if (!pipelineDir.startsWith(pipelinesDir + sep)) continue
+        let pipelineDir: string
+        try {
+          pipelineDir = safePath(pipelinesDir, dir)
+        } catch {
+          continue
+        }
 
         const manifestPath = join(pipelineDir, 'manifest.json')
         if (!existsSync(manifestPath)) continue

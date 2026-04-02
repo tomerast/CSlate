@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { writeFile, mkdir } from 'node:fs/promises'
-import { join, resolve, sep, dirname } from 'node:path'
+import { join, dirname } from 'node:path'
 import { buildTool, type ToolResult, type ToolUseContext } from './types'
 import { isValidPipelineId, PipelineManifestSchema } from '../../pipeline/types'
 import { compilePipeline } from '../../pipeline/compiler'
 import { upsertPipelineEntry } from '../../pipeline/pipelines-json'
 import { stripFences } from '../lib/stripFences'
+import { safePath } from '../../lib/paths'
 
 type WritePipelineInput = { pipelineId: string; files: Record<string, string>; manifest: unknown }
 type WritePipelineOutput = { success: boolean; errors?: string[]; path?: string; bundle?: string }
@@ -46,23 +47,15 @@ export function createWritePipelineTool() {
       }
 
       const projectDir = context?.projectDir ?? ''
-      const pipelinesRoot = resolve(projectDir, 'pipelines')
-      const pipelineDir = resolve(pipelinesRoot, pipelineId)
-
-      // Path containment check
-      if (!pipelineDir.startsWith(pipelinesRoot + sep)) {
-        return { data: { success: false, errors: ['Invalid pipelineId: path traversal'] } }
-      }
+      const pipelinesRoot = join(projectDir, 'pipelines')
+      const pipelineDir = safePath(pipelinesRoot, pipelineId)
 
       try {
         // Write source files
         await mkdir(pipelineDir, { recursive: true })
 
         for (const [name, content] of Object.entries(files)) {
-          const target = join(pipelineDir, name)
-          if (!target.startsWith(pipelineDir + sep) && target !== pipelineDir) {
-            throw new Error(`Path traversal in files: "${name}"`)
-          }
+          const target = safePath(pipelineDir, name)
           await mkdir(dirname(target), { recursive: true })
           await writeFile(target, stripFences(content))
         }

@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { readFile } from 'node:fs/promises'
-import { join, resolve, sep } from 'node:path'
+import { join } from 'node:path'
 import { buildTool, type ToolResult, type ToolUseContext } from './types'
+import { safePath } from '../../lib/paths'
 
 type ReadPipelineManifestOutput = { manifest: unknown; error?: undefined } | { error: string; manifest?: undefined }
 
@@ -17,13 +18,7 @@ export function createReadPipelineManifestTool() {
     call: async ({ pipelineId }, context?: ToolUseContext): Promise<ToolResult<ReadPipelineManifestOutput>> => {
       try {
         const projectDir = context?.projectDir ?? ''
-        const pipelinesRoot = resolve(projectDir, 'pipelines')
-        const pipelineDir = resolve(pipelinesRoot, pipelineId)
-
-        if (!pipelineDir.startsWith(pipelinesRoot + sep)) {
-          return { data: { error: 'Invalid pipeline ID' } }
-        }
-
+        const pipelineDir = safePath(join(projectDir, 'pipelines'), pipelineId)
         const manifestPath = join(pipelineDir, 'manifest.json')
         const raw = await readFile(manifestPath, 'utf-8')
         return { data: { manifest: JSON.parse(raw) as unknown } }
