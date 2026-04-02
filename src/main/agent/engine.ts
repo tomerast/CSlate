@@ -8,6 +8,7 @@ import { buildSkillRegistry, type AgentContext } from './skills/index'
 import { Orchestrator } from './orchestrator/index'
 import type { OrchestratorContext } from './orchestrator/types'
 import { buildToolSet } from './tools/index'
+import type { PermissionBroker } from './tools/bash/permissions'
 import { createReadProjectContextCSTool } from './tools/readProjectContext'
 import { CSlateServerClient } from '../server/CSlateServerClient'
 import { autoCompactIfNeeded } from './lib/compact'
@@ -19,6 +20,7 @@ export interface EngineOptions {
   serverApiKey: string
   sender: WebContents
   tabId: string
+  permissionBroker?: PermissionBroker
 }
 
 export interface RunInput {
@@ -103,6 +105,7 @@ export class AgentEngine {
       registry: reg,
       serverClient,
       sender: this.options.sender,
+      permissionBroker: this.options.permissionBroker,
     }
 
     const orchestrator = new Orchestrator(orchCtx)
@@ -141,6 +144,7 @@ export class AgentEngine {
       registry: reg,
       fastModelId: fastModelId(this.config),
       serverClient,
+      permissionBroker: this.options.permissionBroker,
     })
 
     const skillRegistry = buildSkillRegistry(aiTools)

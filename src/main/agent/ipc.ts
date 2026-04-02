@@ -2,6 +2,7 @@ import type { IpcMain, WebContents } from 'electron'
 import { AgentEngine } from './engine'
 import { getConfigValue } from '../ipc/config'
 import type { LLMConfig } from './providers'
+import type { PermissionBroker } from './tools/bash/permissions'
 import { agentLog, logFile } from '../lib/logger'
 
 const DIRECT_MODEL_IDS: Record<string, string> = {
@@ -14,6 +15,9 @@ const DIRECT_MODEL_IDS: Record<string, string> = {
   'google/gemini-2.5-flash': 'gemini-2.5-flash-preview',
   'google/gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
 }
+
+// Module-level permission registry (shared across all agent:run sessions)
+const pendingPermissions = new Map<string, (approved: boolean) => void>()
 
 function parseModelId(llmModel: string): { provider: LLMConfig['provider']; model: string } {
   if (llmModel.startsWith('anthropic/')) {
@@ -30,6 +34,15 @@ function parseModelId(llmModel: string): { provider: LLMConfig['provider']; mode
 
 export function register(ipcMain: IpcMain): void {
   agentLog.info({ logFile }, 'agent IPC registered')
+
+  // Register permission response handler once at module level
+  ipcMain.handle('agent:permission-response', (_evt, { requestId, approved }: { requestId: string; approved: boolean }) => {
+    const resolve = pendingPermissions.get(requestId)
+    if (resolve) {
+      pendingPermissions.delete(requestId)
+      resolve(approved)
+    }
+  })
 
   ipcMain.handle('agent:run', async (event, {
     message,
@@ -48,6 +61,23 @@ export function register(ipcMain: IpcMain): void {
     const log = agentLog.child({ tabId })
 
     log.info({ message, historyLength: conversationHistory.length }, 'agent:run received')
+
+    // ---- Permission broker for bash tool ----
+    const permissionBroker: PermissionBroker = {
+      request(command: string): Promise<boolean> {
+        return new Promise((resolve) => {
+          const requestId = `perm-${Date.now()}-${Math.random().toString(36).slice(2)}`
+          pendingPermissions.set(requestId, resolve)
+          event.sender.send('agent:permission-request', { requestId, command })
+          setTimeout(() => {
+            if (pendingPermissions.has(requestId)) {
+              pendingPermissions.delete(requestId)
+              resolve(false)
+            }
+          }, 30_000)
+        })
+      },
+    }
 
     // Load LLM config from secure storage
     const gatewayUrl = (getConfigValue('gatewayUrl') as string) ?? ''
@@ -87,6 +117,7 @@ export function register(ipcMain: IpcMain): void {
       serverApiKey,
       sender,
       tabId,
+      permissionBroker,
     })
 
     log.debug('engine created, starting stream')
