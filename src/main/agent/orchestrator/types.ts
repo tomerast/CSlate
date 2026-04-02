@@ -50,6 +50,7 @@ export interface OrchestratorContext {
   registry: { languageModel: (id: string) => any }
   serverClient: import('../../server/CSlateServerClient').CSlateServerClient | null
   sender: import('electron').WebContents
+  permissionBroker?: { request(command: string): Promise<boolean> }
 }
 
 export type OrchestratorPhase =

@@ -105,6 +105,7 @@ export class AgentEngine {
       registry: reg,
       serverClient,
       sender: this.options.sender,
+      permissionBroker: this.options.permissionBroker,
     }
 
     const orchestrator = new Orchestrator(orchCtx)

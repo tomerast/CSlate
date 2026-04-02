@@ -14,6 +14,12 @@ import { createReadManifestTool } from '../tools/readManifest'
 import { validateManifest } from '../tools/validateManifest'
 import { createRenderComponentTool } from '../tools/renderComponent'
 import { createWriteComponentTool } from '../tools/writeComponent'
+import { createReadFileCSTool } from '../tools/readFile'
+import { createGrepCSTool } from '../tools/grep'
+import { createGlobCSTool } from '../tools/glob'
+import { createBashCSTool } from '../tools/bash'
+import { createLspCSTool } from '../tools/lsp'
+import { createWebFetchCSTool } from '../tools/webFetch'
 import { engineLog } from '../../lib/logger'
 import { bundlePartialUiTsx } from '../lib/bundler'
 import { saveStaging, clearStaging, listStaging, type StagingState } from './staging'
@@ -102,6 +108,12 @@ export class Orchestrator {
       scanLocalComponents: createScanLocalComponentsTool(ctx.projectDir),
       readProjectContext: createReadProjectContextTool(ctx.projectDir),
       readManifest: createReadManifestTool(ctx.projectDir),
+      readFile: createReadFileCSTool(ctx.projectDir).toAISDKTool(),
+      grep: createGrepCSTool(ctx.projectDir).toAISDKTool(),
+      glob: createGlobCSTool(ctx.projectDir).toAISDKTool(),
+      bash: createBashCSTool(ctx.projectDir, ctx.permissionBroker ?? { request: async () => true }).toAISDKTool(),
+      lsp: createLspCSTool(ctx.projectDir).toAISDKTool(),
+      webFetch: createWebFetchCSTool(ctx.serverClient).toAISDKTool(),
 
       planComponent: defineTool({
         description:
@@ -382,6 +394,7 @@ export class Orchestrator {
     const t0 = Date.now()
 
     const SEARCH_TOOLS = ['searchBlueprints', 'scanLocalComponents', 'readProjectContext', 'readManifest'] as const
+    const CODING_TOOLS = ['readFile', 'grep', 'glob', 'bash', 'lsp', 'webFetch'] as const
     type ToolName = keyof typeof tools
 
     const result = streamText({
@@ -471,18 +484,18 @@ export class Orchestrator {
             activeTools: ['dispatchSubAgents' as ToolName],
           }
         }
-        // Phase 1: after first search — allow remaining search tools + plan (model decides when ready)
+        // Phase 1: after first search — allow remaining search tools + coding tools + plan (model decides when ready)
         if (SEARCH_TOOLS.some(t => called.has(t))) {
           const remainingSearch = SEARCH_TOOLS.filter(t => !called.has(t)) as ToolName[]
           return {
             toolChoice: 'required' as const,
-            activeTools: [...remainingSearch, 'planComponent' as ToolName],
+            activeTools: [...remainingSearch, ...CODING_TOOLS, 'planComponent' as ToolName],
           }
         }
-        // Phase 0: no tools called yet — must search first
+        // Phase 0: no tools called yet — must search first (coding tools also available for project exploration)
         return {
           toolChoice: 'required' as const,
-          activeTools: [...SEARCH_TOOLS] as ToolName[],
+          activeTools: [...SEARCH_TOOLS, ...CODING_TOOLS] as ToolName[],
         }
       },
     })
