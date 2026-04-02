@@ -13,10 +13,14 @@ Rules:
 - Return ONLY the file content — no markdown fences, no explanations, no preamble.
 - Follow the contract exactly. Do not add props or types not in the contract.
 - Follow all platform rules below.
+- You have exploration tools available (readFile, grep, glob, webFetch). Use them to read existing components for patterns, find type definitions, or fetch documentation before writing.
 
 ${PLATFORM_KNOWLEDGE}`
 
 const FIX_SYSTEM = `You are a CSlate component fixer. You receive broken code and an error message. Fix the code and return ONLY the fixed file content — no markdown fences, no explanations.
+
+- Use bash and lsp to verify your fix compiles before returning.
+- Use readFile, grep, or glob to explore the codebase for context if needed.
 
 ${PLATFORM_KNOWLEDGE}`
 
@@ -41,8 +45,9 @@ export async function spawnBuildAgent(params: {
   contract: string
   modelId: string
   registry: { languageModel: (id: string) => any }
+  aiTools?: Record<string, any>
 }): Promise<SubAgentResult> {
-  const { task, contract, modelId, registry } = params
+  const { task, contract, modelId, registry, aiTools } = params
   log.info({ file: task.file, hasBlueprint: !!task.blueprint }, 'build agent spawned')
   const t0 = Date.now()
 
@@ -52,7 +57,8 @@ export async function spawnBuildAgent(params: {
       model: registry.languageModel(modelId),
       system: BUILD_SYSTEM,
       prompt,
-      maxOutputTokens: 8000,
+      ...(aiTools && Object.keys(aiTools).length > 0 ? { tools: aiTools, maxSteps: 8 } : {}),
+      maxOutputTokens: 12000,
     })
 
     log.info({ file: task.file, durationMs: Date.now() - t0 }, 'build agent done')
@@ -71,8 +77,9 @@ export async function spawnFixAgent(params: {
   contract: string
   modelId: string
   registry: { languageModel: (id: string) => any }
+  aiTools?: Record<string, any>
 }): Promise<SubAgentResult> {
-  const { file, brokenCode, error, contract, modelId, registry } = params
+  const { file, brokenCode, error, contract, modelId, registry, aiTools } = params
   log.info({ file, error }, 'fix agent spawned')
   const t0 = Date.now()
 
@@ -83,7 +90,8 @@ export async function spawnFixAgent(params: {
       model: registry.languageModel(modelId),
       system: FIX_SYSTEM,
       prompt,
-      maxOutputTokens: 8000,
+      ...(aiTools && Object.keys(aiTools).length > 0 ? { tools: aiTools, maxSteps: 8 } : {}),
+      maxOutputTokens: 12000,
     })
 
     log.info({ file, durationMs: Date.now() - t0 }, 'fix agent done')

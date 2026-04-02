@@ -102,6 +102,22 @@ describe('spawnBuildAgent', () => {
     expect(result.status).toBe('error')
     expect(result.error).toContain('API timeout')
   })
+
+  it('spawnBuildAgent passes aiTools to generateText when provided', async () => {
+    const mockGenerateText = vi.mocked(generateText)
+    mockGenerateText.mockResolvedValue({ text: 'function Component() {}' } as any)
+    const fakeTools = { readFile: { inputSchema: {}, execute: vi.fn() } }
+    await spawnBuildAgent({
+      task: { file: 'ui.tsx', assignment: 'build a button', blueprint: null },
+      contract: 'type Props = {}',
+      modelId: 'test-model',
+      registry: mockRegistry,
+      aiTools: fakeTools,
+    })
+    expect(mockGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: fakeTools, maxSteps: 8 })
+    )
+  })
 })
 
 describe('spawnFixAgent', () => {
