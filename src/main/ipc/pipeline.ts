@@ -18,7 +18,10 @@ function ensureRuntime(): { executor: PipelineExecutor; bus: DataBus } {
   }
   if (!executor) {
     const projectDir = getProjectDir()
-    executor = new PipelineExecutor(projectDir, bus)
+    const secrets = {
+      getSecret: async (name: string) => (getConfigValue(name) as string) ?? '',
+    }
+    executor = new PipelineExecutor(projectDir, bus, secrets)
   }
   return { executor, bus }
 }

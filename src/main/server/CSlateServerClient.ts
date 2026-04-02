@@ -143,35 +143,15 @@ export class CSlateServerClient {
     }
   }
 
-  async searchPipelines(query: string, limit: number): Promise<PipelineSearchResponse> {
-    try {
-      const url = new URL('/api/v1/pipelines/search', this.serverUrl)
-      url.searchParams.set('q', query)
-      url.searchParams.set('limit', String(limit))
-
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
-      })
-
-      if (!res.ok) {
-        return { results: [], total: 0, error: `Server returned ${res.status}` }
-      }
-
-      return await res.json()
-    } catch {
-      return { results: [], total: 0, error: 'Could not reach CSlate server' }
-    }
-  }
-
   async publishPipeline(payload: PipelinePublishPayload): Promise<PipelinePublishResponse> {
     try {
       const res = await fetch(
-        new URL('/api/v1/pipelines/upload', this.serverUrl).toString(),
+        new URL('/api/pipelines/upload', this.serverUrl).toString(),
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: `ApiKey ${this.apiKey}`,
           },
           body: JSON.stringify(payload),
         },
@@ -190,9 +170,9 @@ export class CSlateServerClient {
   async fetchPipelineSource(pipelineId: string): Promise<PipelineFetchSourceResponse> {
     try {
       const res = await fetch(
-        new URL(`/api/v1/pipelines/${pipelineId}/source`, this.serverUrl).toString(),
+        new URL(`/api/pipelines/${pipelineId}/source`, this.serverUrl).toString(),
         {
-          headers: { Authorization: `Bearer ${this.apiKey}` },
+          headers: { Authorization: `ApiKey ${this.apiKey}` },
         },
       )
 
@@ -209,12 +189,12 @@ export class CSlateServerClient {
 
   async searchAll(query: string, limit: number): Promise<CombinedSearchResponse> {
     try {
-      const url = new URL('/api/v1/search', this.serverUrl)
+      const url = new URL('/api/search', this.serverUrl)
       url.searchParams.set('q', query)
       url.searchParams.set('limit', String(limit))
 
       const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
+        headers: { Authorization: `ApiKey ${this.apiKey}` },
       })
 
       if (!res.ok) {
