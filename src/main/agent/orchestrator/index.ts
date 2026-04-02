@@ -23,6 +23,8 @@ import { createWebFetchCSTool } from '../tools/webFetch'
 import { engineLog } from '../../lib/logger'
 import { bundlePartialUiTsx } from '../lib/bundler'
 import { saveStaging, clearStaging, listStaging, type StagingState } from './staging'
+import { buildToolSet } from '../tools/index'
+import { fastModelId } from '../providers'
 
 
 export class Orchestrator {
@@ -36,6 +38,16 @@ export class Orchestrator {
   async *stream(message: string): AsyncGenerator<unknown> {
     const { ctx } = this
     const modelId = mainModelId(ctx.config)
+
+    const toolDeps = {
+      projectDir: ctx.projectDir,
+      registry: ctx.registry,
+      fastModelId: fastModelId(ctx.config),
+      serverClient: ctx.serverClient,
+      permissionBroker: ctx.permissionBroker,
+    }
+    const { aiTools: buildAgentTools } = buildToolSet(toolDeps, 'build')
+    const { aiTools: fixAgentTools } = buildToolSet(toolDeps, 'fix')
     const memoryContext = buildContextString(ctx.memory)
     const canvasContext =
       ctx.activeComponents.length > 0
@@ -178,6 +190,7 @@ export class Orchestrator {
                 contract: input.contract,
                 modelId,
                 registry: ctx.registry,
+                aiTools: buildAgentTools,
               }).then(async (result) => {
                 ctx.sender.send('agent:orchestrator:status', {
                   phase: 'worker',
@@ -365,6 +378,7 @@ export class Orchestrator {
                 contract: input.contract,
                 modelId,
                 registry: ctx.registry,
+                aiTools: fixAgentTools,
               })
             })
           )
