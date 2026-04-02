@@ -77,6 +77,26 @@ export class CSlateServerClient {
     }
   }
 
+  async searchPipelines(query: string, limit: number): Promise<SearchResponse> {
+    try {
+      const url = new URL('/api/pipelines/search', this.serverUrl)
+      url.searchParams.set('q', query)
+      url.searchParams.set('limit', String(limit))
+
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `ApiKey ${this.apiKey}` },
+      })
+
+      if (!res.ok) {
+        return { results: [], total: 0, error: `Server returned ${res.status}` }
+      }
+
+      return await res.json()
+    } catch {
+      return { results: [], total: 0, error: 'Could not reach CSlate server' }
+    }
+  }
+
   async fetchSource(componentId: string): Promise<FetchSourceResponse> {
     try {
       const url = new URL(`/api/components/${componentId}/source`, this.serverUrl)
