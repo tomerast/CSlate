@@ -113,6 +113,24 @@ function createComponentStore() {
   }
 }
 
+// Module-level cache: same bundle string → same Component reference.
+// Prevents re-evaluation on parent re-renders and preserves React state trees.
+const bundleCache = new Map<string, EvalResult>()
+const MAX_CACHE_SIZE = 50
+
+function evalBundleCached(bundle: string, bridge: ReturnType<typeof createBridge>): EvalResult {
+  const cached = bundleCache.get(bundle)
+  if (cached) return cached
+  const result = evalBundle(bundle, bridge)
+  if (bundleCache.size >= MAX_CACHE_SIZE) {
+    // Evict oldest entry
+    const first = bundleCache.keys().next().value
+    if (first !== undefined) bundleCache.delete(first)
+  }
+  bundleCache.set(bundle, result)
+  return result
+}
+
 export function DynamicComponent({ bundle }: Props) {
   const [result, setResult] = React.useState<EvalResult>({ Component: null, error: null })
   const [runtimeError, setRuntimeError] = React.useState<string | null>(null)
@@ -121,7 +139,7 @@ export function DynamicComponent({ bundle }: Props) {
 
   React.useEffect(() => {
     setRuntimeError(null)
-    setResult(evalBundle(bundle, bridgeRef.current))
+    setResult(evalBundleCached(bundle, bridgeRef.current))
   }, [bundle])
 
   if (result.error) return <ComponentError message={result.error} code={bundle} />

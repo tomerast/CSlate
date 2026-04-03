@@ -70,7 +70,14 @@ export class AgentEngine {
     const route = await classifyIntent(
       input.message,
       compactedInput.conversationHistory,
-      activeComponents.map((c) => c.componentId),
+      activeComponents.map((c) => {
+        const m = (c.manifest ?? {}) as Record<string, unknown>
+        return {
+          componentId: c.componentId,
+          name: (m.name as string) ?? undefined,
+          description: (m.description as string) ?? undefined,
+        }
+      }),
       this.config,
       this.registry
     )

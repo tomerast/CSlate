@@ -3,9 +3,13 @@ import { CSlateServerClient } from '../server/CSlateServerClient'
 import { getConfigValue, setConfigValue } from './config'
 import { configStore } from '../lib/store'
 
+const DEV_SERVER_URL = 'http://localhost:3000'
+const DEV_SERVER_API_KEY = 'cslate_dev_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+
 function getClient(): CSlateServerClient | null {
-  const serverUrl = getConfigValue('serverUrl') as string | undefined
-  const serverApiKey = getConfigValue('serverApiKey') as string | null
+  const isDev = process.env.NODE_ENV === 'development'
+  const serverUrl = (getConfigValue('serverUrl') as string | undefined) || (isDev ? DEV_SERVER_URL : undefined)
+  const serverApiKey = (getConfigValue('serverApiKey') as string | null) || (isDev ? DEV_SERVER_API_KEY : null)
   if (!serverUrl || !serverApiKey) return null
   return new CSlateServerClient(serverUrl, serverApiKey)
 }

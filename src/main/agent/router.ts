@@ -23,15 +23,27 @@ const ROUTER_SYSTEM = `You are the CSlate router. Classify the user's message in
 targetComponentId: the snake_case ID of an existing component being referenced. Null if creating new or not applicable.
 summary: one sentence describing what to do.`
 
+interface ComponentInfo {
+  componentId: string
+  name?: string
+  description?: string
+}
+
 function buildContextualPrompt(
   message: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
-  activeComponentIds: string[]
+  activeComponents: ComponentInfo[]
 ): string {
   const parts: string[] = []
 
-  if (activeComponentIds.length > 0) {
-    parts.push(`Active components on canvas: ${activeComponentIds.join(', ')}`)
+  if (activeComponents.length > 0) {
+    const lines = activeComponents.map((c) => {
+      const label = c.name || c.componentId.replace(/_/g, ' ')
+      return c.description
+        ? `- ${c.componentId} ("${label}"): ${c.description}`
+        : `- ${c.componentId} ("${label}")`
+    })
+    parts.push(`Active components on canvas:\n${lines.join('\n')}`)
   }
 
   if (history.length > 0) {
@@ -48,7 +60,7 @@ function buildContextualPrompt(
 export async function classifyIntent(
   message: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
-  activeComponentIds: string[],
+  activeComponents: ComponentInfo[],
   config: LLMConfig,
   registry: { languageModel: (id: string) => any }
 ): Promise<RouteResult> {
@@ -62,7 +74,7 @@ export async function classifyIntent(
       modelId,
       registry,
       system: ROUTER_SYSTEM,
-      prompt: buildContextualPrompt(message, history, activeComponentIds),
+      prompt: buildContextualPrompt(message, history, activeComponents),
       schema: RouteSchema,
     })
     log.debug({ modelId, durationMs: Date.now() - t0, route: object.route }, 'classifyIntent done')

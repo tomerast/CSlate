@@ -328,10 +328,11 @@ export class Orchestrator {
           }
 
           // Validate manifest
-          const validation = (await validateManifest.execute!(
+          const rawValidation = (await validateManifest.execute!(
             { manifest },
             {} as any
-          )) as { valid: boolean; errors: string[] }
+          )) as { data?: Record<string, unknown> } & Record<string, unknown>
+          const validation = (rawValidation?.data ?? rawValidation) as { valid: boolean; errors: string[] }
           if (!validation.valid) {
             return {
               success: false,
@@ -341,10 +342,11 @@ export class Orchestrator {
 
           // Render in sandbox — pass all built files, not just hardcoded names
           const renderTool = createRenderComponentTool().toAISDKTool()
-          const renderResult = (await renderTool.execute!(
+          const rawRenderResult = (await renderTool.execute!(
             { files, manifest },
             {} as any
-          )) as { success: boolean; componentId: string; errors?: string[] }
+          )) as { data?: Record<string, unknown> } & Record<string, unknown>
+          const renderResult = (rawRenderResult?.data ?? rawRenderResult) as { success: boolean; componentId: string; errors?: string[] }
           if (!renderResult.success) {
             const errDetail = (renderResult.errors ?? []).join(', ')
             return { success: false, error: errDetail ? `Render failed: ${errDetail}` : 'Render failed' }
@@ -357,14 +359,20 @@ export class Orchestrator {
             writeFiles['context.md'] = input.contextMd
           }
 
-          const writeResult = await writeTool.execute!(
+          const rawWriteResult = await writeTool.execute!(
             {
               componentId: input.componentId,
               files: writeFiles,
               manifest: manifest as Record<string, unknown>,
             },
             {} as any
-          ) as { success: boolean; componentId?: string; bundle?: string; placement?: unknown; manifest?: unknown; errors?: string[] }
+          ) as { data?: Record<string, unknown> } & Record<string, unknown>
+
+          // buildTool wraps results in { data: {...} } — unwrap it
+          const writeResult = (rawWriteResult?.data ?? rawWriteResult) as {
+            success: boolean; componentId?: string; bundle?: string;
+            placement?: unknown; manifest?: unknown; errors?: string[]
+          }
 
           if (!writeResult.success) {
             return { success: false, error: (writeResult.errors ?? []).join(', ') || 'Write failed' }

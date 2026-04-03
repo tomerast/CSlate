@@ -221,6 +221,8 @@ export function useChat() {
       incrementTurnCount()
     } catch (e) {
       setStatus('error')
+      // Clear queued messages on error — don't auto-fire them into a broken state
+      useChatStore.setState({ messageQueue: [] })
       addMessage({
         role: 'assistant',
         content: `Failed: ${e instanceof Error ? e.message : String(e)}`
@@ -237,8 +239,11 @@ export function useChat() {
       useCanvasStore.getState().removeBuildingCard(tabId)
       // Save session after each completed turn
       await saveSession(projectDir, sessionId)
-      const next = useChatStore.getState().shiftQueue()
-      if (next) setTimeout(() => submit(next), 0)
+      // Process next queued message only if the current run succeeded
+      if (useChatStore.getState().status === 'idle') {
+        const next = useChatStore.getState().shiftQueue()
+        if (next) submit(next)
+      }
     }
   }, [addMessage, setStatus, incrementTurnCount, setPublishState, setPublishPayload])
 

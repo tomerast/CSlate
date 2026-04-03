@@ -19,6 +19,9 @@ const DIRECT_MODEL_IDS: Record<string, string> = {
 // Module-level permission registry (shared across all agent:run sessions)
 const pendingPermissions = new Map<string, (approved: boolean) => void>()
 
+// Track active runs so a new request cancels the previous one
+const activeRuns = new Map<string, AbortController>()
+
 function parseModelId(llmModel: string): { provider: LLMConfig['provider']; model: string } {
   if (llmModel.startsWith('anthropic/')) {
     return { provider: 'anthropic', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('anthropic/'.length) }
@@ -61,6 +64,17 @@ export function register(ipcMain: IpcMain): void {
     const log = agentLog.child({ tabId })
 
     log.info({ message, historyLength: conversationHistory.length }, 'agent:run received')
+
+    // Cancel any in-progress run from the same renderer window
+    const senderId = String(sender.id)
+    const prev = activeRuns.get(senderId)
+    if (prev) {
+      log.info('aborting previous run (superseded by new request)')
+      prev.abort()
+      activeRuns.delete(senderId)
+    }
+    const abortController = new AbortController()
+    activeRuns.set(senderId, abortController)
 
     // ---- Permission broker for bash tool ----
     const permissionBroker: PermissionBroker = {
@@ -147,8 +161,17 @@ export function register(ipcMain: IpcMain): void {
         }
       }
     } catch (err: unknown) {
-      log.error({ err }, 'agent:run threw')
-      sender.send('agent:error', { message: err instanceof Error ? err.message : String(err) })
+      if (abortController.signal.aborted) {
+        log.info('agent:run aborted (superseded by new request)')
+      } else {
+        log.error({ err }, 'agent:run threw')
+        sender.send('agent:error', { message: err instanceof Error ? err.message : String(err) })
+      }
+    } finally {
+      // Only delete if this is still the active controller (not already replaced)
+      if (activeRuns.get(senderId) === abortController) {
+        activeRuns.delete(senderId)
+      }
     }
 
     return { ok: true }

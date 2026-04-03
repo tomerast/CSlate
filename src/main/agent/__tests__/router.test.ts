@@ -111,7 +111,7 @@ describe('classifyIntent', () => {
         { role: 'user', content: 'create a snow tracking app for skiers' },
         { role: 'assistant', content: 'Building snow_tracker_v2...' },
       ],
-      ['snow_tracker_v2'],
+      [{ componentId: 'snow_tracker_v2', name: 'Snow Tracker v2', description: 'A snow tracking app for skiers' }],
       { provider: 'anthropic', apiKey: 'test', model: 'claude-sonnet-4-6' },
       mockRegistry as any
     )
@@ -128,7 +128,7 @@ describe('classifyIntent', () => {
     await classifyIntent(
       'it is stuck',
       [{ role: 'user', content: 'make a snow tracker' }],
-      ['snow_tracker_v2'],
+      [{ componentId: 'snow_tracker_v2', name: 'Snow Tracker v2', description: 'A snow tracking app for skiers' }],
       { provider: 'anthropic', apiKey: 'test', model: 'claude-sonnet-4-6' },
       mockRegistry as any
     )
@@ -145,7 +145,7 @@ describe('classifyIntent', () => {
     await classifyIntent(
       'it is stuck',
       [{ role: 'user', content: 'create a snow tracking app for skiers' }],
-      ['snow_tracker_v2'],
+      [{ componentId: 'snow_tracker_v2', name: 'Snow Tracker v2', description: 'A snow tracking app for skiers' }],
       { provider: 'anthropic', apiKey: 'test', model: 'claude-sonnet-4-6' },
       mockRegistry as any
     )
