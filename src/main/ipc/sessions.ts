@@ -4,6 +4,10 @@ import { randomUUID } from 'crypto'
 import type { IpcMain } from 'electron'
 import { safeComponentId } from '../lib/paths'
 
+function isSafeSessionId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+}
+
 interface SessionMessage {
   role: 'user' | 'assistant'
   content: string
@@ -31,7 +35,7 @@ interface ComponentEntry {
 }
 
 function sessionsDir(projectDir: string): string {
-  return path.join(projectDir, '.cslate', 'sessions')
+  return path.join(projectDir || process.cwd(), '.cslate', 'sessions')
 }
 
 function sessionFile(projectDir: string, sessionId: string): string {
@@ -39,7 +43,7 @@ function sessionFile(projectDir: string, sessionId: string): string {
 }
 
 function sidecarFile(projectDir: string, componentId: string): string {
-  return path.join(projectDir, 'components', componentId, 'session.json')
+  return path.join(projectDir || process.cwd(), 'components', componentId, 'session.json')
 }
 
 async function readSidecar(projectDir: string, componentId: string): Promise<ComponentSidecar> {
@@ -57,7 +61,6 @@ async function writeSidecar(projectDir: string, componentId: string, sidecar: Co
 
 export function register(ipcMain: IpcMain): void {
   ipcMain.handle('session:create', async (_e, { projectDir }: { projectDir: string }) => {
-    if (!projectDir) return { sessionId: '' }
     const sessionId = randomUUID()
     const dir = sessionsDir(projectDir)
     await fs.mkdir(dir, { recursive: true })
@@ -83,7 +86,7 @@ export function register(ipcMain: IpcMain): void {
     componentIds: string[]
     messages: SessionMessage[]
   }) => {
-    if (!projectDir || !sessionId) return { ok: false }
+    if (!sessionId || !isSafeSessionId(sessionId)) return { ok: false }
     const dir = sessionsDir(projectDir)
     await fs.mkdir(dir, { recursive: true })
 
@@ -123,7 +126,7 @@ export function register(ipcMain: IpcMain): void {
     projectDir: string
     sessionId: string
   }) => {
-    if (!projectDir || !sessionId) return { messages: [] }
+    if (!sessionId || !isSafeSessionId(sessionId)) return { messages: [], componentIds: [] }
     try {
       const raw = await fs.readFile(sessionFile(projectDir, sessionId), 'utf-8')
       const session = JSON.parse(raw) as SessionFile
@@ -140,7 +143,6 @@ export function register(ipcMain: IpcMain): void {
     projectDir: string
     componentId: string
   }) => {
-    if (!projectDir) return { sessionIds: [] }
     try {
       safeComponentId(componentId)
       const sidecar = await readSidecar(projectDir, componentId)
@@ -151,15 +153,14 @@ export function register(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('component:list-all', async (_e, { projectDir }: { projectDir: string }) => {
-    if (!projectDir) return { components: [] }
-
-    const componentsDir = path.join(projectDir, 'components')
+    const resolvedProjectDir = projectDir || process.cwd()
+    const componentsDir = path.join(resolvedProjectDir, 'components')
     const exists = await fs.access(componentsDir).then(() => true).catch(() => false)
     if (!exists) return { components: [] }
 
     const onCanvasIds = new Set<string>()
     try {
-      const canvasRaw = await fs.readFile(path.join(projectDir, 'canvas.json'), 'utf-8')
+      const canvasRaw = await fs.readFile(path.join(resolvedProjectDir, 'canvas.json'), 'utf-8')
       const canvas = JSON.parse(canvasRaw) as { components: Array<{ componentId: string }> }
       for (const c of canvas.components ?? []) onCanvasIds.add(c.componentId)
     } catch { /* canvas.json may not exist */ }
@@ -176,7 +177,7 @@ export function register(ipcMain: IpcMain): void {
         const manifestRaw = await fs.readFile(manifestPath, 'utf-8')
         const manifest = JSON.parse(manifestRaw)
         const stat = await fs.stat(manifestPath)
-        const sidecar = await readSidecar(projectDir, componentId)
+        const sidecar = await readSidecar(resolvedProjectDir, componentId)
         components.push({
           componentId,
           manifest,
@@ -198,16 +199,16 @@ export function register(ipcMain: IpcMain): void {
     projectDir: string
     componentId: string
   }) => {
-    if (!projectDir) return { success: false, error: 'No project' }
+    const resolvedProjectDir = projectDir || process.cwd()
     try {
       safeComponentId(componentId)
-      const componentDir = path.join(projectDir, 'components', componentId)
+      const componentDir = path.join(resolvedProjectDir, 'components', componentId)
       const bundle = await fs.readFile(path.join(componentDir, 'bundle.js'), 'utf-8')
       const manifestRaw = await fs.readFile(path.join(componentDir, 'manifest.json'), 'utf-8')
       const manifest = JSON.parse(manifestRaw)
       const placement = { x: 2, y: 2, width: 40, height: 30 }
 
-      const canvasPath = path.join(projectDir, 'canvas.json')
+      const canvasPath = path.join(resolvedProjectDir, 'canvas.json')
       let canvas: { components: Array<{ componentId: string; placement: unknown }> } = { components: [] }
       try {
         const raw = await fs.readFile(canvasPath, 'utf-8')

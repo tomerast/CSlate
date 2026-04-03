@@ -45,11 +45,12 @@ describe('session:create', () => {
     expect(files).toContain(`${result.sessionId}.json`)
   })
 
-  it('returns empty sessionId when projectDir is empty', async () => {
+  it('creates a session using cwd fallback when projectDir is empty', async () => {
     const ipc = createMockIpcMain()
     register(ipc)
     const result = await ipc._invoke('session:create', { projectDir: '' }) as { sessionId: string }
-    expect(result.sessionId).toBe('')
+    expect(typeof result.sessionId).toBe('string')
+    expect(result.sessionId.length).toBeGreaterThan(0)
   })
 })
 
@@ -82,16 +83,29 @@ describe('session:save', () => {
     expect(sidecar.sessionIds).toContain(sessionId)
   })
 
-  it('handles empty projectDir gracefully', async () => {
+  it('rejects invalid sessionId format regardless of projectDir', async () => {
     const ipc = createMockIpcMain()
     register(ipc)
     const result = await ipc._invoke('session:save', {
       projectDir: '',
-      sessionId: 'any',
+      sessionId: 'not-a-uuid',
       componentIds: [],
       messages: [],
     }) as { ok: boolean }
     expect(result.ok).toBe(false)
+  })
+
+  it('saves session using cwd fallback when projectDir is empty', async () => {
+    const ipc = createMockIpcMain()
+    register(ipc)
+    const { sessionId } = await ipc._invoke('session:create', { projectDir: '' }) as { sessionId: string }
+    const result = await ipc._invoke('session:save', {
+      projectDir: '',
+      sessionId,
+      componentIds: [],
+      messages: [{ role: 'user', content: 'test', timestamp: 1000 }],
+    }) as { ok: boolean }
+    expect(result.ok).toBe(true)
   })
 })
 
