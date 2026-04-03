@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { useCanvasStore, type CanvasComponent } from '../store/canvasStore'
 import { usePipelineStore } from '../store/pipelineStore'
@@ -13,23 +13,42 @@ interface AppLayoutProps {
 
 export function AppLayout({ onOpenConfig }: AppLayoutProps) {
   const [cmdBarOpen, setCmdBarOpen] = useState(false)
+  const [chatVisible, setChatVisible] = useState(true)
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const panelOpen = useChatStore((s) => s.panelOpen)
   const setPanelOpen = useChatStore((s) => s.setPanelOpen)
   const messages = useChatStore((s) => s.messages)
   const { submit } = useChat()
 
+  // Use a ref so the keydown handler always reads the latest chatVisible value
+  // without needing to re-register the listener on every state change
+  const chatVisibleRef = useRef(chatVisible)
+
+  const setChatVisibleAndRef = useCallback((value: boolean) => {
+    chatVisibleRef.current = value
+    setChatVisible(value)
+  }, [])
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
-        setCmdBarOpen((v) => !v)
+        if (!chatVisibleRef.current) {
+          setChatVisibleAndRef(true)
+          setCmdBarOpen(true)
+        } else {
+          setCmdBarOpen((v) => !v)
+        }
       }
-      if (e.key === 'Escape') setCmdBarOpen(false)
+      if (e.key === 'Escape') {
+        setCmdBarOpen(false)
+        setPanelOpen(false)
+        setChatVisibleAndRef(false)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [setChatVisibleAndRef, setPanelOpen])
 
   useEffect(() => {
     window.electron.invoke('canvas:load', { projectDir: '' }).then((result: unknown) => {
@@ -37,28 +56,20 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
       if (Array.isArray(r?.components) && r.components.length > 0) {
         useCanvasStore.getState().hydrate(r.components)
       }
-    }).catch(() => {
-      // No project open yet — canvas starts empty
-    })
+    }).catch(() => {})
 
-    // Hydrate pipeline store with current pipeline list
     window.electron.invoke('pipeline:list').then((pipelines: unknown) => {
       if (Array.isArray(pipelines)) {
         usePipelineStore.getState().hydrate(pipelines as any)
       }
-    }).catch(() => {
-      // Pipeline runtime not yet available — store stays empty
-    })
+    }).catch(() => {})
 
-    // Listen for runtime status changes pushed from main process
     const removeStatusListener = window.electron.on('pipeline:status-change', (msg: unknown) => {
       const { pipelineId, status } = msg as { pipelineId: string; status: any }
       usePipelineStore.getState().updateRuntimeStatus(pipelineId, status)
     })
 
-    return () => {
-      removeStatusListener()
-    }
+    return () => { removeStatusListener() }
   }, [])
 
   const handleSubmit = useCallback(async (text: string) => {
@@ -66,7 +77,7 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
     await submit(text)
   }, [submit])
 
-  const showTriggerButton = messages.length === 0 && !panelOpen && !cmdBarOpen
+  const showTriggerButton = messages.length === 0 && !panelOpen
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background">
@@ -85,7 +96,7 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
       </div>
       <div className="flex-1 flex overflow-hidden">
         <SlateCanvas />
-        {panelOpen && (
+        {chatVisible && panelOpen && (
           <ChatPanel
             onSubmit={handleSubmit}
             onClose={() => setPanelOpen(false)}
@@ -93,8 +104,7 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
         )}
       </div>
 
-      {/* Floating trigger button — visible only before any conversation starts */}
-      {showTriggerButton && (
+      {chatVisible && showTriggerButton && (
         <button
           onClick={() => setCmdBarOpen(true)}
           title="Ask anything (⌘K)"
@@ -106,14 +116,16 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
         </button>
       )}
 
-      <FloatingChatBar
-        open={cmdBarOpen}
-        nudgeDismissed={nudgeDismissed}
-        onSubmit={handleSubmit}
-        onDismiss={() => setCmdBarOpen(false)}
-        onOpenPanel={() => setPanelOpen(true)}
-        onDismissNudge={() => setNudgeDismissed(true)}
-      />
+      {chatVisible && (
+        <FloatingChatBar
+          open={cmdBarOpen}
+          nudgeDismissed={nudgeDismissed}
+          onSubmit={handleSubmit}
+          onDismiss={() => setCmdBarOpen(false)}
+          onOpenPanel={() => setPanelOpen(true)}
+          onDismissNudge={() => setNudgeDismissed(true)}
+        />
+      )}
     </div>
   )
 }
