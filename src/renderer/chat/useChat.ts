@@ -5,31 +5,53 @@ import { useCanvasStore, type Placement } from '../store/canvasStore'
 import type { BuildingTask } from '../canvas/building/types'
 
 const MAX_HISTORY_MESSAGES = 6
-
-// Default placement for the BuildingCard before the plan arrives
 const DEFAULT_BUILDING_PLACEMENT = { x: 2, y: 2, width: 50 }
+
+async function ensureSession(projectDir: string): Promise<string> {
+  const { activeSessionId } = useChatStore.getState()
+  if (activeSessionId) return activeSessionId
+  try {
+    const result = await window.electron.invoke('session:create', { projectDir }) as { sessionId: string }
+    if (result.sessionId) {
+      useChatStore.getState().setActiveSessionId(result.sessionId)
+      return result.sessionId
+    }
+  } catch { /* session persistence unavailable */ }
+  return ''
+}
+
+async function saveSession(projectDir: string, sessionId: string): Promise<void> {
+  if (!sessionId) return
+  const { messages, activeComponentIds } = useChatStore.getState()
+  try {
+    await window.electron.invoke('session:save', {
+      projectDir,
+      sessionId,
+      componentIds: activeComponentIds,
+      messages: messages.map(m => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
+    })
+  } catch { /* non-fatal */ }
+}
 
 export function useChat() {
   const { addMessage, setStatus, incrementTurnCount, setPublishState } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
-    // If already building, queue and return
     if (useChatStore.getState().status === 'generating') {
       useChatStore.getState().enqueueMessage(text)
       return
     }
 
-    // Capture history BEFORE adding user message
+    const projectDir = ''
+    const sessionId = await ensureSession(projectDir)
+
     const history = useChatStore.getState().messages.slice(-MAX_HISTORY_MESSAGES)
 
     addMessage({ role: 'user', content: text })
     setStatus('generating')
     setPublishState('hidden')
 
-    // Generate tabId here so we can reference it in event handlers below
     const tabId = crypto.randomUUID()
-
-    // Buffer streaming tokens into a single assistant message
     let streamedContent = ''
     let streamMessageAdded = false
 
@@ -51,7 +73,6 @@ export function useChat() {
       }
     })
 
-    // Building card: start
     const offBuildStart = window.electron.on('agent:build:start', (data: unknown) => {
       const d = data as { buildId: string }
       if (d.buildId !== tabId) return
@@ -63,7 +84,6 @@ export function useChat() {
       })
     })
 
-    // Building card: plan arrived
     const offBuildPlan = window.electron.on('agent:build:plan', (data: unknown) => {
       const d = data as {
         buildId: string
@@ -85,7 +105,6 @@ export function useChat() {
       })
     })
 
-    // Building card: partial render ready
     const offBuildPartial = window.electron.on('agent:build:partial', (data: unknown) => {
       const d = data as { buildId: string; bundle?: string; source?: string }
       if (d.buildId !== tabId) return
@@ -95,7 +114,6 @@ export function useChat() {
       })
     })
 
-    // Route tool results to canvasStore
     const offToolResult = window.electron.on('agent:tool-result', (data: unknown) => {
       const d = data as {
         tool: string
@@ -121,15 +139,15 @@ export function useChat() {
           useCanvasStore.getState().clearPreview()
           useCanvasStore.getState().removeBuildingCard(tabId)
           setPublishState('countdown')
+          // Link this component to the active session
+          useChatStore.getState().addActiveComponentId(componentId)
         }
       }
     })
 
-    // Orchestrator phase → update building card phase, task statuses, and statusLabel
     const offOrchestratorStatus = window.electron.on('agent:orchestrator:status', (data: unknown) => {
       const d = data as { phase: string; workerId?: number; file?: string; workerCount?: number; status?: string }
 
-      // Keep statusLabel updated for ChatPanel
       const phaseLabels: Record<string, string> = {
         understand: 'Understanding your request...',
         search: 'Searching for blueprints...',
@@ -142,7 +160,6 @@ export function useChat() {
       }
       useChatStore.setState({ statusLabel: phaseLabels[d.phase] ?? d.phase })
 
-      // Map fine-grained phases to BuildPhase for the BuildingCard
       const phaseMap: Record<string, 'think' | 'plan' | 'build' | 'test' | 'done'> = {
         understand: 'think',
         search: 'think',
@@ -158,7 +175,6 @@ export function useChat() {
         useCanvasStore.getState().updateBuildingCard(tabId, { phase: buildPhase })
       }
 
-      // Update individual task row status
       if (d.phase === 'worker' && d.file) {
         const { buildingCards } = useCanvasStore.getState()
         const card = buildingCards.find(c => c.buildId === tabId)
@@ -186,14 +202,13 @@ export function useChat() {
         setStatus('error')
         addMessage({ role: 'assistant', content: `Error: ${d.message}` })
       }
-      // Clean up any stray building card on error
       useCanvasStore.getState().removeBuildingCard(tabId)
     })
 
     try {
       await window.electron.invoke('agent:run', {
         message: text,
-        projectDir: '',
+        projectDir,
         tabId,
         conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
       })
@@ -214,9 +229,9 @@ export function useChat() {
       offOrchestratorStatus()
       offError()
       useChatStore.setState({ statusLabel: '' })
-      // Clean up building card if it wasn't removed by writeComponent
       useCanvasStore.getState().removeBuildingCard(tabId)
-      // Drain queue
+      // Save session after each completed turn
+      await saveSession(projectDir, sessionId)
       const next = useChatStore.getState().shiftQueue()
       if (next) setTimeout(() => submit(next), 0)
     }
