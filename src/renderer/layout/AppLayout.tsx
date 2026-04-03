@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useAppStore } from '../store/appStore'
 import { useChatStore } from '../store/chatStore'
 import { useCanvasStore, type CanvasComponent } from '../store/canvasStore'
 import { usePipelineStore } from '../store/pipelineStore'
@@ -13,6 +14,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ onOpenConfig }: AppLayoutProps) {
+  const openHistory = useAppStore((s) => s.openHistory)
   const [cmdBarOpen, setCmdBarOpen] = useState(false)
   const [chatVisible, setChatVisible] = useState(true)
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
@@ -83,6 +85,18 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background">
       <div className="h-8 flex-shrink-0 app-drag-region relative">
+        <button
+          onClick={openHistory}
+          title="Component History (⌘H)"
+          className="absolute right-10 top-1/2 -translate-y-1/2 p-1 text-muted/50 hover:text-muted transition-colors"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 8v4l3 3" />
+            <path d="M3.05 11a9 9 0 1 1 .5 4" />
+            <path d="M3 16H7V12" />
+          </svg>
+        </button>
         <button
           onClick={onOpenConfig}
           title="Settings (⌘,)"

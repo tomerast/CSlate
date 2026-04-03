@@ -20,7 +20,7 @@ export interface CanvasPreview {
   bundle: string
   files: Record<string, string>
   manifest: unknown
-  placement?: Placement
+  placement?: Partial<Placement>
 }
 
 interface CanvasState {
