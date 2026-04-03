@@ -96,4 +96,11 @@ describe('PublishToast', () => {
     })
     expect(useChatStore.getState().publishState).toBe('hidden')
   })
+
+  it('does not cancel countdown when panel was already closed at mount time', () => {
+    // panelOpen defaults to false after reset — should not fire the panel-close handler
+    useChatStore.getState().setPublishState('countdown')
+    render(<PublishToast />)
+    expect(useChatStore.getState().publishState).toBe('countdown')
+  })
 })
