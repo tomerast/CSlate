@@ -4,6 +4,7 @@ import { useCanvasStore, type CanvasComponent } from '../store/canvasStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useChat } from '../chat/useChat'
 import { FloatingChatBar } from '../chat/FloatingChatBar'
+import { PublishToast } from '../chat/PublishToast'
 import { ChatPanel } from '../chat/ChatPanel'
 import { SlateCanvas } from '../canvas/SlateCanvas'
 
@@ -126,6 +127,7 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
           onDismissNudge={() => setNudgeDismissed(true)}
         />
       )}
+      <PublishToast />
     </div>
   )
 }

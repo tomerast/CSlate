@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { MessageList } from './MessageList'
-import { PublishToast } from './PublishToast'
 import { PipelinePanel } from '../pipeline/PipelinePanel'
 import { usePipelineStore } from '../store/pipelineStore'
 
@@ -42,8 +41,6 @@ export function ChatPanel({ onSubmit, onClose }: Props) {
       <div className="flex-1 overflow-y-auto min-h-0">
         <MessageList />
       </div>
-
-      <PublishToast />
 
       {/* Pipeline panel — collapsible section above input */}
       <div className="border-t border-border">

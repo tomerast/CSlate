@@ -103,4 +103,13 @@ describe('PublishToast', () => {
     render(<PublishToast />)
     expect(useChatStore.getState().publishState).toBe('countdown')
   })
+
+  it('silently hides on upload error', async () => {
+    window.electron.invoke = vi.fn().mockRejectedValue(new Error('network'))
+    useChatStore.getState().setPublishState('countdown')
+    render(<PublishToast />)
+    await act(async () => { vi.advanceTimersByTime(120_000) })
+    await act(async () => { await Promise.resolve() })
+    expect(useChatStore.getState().publishState).toBe('hidden')
+  })
 })
