@@ -13,6 +13,21 @@ interface EvalResult {
 
 function createBridge() {
   return {
+    fetch: async (sourceId: string, endpointId: string, _params?: Record<string, unknown>) => {
+      console.warn(`[bridge.fetch] "${sourceId}/${endpointId}" — data source registry not yet available, returning null`)
+      return null
+    },
+
+    subscribe: (sourceId: string, endpointId: string, _params: Record<string, unknown>, _callback: (data: unknown) => void) => {
+      console.warn(`[bridge.subscribe] "${sourceId}/${endpointId}" — data source registry not yet available`)
+      return () => {}
+    },
+
+    getConfig: (key: string) => {
+      console.warn(`[bridge.getConfig] "${key}" — config not yet available`)
+      return undefined
+    },
+
     pipeline: async (pipelineId: string) => {
       try {
         return await window.electron.invoke('pipeline:get-data', { pipelineId })
