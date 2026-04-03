@@ -129,7 +129,7 @@ export function register(ipcMain: IpcMain): void {
       const session = JSON.parse(raw) as SessionFile
       return { messages: session.messages, componentIds: session.componentIds }
     } catch {
-      return { messages: [] }
+      return { messages: [], componentIds: [] }
     }
   })
 

@@ -81,6 +81,18 @@ describe('session:save', () => {
     const sidecar = JSON.parse(await fs.readFile(path.join(componentDir, 'session.json'), 'utf-8'))
     expect(sidecar.sessionIds).toContain(sessionId)
   })
+
+  it('handles empty projectDir gracefully', async () => {
+    const ipc = createMockIpcMain()
+    register(ipc)
+    const result = await ipc._invoke('session:save', {
+      projectDir: '',
+      sessionId: 'any',
+      componentIds: [],
+      messages: [],
+    }) as { ok: boolean }
+    expect(result.ok).toBe(false)
+  })
 })
 
 describe('session:load', () => {
@@ -189,5 +201,18 @@ describe('canvas:add-component', () => {
     expect(result.componentId).toBe('my_widget')
     expect(result.bundle).toBe('module.exports = {}')
     expect(result.placement).toBeDefined()
+  })
+
+  it('returns success false when bundle.js is missing', async () => {
+    const ipc = createMockIpcMain()
+    register(ipc)
+
+    const componentDir = path.join(tmpDir, 'components', 'no_bundle')
+    await fs.mkdir(componentDir, { recursive: true })
+    await fs.writeFile(path.join(componentDir, 'manifest.json'), JSON.stringify({ name: 'test', description: '', tags: [], files: [], inputs: {}, outputs: {}, events: {}, actions: {} }), 'utf-8')
+    // No bundle.js written
+
+    const result = await ipc._invoke('canvas:add-component', { projectDir: tmpDir, componentId: 'no_bundle' }) as { success: boolean }
+    expect(result.success).toBe(false)
   })
 })
