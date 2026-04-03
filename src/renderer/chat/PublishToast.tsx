@@ -19,11 +19,13 @@ export function PublishToast() {
   async function handleShare() {
     setPublishState('publishing')
     try {
+      const manifest = preview?.manifest as Record<string, unknown> | undefined
       await window.electron.invoke('server:publish', {
-        name: 'Untitled Component',
-        description: 'A CSlate component',
-        tags: [],
+        name: (manifest?.name as string) ?? 'Untitled Component',
+        description: (manifest?.description as string) ?? 'A CSlate component',
+        tags: (manifest?.tags as string[]) ?? [],
         source: preview?.files ?? {},
+        manifest: preview?.manifest,
       })
       setPublishState('published')
     } catch (error) {
@@ -37,6 +39,10 @@ export function PublishToast() {
   }
 
   if (publishState === 'hidden' || publishState === 'declined') {
+    return null
+  }
+
+  if (!preview?.manifest) {
     return null
   }
 

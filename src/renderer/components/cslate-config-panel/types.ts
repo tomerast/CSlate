@@ -16,6 +16,7 @@ export interface ConfigPanelProps {
   gatewayUrl?: string
   theme?: Theme
   serverUrl?: string
+  serverEmail?: string
   isOpen?: boolean
   focusTab?: ConfigTab
   onOutput?: (key: keyof ConfigValues, value: string) => void

@@ -4,7 +4,7 @@ import { writeFile, mkdir } from 'fs/promises'
 import { join, resolve, sep, dirname } from 'path'
 import { validateComponentPackage } from '@cslate/shared'
 import { bundleComponentDir } from '../lib/bundler'
-import { PlacementSchema, updateCanvasJson, type Placement } from '../lib/canvasJson'
+import { PlacementSchema, readCanvasJson, updateCanvasJson, type Placement } from '../lib/canvasJson'
 import { stripFences } from '@cslate/shared/agent'
 import { buildTool } from './types'
 
@@ -90,13 +90,22 @@ export function createWriteComponentTool(projectDir: string) {
       // 6. Write bundle.js
       await writeFile(join(componentDir, 'bundle.js'), bundle, 'utf-8')
 
-      // 7. Update canvas.json
+      // 7. Update canvas.json — find a free spot below existing components if no placement given
       const defaultSize = input.manifest.defaultSize as { width?: number; height?: number } | undefined
-      const placement: Placement = input.placement ?? {
-        x: 0,
-        y: 0,
-        width: defaultSize?.width ?? 50,
-        height: defaultSize?.height ?? 25,
+      let placement: Placement
+      if (input.placement) {
+        placement = input.placement
+      } else {
+        const canvas = await readCanvasJson(projectDir)
+        const nextY = canvas.components.reduce((maxY, entry) => {
+          return Math.max(maxY, entry.placement.y + entry.placement.height)
+        }, 0)
+        placement = {
+          x: 0,
+          y: nextY,
+          width: defaultSize?.width ?? 50,
+          height: defaultSize?.height ?? 25,
+        }
       }
       await updateCanvasJson(projectDir, input.componentId, placement)
 

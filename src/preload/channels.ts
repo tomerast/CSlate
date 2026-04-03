@@ -28,6 +28,8 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'agent:permission-response',
   'server:search',
   'server:publish',
+  'server:connect',
+  'server:disconnect',
   'shell:openExternal',
   'models:fetch',
   'canvas:load',

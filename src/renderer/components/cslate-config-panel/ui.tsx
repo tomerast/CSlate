@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import type { ConfigPanelProps, ConfigTab } from './types'
 import { THEME_OPTIONS, PROVIDER_PRESETS, MODEL_SUGGESTIONS } from './types'
 import { useConfigForm } from './logic'
@@ -24,6 +24,45 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
     showSuggestions,
     setShowSuggestions,
   } = useConfigForm(props)
+
+  const [connectEmail, setConnectEmail] = useState('')
+  const [connectStatus, setConnectStatus] = useState<'idle' | 'connecting' | 'pending_email' | 'error'>(
+    props.serverEmail ? 'idle' : 'idle'
+  )
+  const [connectError, setConnectError] = useState('')
+  const isConnected = !!props.serverEmail
+
+  async function handleConnect() {
+    if (!connectEmail || !values.serverUrl) return
+    setConnectStatus('connecting')
+    setConnectError('')
+    try {
+      const result = await window.electron.invoke('server:connect', {
+        email: connectEmail,
+        serverUrl: values.serverUrl,
+      }) as { ok: boolean; connected?: boolean; message?: string }
+
+      if (!result.ok) {
+        setConnectStatus('error')
+        setConnectError(result.message ?? 'Connection failed')
+        return
+      }
+      if (result.connected) {
+        // Key returned immediately (dev mode) — reload to pick up new serverEmail
+        window.location.reload()
+      } else {
+        setConnectStatus('pending_email')
+      }
+    } catch {
+      setConnectStatus('error')
+      setConnectError('Connection failed')
+    }
+  }
+
+  async function handleDisconnect() {
+    await window.electron.invoke('server:disconnect')
+    window.location.reload()
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -171,9 +210,11 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
 
           {/* ── Settings tab ──────────────────────────────── */}
           {activeTab === 'settings' && (
-            <section>
-              <SectionHeader title="Community Server" subtitle="Connect to CSlate's component library" />
-              <div className="mt-3">
+            <section className="space-y-4">
+              <SectionHeader title="Community Server" subtitle="Share components and discover blueprints" />
+
+              {/* Server URL */}
+              <div>
                 <input
                   type="text"
                   value={values.serverUrl}
@@ -181,10 +222,49 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
                   placeholder="https://api.cslate.app"
                   className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
                 />
-                <p className="text-[11px] text-muted/50 mt-1.5">
-                  For searching community blueprints and uploading components.
-                </p>
               </div>
+
+              {/* Connection status */}
+              {isConnected ? (
+                <div className="flex items-center justify-between px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                    <span className="text-sm text-text">Connected as <span className="font-medium">{props.serverEmail}</span></span>
+                  </div>
+                  <button
+                    onClick={handleDisconnect}
+                    className="text-xs text-muted hover:text-text transition-colors"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : connectStatus === 'pending_email' ? (
+                <div className="px-3 py-2.5 bg-surface border border-border rounded-lg">
+                  <p className="text-sm text-text">Check your email to complete setup.</p>
+                  <p className="text-[11px] text-muted mt-1">Click the link in the email to get your API key.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="email"
+                    value={connectEmail}
+                    onChange={e => setConnectEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleConnect()}
+                    placeholder="your@email.com"
+                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+                  />
+                  {connectStatus === 'error' && (
+                    <p className="text-[11px] text-red-400">{connectError}</p>
+                  )}
+                  <button
+                    onClick={handleConnect}
+                    disabled={!connectEmail || connectStatus === 'connecting'}
+                    className="w-full px-3 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {connectStatus === 'connecting' ? 'Connecting…' : 'Connect'}
+                  </button>
+                </div>
+              )}
             </section>
           )}
         </div>

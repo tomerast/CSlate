@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { BuildingCard } from '../canvas/building/types'
 
 export interface Placement {
@@ -37,7 +38,7 @@ interface CanvasState {
   removeBuildingCard(buildId: string): void
 }
 
-export const useCanvasStore = create<CanvasState>((set) => ({
+export const useCanvasStore = create<CanvasState>()(persist((set) => ({
   components: [],
   preview: null,
   buildingCards: [],
@@ -71,4 +72,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   removeBuildingCard: (buildId) => set((s) => ({
     buildingCards: s.buildingCards.filter(c => c.buildId !== buildId),
   })),
+}), {
+  name: 'canvas-store',
+  partialize: (s) => ({ preview: s.preview, components: s.components }),
 }))

@@ -45,10 +45,9 @@ function createBridge() {
   }
 }
 
-function evalBundle(bundle: string): EvalResult {
+function evalBundle(bundle: string, bridge: ReturnType<typeof createBridge>): EvalResult {
   try {
     const _module = { exports: {} as Record<string, unknown> }
-    const bridge = createBridge()
     const _require = (mod: string): unknown => {
       if (mod === 'react') return React
       if (mod === 'react-dom') return ReactDOM
@@ -98,22 +97,44 @@ class ErrorBoundary extends React.Component<
   render() { return this.state.caught ? null : this.props.children }
 }
 
+function createComponentStore() {
+  const state: Record<string, unknown> = {}
+  return {
+    getState: (key: string) => state[key],
+    // Supports both: setState(patch) and setState(key, value)
+    setState: (keyOrPatch: string | Record<string, unknown>, value?: unknown) => {
+      if (typeof keyOrPatch === 'string') {
+        state[keyOrPatch] = value
+      } else {
+        Object.assign(state, keyOrPatch)
+      }
+    },
+    get: (key: string) => state[key],
+  }
+}
+
 export function DynamicComponent({ bundle }: Props) {
   const [result, setResult] = React.useState<EvalResult>({ Component: null, error: null })
   const [runtimeError, setRuntimeError] = React.useState<string | null>(null)
+  const bridgeRef = React.useRef(createBridge())
+  const storeRef = React.useRef(createComponentStore())
 
   React.useEffect(() => {
     setRuntimeError(null)
-    setResult(evalBundle(bundle))
+    setResult(evalBundle(bundle, bridgeRef.current))
   }, [bundle])
 
   if (result.error) return <ComponentError message={result.error} code={bundle} />
   if (runtimeError) return <ComponentError message={`Runtime: ${runtimeError}`} code={bundle} />
   if (!result.Component) return null
 
+  const Comp = result.Component as React.ComponentType<{ bridge?: unknown; store?: unknown }>
+
   return (
-    <ErrorBoundary key={bundle} onError={(e) => setRuntimeError(e.message)}>
-      <result.Component />
-    </ErrorBoundary>
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <ErrorBoundary key={bundle} onError={(e) => setRuntimeError(e.message)}>
+        <Comp bridge={bridgeRef.current} store={storeRef.current} />
+      </ErrorBoundary>
+    </div>
   )
 }

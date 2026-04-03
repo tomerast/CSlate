@@ -45,18 +45,20 @@ export default function App() {
     gatewayUrl: 'https://openrouter.ai/api/v1',
     theme: 'dark' as Theme,
     serverUrl: 'https://api.cslate.app',
+    serverEmail: '',
   })
 
   useEffect(() => {
     async function loadConfig() {
       if (!window.electron) return
       try {
-        const [llmModel, llmApiKey, gatewayUrl, theme, serverUrl] = await Promise.all([
+        const [llmModel, llmApiKey, gatewayUrl, theme, serverUrl, serverEmail] = await Promise.all([
           window.electron.invoke('config:get', 'llmModel'),
           window.electron.invoke('config:get', 'llmApiKey'),
           window.electron.invoke('config:get', 'gatewayUrl'),
           window.electron.invoke('config:get', 'theme'),
           window.electron.invoke('config:get', 'serverUrl'),
+          window.electron.invoke('config:get', 'serverEmail'),
         ])
         setConfig(prev => {
           const next = { ...prev }
@@ -65,6 +67,7 @@ export default function App() {
           if (gatewayUrl) next.gatewayUrl = gatewayUrl as string
           if (theme) next.theme = theme as Theme
           if (serverUrl) next.serverUrl = serverUrl as string
+          if (serverEmail) next.serverEmail = serverEmail as string
           return next
         })
         if (theme && theme !== 'dark') {
@@ -118,6 +121,7 @@ export default function App() {
           gatewayUrl={config.gatewayUrl}
           theme={config.theme}
           serverUrl={config.serverUrl}
+          serverEmail={config.serverEmail}
           onOutput={handleOutput}
           onEvent={handleEvent}
         />

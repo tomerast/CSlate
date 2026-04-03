@@ -11,6 +11,7 @@ export interface ConfigStore {
   _secure_llmApiKey?: string
   _secure_serverApiKey?: string
   _secure_gatewayApiKey?: string
+  serverEmail?: string
 }
 
 export interface WindowState {

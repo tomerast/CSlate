@@ -4,6 +4,8 @@ type SearchResponse = {
   error?: string
 }
 
+type RawManifest = Record<string, unknown>
+
 type PublishPayload = {
   name: string
   description: string
@@ -92,17 +94,90 @@ export class CSlateServerClient {
           Authorization: `ApiKey ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          manifest: this.normalizeManifest(payload),
+          files: payload.source,
+        }),
       })
 
       if (!res.ok) {
-        return { error: `Server returned ${res.status}` }
+        const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+        return { error: body.error?.message ?? `Server returned ${res.status}` }
       }
 
       return await res.json()
     } catch {
       return { error: 'Could not reach CSlate server' }
     }
+  }
+
+  /**
+   * The client's manifest.json uses a different schema from the server's ComponentManifestSchema.
+   * This method normalizes it:
+   *   - Adds `title` (display name) and derives `name` (slug) from it
+   *   - Adds `version` default
+   *   - Converts `files` from array-of-objects to array-of-strings
+   *   - Converts `inputs`/`outputs`/`events`/`actions` from records to arrays
+   */
+  private normalizeManifest(payload: PublishPayload): RawManifest {
+    const raw = (payload.manifest ?? {}) as RawManifest
+    const displayName = (raw.name as string | undefined) ?? payload.name
+
+    // Derive a URL-safe slug: "Kanban Task Manager" → "kanban_task_manager"
+    const name = displayName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+
+    // Convert a record of { key: {...} } to an array of [{ name: key, ...rest }]
+    function recordToArray(value: unknown): RawManifest[] | undefined {
+      if (value == null) return undefined
+      if (Array.isArray(value)) return value.length > 0 ? value as RawManifest[] : undefined
+      if (typeof value === 'object') {
+        const entries = Object.entries(value as Record<string, RawManifest>).map(([k, v]) => ({
+          name: k,
+          ...(typeof v === 'object' && v !== null ? v : {}),
+        }))
+        return entries.length > 0 ? entries : undefined
+      }
+      return undefined
+    }
+
+    // Normalize files: array of {path,...} objects → array of path strings
+    let files: string[]
+    const rawFiles = raw.files
+    if (Array.isArray(rawFiles) && rawFiles.length > 0) {
+      files = rawFiles.map(f => typeof f === 'string' ? f : (f as RawManifest).path as string ?? String(f))
+    } else {
+      files = Object.keys(payload.source)
+    }
+    if (files.length === 0) files = Object.keys(payload.source)
+
+    const normalized: RawManifest = {
+      name,
+      title: displayName,
+      description: (raw.description as string | undefined) ?? payload.description,
+      version: (raw.version as string | undefined) ?? '1.0.0',
+      files,
+      defaultSize: raw.defaultSize ?? { width: 40, height: 30 },
+      tags: Array.isArray(raw.tags) && (raw.tags as string[]).length > 0
+        ? raw.tags
+        : payload.tags.length > 0 ? payload.tags : ['component'],
+    }
+
+    const inputs = recordToArray(raw.inputs)
+    if (inputs) normalized.inputs = inputs
+
+    const outputs = recordToArray(raw.outputs)
+    if (outputs) normalized.outputs = outputs
+
+    const events = recordToArray(raw.events)
+    if (events) normalized.events = events
+
+    const actions = recordToArray(raw.actions)
+    if (actions) normalized.actions = actions
+
+    return normalized
   }
 
   async searchPipelines(query: string, limit: number): Promise<SearchResponse> {
