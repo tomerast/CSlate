@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useAppStore } from './store/appStore'
 import { AppLayout } from './layout/AppLayout'
 import CSlateConfigPanel from './components/cslate-config-panel/ui'
+import ComponentHistoryPanel from './components/component-history-panel/ui'
 import type { ConfigValues, Theme } from './components/cslate-config-panel/types'
 
 /* ── Error Boundary ──────────────────────────────────────── */
@@ -38,7 +39,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNod
 
 /* ── App ─────────────────────────────────────────────────── */
 export default function App() {
-  const { configOpen, configFocusTab, openConfig, closeConfig } = useAppStore()
+  const { configOpen, configFocusTab, openConfig, closeConfig, historyOpen, openHistory, closeHistory } = useAppStore()
   const [config, setConfig] = useState({
     llmModel: 'anthropic/claude-sonnet-4-6',
     llmApiKey: '',
@@ -104,10 +105,14 @@ export default function App() {
         e.preventDefault()
         configOpen ? closeConfig() : openConfig()
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'h') {
+        e.preventDefault()
+        historyOpen ? closeHistory() : openHistory()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [configOpen, openConfig, closeConfig])
+  }, [configOpen, openConfig, closeConfig, historyOpen, openHistory, closeHistory])
 
   return (
     <ErrorBoundary>
@@ -124,6 +129,12 @@ export default function App() {
           serverEmail={config.serverEmail}
           onOutput={handleOutput}
           onEvent={handleEvent}
+        />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <ComponentHistoryPanel
+          isOpen={historyOpen}
+          onClose={closeHistory}
         />
       </ErrorBoundary>
     </ErrorBoundary>
