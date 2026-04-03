@@ -101,8 +101,15 @@ export class CSlateServerClient {
       })
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
-        return { error: body.error?.message ?? `Server returned ${res.status}` }
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        const nested = typeof body.error === 'object' && body.error !== null
+          ? (body.error as Record<string, unknown>)
+          : undefined
+        const msg = typeof body.error === 'string' ? body.error
+          : typeof nested?.message === 'string' ? nested.message as string
+          : typeof body.message === 'string' ? body.message
+          : `Server returned ${res.status}`
+        return { error: msg }
       }
 
       return await res.json()
@@ -126,6 +133,7 @@ export class CSlateServerClient {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '')
+      || 'component'
 
     // Convert a {key: {...}} record to [{name: key, ...rest}] array
     function recordToArray(value: unknown): RawManifest[] | undefined {

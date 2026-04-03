@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
 import { PublishToast } from '../chat/PublishToast'
 import { useChatStore } from '../store/chatStore'
-import { useCanvasStore } from '../store/canvasStore'
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -12,12 +11,13 @@ beforeEach(() => {
     value: { invoke: vi.fn().mockResolvedValue({}), on: vi.fn().mockReturnValue(() => {}), send: vi.fn() },
     writable: true, configurable: true,
   })
-  // Set a preview manifest so the toast has data to work with
-  useCanvasStore.getState().setPreview({
-    bundle: 'bundle',
-    files: { 'ui.tsx': 'export default () => null' },
+  // Set a captured publish payload so the toast has data to work with
+  useChatStore.getState().setPublishPayload({
+    name: 'TestComp',
+    description: 'desc',
+    tags: [],
+    source: { 'ui.tsx': 'export default () => null' },
     manifest: { name: 'TestComp', description: 'desc', tags: [] },
-    placement: undefined,
   })
 })
 
@@ -52,7 +52,10 @@ describe('PublishToast', () => {
     await act(async () => {
       vi.advanceTimersByTime(120_000)
     })
-    expect(window.electron.invoke).toHaveBeenCalledWith('server:publish', expect.any(Object))
+    expect(window.electron.invoke).toHaveBeenCalledWith('server:publish', expect.objectContaining({
+      name: 'TestComp',
+      source: { 'ui.tsx': 'export default () => null' },
+    }))
   })
 
   it('cancels countdown when panel closes', () => {
@@ -104,12 +107,28 @@ describe('PublishToast', () => {
     expect(useChatStore.getState().publishState).toBe('countdown')
   })
 
-  it('silently hides on upload error', async () => {
+  it('silently hides on upload error (exception)', async () => {
     window.electron.invoke = vi.fn().mockRejectedValue(new Error('network'))
     useChatStore.getState().setPublishState('countdown')
     render(<PublishToast />)
     await act(async () => { vi.advanceTimersByTime(120_000) })
     await act(async () => { await Promise.resolve() })
     expect(useChatStore.getState().publishState).toBe('hidden')
+  })
+
+  it('hides on server error response instead of showing Shared!', async () => {
+    window.electron.invoke = vi.fn().mockResolvedValue({ error: 'Server returned 400' })
+    useChatStore.getState().setPublishState('countdown')
+    render(<PublishToast />)
+    await act(async () => { vi.advanceTimersByTime(120_000) })
+    await act(async () => { await Promise.resolve() })
+    expect(useChatStore.getState().publishState).toBe('hidden')
+  })
+
+  it('renders nothing when publishPayload is null', () => {
+    useChatStore.getState().setPublishPayload(null)
+    useChatStore.getState().setPublishState('countdown')
+    const { container } = render(<PublishToast />)
+    expect(container.firstChild).toBeNull()
   })
 })

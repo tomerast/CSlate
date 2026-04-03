@@ -34,7 +34,7 @@ async function saveSession(projectDir: string, sessionId: string): Promise<void>
 }
 
 export function useChat() {
-  const { addMessage, setStatus, incrementTurnCount, setPublishState } = useChatStore()
+  const { addMessage, setStatus, incrementTurnCount, setPublishState, setPublishPayload } = useChatStore()
 
   const submit = useCallback(async (text: string) => {
     if (useChatStore.getState().status === 'generating') {
@@ -127,14 +127,19 @@ export function useChat() {
         }
       }
 
-      if (d.tool === 'renderComponent' && d.result?.success) {
-        const { bundle, files, manifest, placement } = d.result
-        if (bundle && files && manifest) {
-          useCanvasStore.getState().setPreview({ bundle, files, manifest, placement })
-        }
-      } else if (d.tool === 'writeComponent' && d.result?.success) {
+      if (d.tool === 'writeComponent' && d.result?.success) {
         const { componentId, bundle, placement, manifest } = d.result
         if (componentId && bundle && placement && manifest) {
+          // Capture publish payload BEFORE clearing preview (preview has source files)
+          const preview = useCanvasStore.getState().preview
+          const m = (manifest ?? {}) as Record<string, unknown>
+          setPublishPayload({
+            name: (m.name as string) ?? 'Untitled Component',
+            description: (m.description as string) ?? 'A CSlate component',
+            tags: (m.tags as string[]) ?? [],
+            source: preview?.files ?? {},
+            manifest,
+          })
           useCanvasStore.getState().addComponent({ componentId, bundle, placement, manifest })
           useCanvasStore.getState().clearPreview()
           useCanvasStore.getState().removeBuildingCard(tabId)
@@ -235,7 +240,7 @@ export function useChat() {
       const next = useChatStore.getState().shiftQueue()
       if (next) setTimeout(() => submit(next), 0)
     }
-  }, [addMessage, setStatus, incrementTurnCount, setPublishState])
+  }, [addMessage, setStatus, incrementTurnCount, setPublishState, setPublishPayload])
 
   return { submit }
 }

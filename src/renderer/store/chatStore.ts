@@ -3,12 +3,21 @@ import type { AgentMessage } from '@shared/agentTypes'
 
 export type NewMessage = Pick<AgentMessage, 'role' | 'content'>
 
+export interface PublishPayload {
+  name: string
+  description: string
+  tags: string[]
+  source: Record<string, string>
+  manifest?: unknown
+}
+
 interface ChatState {
   messages: AgentMessage[]
   status: 'idle' | 'generating' | 'error'
   panelOpen: boolean
   turnCount: number
   publishState: 'hidden' | 'countdown' | 'publishing' | 'published'
+  publishPayload: PublishPayload | null
   statusLabel: string
   messageQueue: string[]
   activeSessionId: string | null
@@ -18,6 +27,7 @@ interface ChatState {
   setPanelOpen(v: boolean): void
   incrementTurnCount(): void
   setPublishState(s: ChatState['publishState']): void
+  setPublishPayload(payload: PublishPayload | null): void
   enqueueMessage(msg: string): void
   shiftQueue(): string | undefined
   setActiveSessionId(id: string | null): void
@@ -32,6 +42,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   panelOpen: false,
   turnCount: 0,
   publishState: 'hidden',
+  publishPayload: null,
   statusLabel: '',
   messageQueue: [],
   activeSessionId: null,
@@ -42,6 +53,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setPanelOpen: (v) => set({ panelOpen: v }),
   incrementTurnCount: () => set((s) => ({ turnCount: s.turnCount + 1 })),
   setPublishState: (publishState) => set({ publishState }),
+  setPublishPayload: (publishPayload) => set({ publishPayload }),
   enqueueMessage: (msg) => set((s) => ({ messageQueue: [...s.messageQueue, msg] })),
   shiftQueue: () => {
     const { messageQueue } = get()
@@ -62,6 +74,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     panelOpen: false,
     turnCount: 0,
     publishState: 'hidden',
+    publishPayload: null,
     statusLabel: '',
     messageQueue: [],
     activeSessionId: null,

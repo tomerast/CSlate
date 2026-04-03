@@ -61,11 +61,11 @@ export function SlateCanvas() {
           {preview && (
             <div
               className="absolute bg-surface rounded-lg shadow-lg overflow-auto ring-2 ring-primary/30"
-              style={preview.placement ? {
+              style={preview.placement?.x != null ? {
                 left: preview.placement.x * GRID_PX,
-                top: preview.placement.y * GRID_PX,
-                width: preview.placement.width * GRID_PX,
-                height: preview.placement.height * GRID_PX,
+                top: (preview.placement.y ?? 0) * GRID_PX,
+                width: (preview.placement.width ?? 4) * GRID_PX,
+                height: (preview.placement.height ?? 4) * GRID_PX,
               } : {
                 left: '50%',
                 top: '50%',

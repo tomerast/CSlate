@@ -114,9 +114,19 @@ describe('CSlateServerClient', () => {
             Authorization: 'ApiKey test-api-key',
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(payload),
         })
       )
+
+      // Verify normalized payload structure
+      const sentBody = JSON.parse(mockFetch.mock.calls[0][1]?.body as string)
+      expect(sentBody.manifest).toMatchObject({
+        name: 'todolist',
+        title: 'TodoList',
+        description: 'A simple todo component',
+        tags: ['productivity', 'todo'],
+        files: ['ui.tsx'],
+      })
+      expect(sentBody.files).toEqual({ 'ui.tsx': 'export default function() {}' })
     })
 
     it('returns id and status on successful publish', async () => {
@@ -137,7 +147,7 @@ describe('CSlateServerClient', () => {
       expect(result.error).toBeUndefined()
     })
 
-    it('includes optional manifest in payload', async () => {
+    it('includes optional manifest in payload and normalizes it', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ id: 'comp-789', status: 'published' }),
@@ -165,7 +175,22 @@ describe('CSlateServerClient', () => {
       })
 
       const calledBody = JSON.parse(mockFetch.mock.calls[0][1]?.body as string)
-      expect(calledBody.manifest).toEqual(manifest)
+      // normalizeManifest lowercases name, adds title, version, strips empty records
+      expect(calledBody.manifest).toMatchObject({
+        name: 'test',
+        title: 'Test',
+        description: 'test',
+        version: '1.0.0',
+        files: ['ui.tsx'],
+        defaultSize: { width: 10, height: 10 },
+      })
+      // Empty records (inputs/outputs/events/actions) are stripped
+      expect(calledBody.manifest.inputs).toBeUndefined()
+      expect(calledBody.manifest.outputs).toBeUndefined()
+      expect(calledBody.manifest.events).toBeUndefined()
+      expect(calledBody.manifest.actions).toBeUndefined()
+      // Source is sent as files
+      expect(calledBody.files).toEqual({ 'ui.tsx': 'code' })
     })
 
     it('returns error object on non-OK response', async () => {
@@ -183,7 +208,7 @@ describe('CSlateServerClient', () => {
         source: {},
       })
 
-      expect(result.error).toBe('Server returned 400')
+      expect(result.error).toBe('Invalid component data')
       expect(result.id).toBeUndefined()
       expect(result.status).toBeUndefined()
     })

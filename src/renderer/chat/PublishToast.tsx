@@ -1,14 +1,13 @@
 import React, { useEffect, useRef } from 'react'
 import { useChatStore } from '../store/chatStore'
-import { useCanvasStore } from '../store/canvasStore'
 
 const COUNTDOWN_MS = 120_000
 
 export function PublishToast() {
   const publishState = useChatStore((s) => s.publishState)
   const setPublishState = useChatStore((s) => s.setPublishState)
+  const publishPayload = useChatStore((s) => s.publishPayload)
   const panelOpen = useChatStore((s) => s.panelOpen)
-  const preview = useCanvasStore((s) => s.preview)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevPanelOpenRef = useRef<boolean>(panelOpen)
 
@@ -23,7 +22,7 @@ export function PublishToast() {
     }
   }, [publishState])
 
-  // Cancel countdown when panel closes (only when it transitions from open to closed)
+  // Cancel countdown when panel closes (only on open→closed transition)
   useEffect(() => {
     const wasOpen = prevPanelOpenRef.current
     prevPanelOpenRef.current = panelOpen
@@ -41,17 +40,18 @@ export function PublishToast() {
   }, [publishState])
 
   async function handleShare() {
+    if (!publishPayload) {
+      setPublishState('hidden')
+      return
+    }
     setPublishState('publishing')
     try {
-      const manifest = preview?.manifest as Record<string, unknown> | undefined
-      await window.electron.invoke('server:publish', {
-        name: (manifest?.name as string) ?? 'Untitled Component',
-        description: (manifest?.description as string) ?? 'A CSlate component',
-        tags: (manifest?.tags as string[]) ?? [],
-        source: preview?.files ?? {},
-        manifest: preview?.manifest,
-      })
-      setPublishState('published')
+      const result = await window.electron.invoke('server:publish', publishPayload) as { error?: string }
+      if (result?.error) {
+        setPublishState('hidden')
+      } else {
+        setPublishState('published')
+      }
     } catch {
       setPublishState('hidden')
     }
@@ -62,11 +62,7 @@ export function PublishToast() {
     setPublishState('hidden')
   }
 
-  if (publishState === 'hidden' || !preview?.manifest) return null
-
-  if (!preview?.manifest) {
-    return null
-  }
+  if (publishState === 'hidden' || !publishPayload) return null
 
   if (publishState === 'published') {
     return (
