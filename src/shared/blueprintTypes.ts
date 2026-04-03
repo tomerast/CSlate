@@ -24,3 +24,21 @@ export const SearchResultSchema = z.object({
 })
 
 export type SearchResult = z.infer<typeof SearchResultSchema>
+
+export const BreakpointSchema = z.object({
+  name: z.string(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+})
+export type Breakpoint = z.infer<typeof BreakpointSchema>
+
+export const ComponentLayoutSchema = z.object({
+  minWidth: z.number().positive().default(10),
+  minHeight: z.number().positive().default(6),
+  maxWidth: z.number().positive().optional(),
+  maxHeight: z.number().positive().optional(),
+  preferredAspectRatio: z.number().positive().optional(),
+  breakpoints: z.array(BreakpointSchema).optional(),
+  autoSize: z.boolean().default(true),
+})
+export type ComponentLayout = z.infer<typeof ComponentLayoutSchema>

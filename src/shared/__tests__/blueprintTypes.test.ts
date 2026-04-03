@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   ComponentBlueprintSchema,
+  ComponentLayoutSchema,
+  BreakpointSchema,
   SearchResultSchema,
   type ComponentBlueprint,
+  type ComponentLayout,
   type SearchResult,
 } from '../blueprintTypes'
 
@@ -305,6 +308,94 @@ describe('SearchResultSchema', () => {
   })
 })
 
+describe('ComponentLayoutSchema', () => {
+  it('applies defaults for minWidth, minHeight, and autoSize', () => {
+    const result = ComponentLayoutSchema.safeParse({})
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.minWidth).toBe(10)
+      expect(result.data.minHeight).toBe(6)
+      expect(result.data.autoSize).toBe(true)
+    }
+  })
+
+  it('validates a complete layout with all fields', () => {
+    const layout = {
+      minWidth: 20,
+      minHeight: 12,
+      maxWidth: 100,
+      maxHeight: 80,
+      preferredAspectRatio: 1.5,
+      breakpoints: [
+        { name: 'mobile', width: 320, height: 568 },
+        { name: 'tablet', width: 768, height: 1024 },
+      ],
+      autoSize: false,
+    }
+
+    const result = ComponentLayoutSchema.safeParse(layout)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.minWidth).toBe(20)
+      expect(result.data.breakpoints).toHaveLength(2)
+      expect(result.data.autoSize).toBe(false)
+    }
+  })
+
+  it('rejects negative minWidth', () => {
+    const result = ComponentLayoutSchema.safeParse({ minWidth: -5 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects zero minHeight', () => {
+    const result = ComponentLayoutSchema.safeParse({ minHeight: 0 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects negative maxWidth', () => {
+    const result = ComponentLayoutSchema.safeParse({ maxWidth: -10 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects zero preferredAspectRatio', () => {
+    const result = ComponentLayoutSchema.safeParse({ preferredAspectRatio: 0 })
+    expect(result.success).toBe(false)
+  })
+
+  it('allows optional fields to be omitted', () => {
+    const result = ComponentLayoutSchema.safeParse({ minWidth: 15 })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.maxWidth).toBeUndefined()
+      expect(result.data.maxHeight).toBeUndefined()
+      expect(result.data.preferredAspectRatio).toBeUndefined()
+      expect(result.data.breakpoints).toBeUndefined()
+    }
+  })
+})
+
+describe('BreakpointSchema', () => {
+  it('validates a valid breakpoint', () => {
+    const result = BreakpointSchema.safeParse({ name: 'desktop', width: 1920, height: 1080 })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects breakpoint with zero width', () => {
+    const result = BreakpointSchema.safeParse({ name: 'bad', width: 0, height: 100 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects breakpoint with negative height', () => {
+    const result = BreakpointSchema.safeParse({ name: 'bad', width: 100, height: -50 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects breakpoint without name', () => {
+    const result = BreakpointSchema.safeParse({ width: 100, height: 100 })
+    expect(result.success).toBe(false)
+  })
+})
+
 describe('TypeScript types', () => {
   it('exports ComponentBlueprint type', () => {
     const blueprint: ComponentBlueprint = {
@@ -324,5 +415,15 @@ describe('TypeScript types', () => {
     }
 
     expect(searchResult.total).toBe(0)
+  })
+
+  it('exports ComponentLayout type', () => {
+    const layout: ComponentLayout = {
+      minWidth: 10,
+      minHeight: 6,
+      autoSize: true,
+    }
+
+    expect(layout.minWidth).toBe(10)
   })
 })

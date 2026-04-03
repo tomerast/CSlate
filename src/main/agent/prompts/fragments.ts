@@ -106,7 +106,7 @@ Seed data should be realistic enough to demonstrate the UI layout. One or two re
 
 ### Grid System
 - Base unit: 8px
-- defaultSize in manifest is in grid units (multiply by 8 for pixels)
+- All component dimensions are in grid units (multiply by 8 for pixels)
 - Typical sizes: small widget = 20×15, medium card = 30×25, large panel = 50×40
 
 ### Manifest Format (required fields)
@@ -131,9 +131,29 @@ Seed data should be realistic enough to demonstrate the UI layout. One or two re
     { "path": "ui.tsx", "type": "ui", "role": "main render" },
     { "path": "logic.ts", "type": "logic", "role": "data hooks" }
   ],
-  "defaultSize": { "width": 30, "height": 25 }
+  "defaultSize": { "width": 30, "height": 25 },
+  "layout": {
+    "minWidth": 15,
+    "minHeight": 10,
+    "maxWidth": 60,
+    "maxHeight": 50,
+    "autoSize": true,
+    "breakpoints": [
+      { "name": "compact", "width": 20, "height": 15 },
+      { "name": "full", "width": 40, "height": 30 }
+    ]
+  }
 }
 \`\`\`
+
+**Layout guidelines:**
+- \`defaultSize\` is the initial size. \`layout\` provides resize constraints.
+- \`minWidth\`/\`minHeight\`: smallest the component can be resized to (required)
+- \`maxWidth\`/\`maxHeight\`: largest allowed (optional, omit for uncapped)
+- \`autoSize: true\` (default): canvas measures DOM and adjusts size automatically
+- \`breakpoints\`: optional responsive sizes the component is designed for. Name them descriptively ("compact", "medium", "full"). Order small to large.
+- Simple widgets (clock, button): skip breakpoints, set tight min/max
+- Complex dashboards: declare 2-3 breakpoints matching your responsive CSS
 `
 
 /**

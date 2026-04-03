@@ -5,6 +5,7 @@ import { join, resolve, sep, dirname } from 'path'
 import { validateComponentPackage } from '@cslate/shared'
 import { bundleComponentDir } from '../lib/bundler'
 import { PlacementSchema, readCanvasJson, updateCanvasJson, type Placement } from '../lib/canvasJson'
+import { solvePlacement } from '../lib/placementSolver'
 import { stripFences } from '@cslate/shared/agent'
 import { buildTool } from './types'
 
@@ -97,22 +98,47 @@ export function createWriteComponentTool(projectDir: string) {
       // 6. Write bundle.js
       await writeFile(join(componentDir, 'bundle.js'), bundle, 'utf-8')
 
-      // 7. Update canvas.json — find a free spot below existing components if no placement given
+      // 7. Calculate placement — use smart solver if no explicit placement
+      const layout = input.manifest.layout as { minWidth?: number; minHeight?: number } | undefined
       const defaultSize = input.manifest.defaultSize as { width?: number; height?: number } | undefined
+      const componentWidth = defaultSize?.width ?? layout?.minWidth ?? 50
+      const componentHeight = defaultSize?.height ?? layout?.minHeight ?? 25
       let placement: Placement
       if (input.placement) {
         placement = input.placement
       } else {
         const canvas = await readCanvasJson(projectDir)
-        const nextY = canvas.components.reduce((maxY, entry) => {
-          return Math.max(maxY, entry.placement.y + entry.placement.height)
-        }, 0)
-        placement = {
-          x: 0,
-          y: nextY,
-          width: defaultSize?.width ?? 50,
-          height: defaultSize?.height ?? 25,
+        const existingPlacements = canvas.components.map((c) => ({ id: c.componentId, ...c.placement }))
+
+        const { readFile } = await import('fs/promises')
+        const existingManifests: Array<{ id: string; tags: string[]; description: string }> = []
+        for (const entry of canvas.components) {
+          try {
+            const manifestRaw = await readFile(
+              join(resolve(projectDir, 'components'), entry.componentId, 'manifest.json'),
+              'utf-8',
+            )
+            const m = JSON.parse(manifestRaw)
+            existingManifests.push({
+              id: entry.componentId,
+              tags: Array.isArray(m.tags) ? m.tags : [],
+              description: typeof m.description === 'string' ? m.description : '',
+            })
+          } catch {
+            existingManifests.push({ id: entry.componentId, tags: [], description: '' })
+          }
         }
+
+        const pos = solvePlacement(
+          {
+            tags: Array.isArray(input.manifest.tags) ? input.manifest.tags as string[] : [],
+            description: typeof input.manifest.description === 'string' ? input.manifest.description as string : '',
+          },
+          { width: componentWidth, height: componentHeight },
+          existingPlacements,
+          existingManifests,
+        )
+        placement = { ...pos, width: componentWidth, height: componentHeight }
       }
       await updateCanvasJson(projectDir, input.componentId, placement)
 

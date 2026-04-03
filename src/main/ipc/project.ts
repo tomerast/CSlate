@@ -3,6 +3,7 @@ import path from 'path'
 import type { IpcMain } from 'electron'
 import type { ComponentPackage, ComponentManifest } from '@cslate/shared'
 import { safePath, safeComponentId } from '../lib/paths'
+import { updateCanvasJson, removeFromCanvasJson } from '../agent/lib/canvasJson'
 import { configStore } from '../lib/store'
 
 export interface AppManifest {
@@ -196,5 +197,29 @@ export function register(ipcMain: IpcMain): void {
     }
 
     return { components }
+  })
+  ipcMain.handle('canvas:update-placement', async (_e, args: {
+    componentId: string
+    placement: { x: number; y: number; width: number; height: number }
+  }) => {
+    const projectDir = configStore.get('projectDir') as string
+    if (!projectDir) throw new Error('No project open')
+    safeComponentId(args.componentId)
+    await updateCanvasJson(projectDir, args.componentId, args.placement)
+    return { success: true }
+  })
+  ipcMain.handle('canvas:remove-component', async (_e, args: {
+    componentId: string
+    deleteFiles?: boolean
+  }) => {
+    const projectDir = configStore.get('projectDir') as string
+    if (!projectDir) throw new Error('No project open')
+    try { safeComponentId(args.componentId) } catch { return { success: false, error: 'Invalid componentId' } }
+    await removeFromCanvasJson(projectDir, args.componentId)
+    if (args.deleteFiles) {
+      const componentDir = path.join(projectDir, 'components', args.componentId)
+      await fs.rm(componentDir, { recursive: true, force: true })
+    }
+    return { success: true }
   })
 }
