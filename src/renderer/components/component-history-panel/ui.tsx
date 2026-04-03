@@ -7,9 +7,9 @@ interface ComponentHistoryPanelProps {
 }
 
 export default function ComponentHistoryPanel({ isOpen, onClose }: ComponentHistoryPanelProps): React.ReactElement | null {
-  if (!isOpen) return null
-
   const { components, loading, resumeComponent } = useHistory()
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
