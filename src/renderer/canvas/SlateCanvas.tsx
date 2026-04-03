@@ -173,6 +173,8 @@ export function SlateCanvas() {
               isSelected={selectedId === comp.componentId}
               onSelect={handleSelect}
               onRemove={handleRemove}
+              allPlacements={allPlacements}
+              onUpdatePlacement={updatePlacement}
             />
           ))}
 

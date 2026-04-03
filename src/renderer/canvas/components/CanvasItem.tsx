@@ -26,6 +26,21 @@ export function CanvasItem({ component, isSelected, onSelect, onRemove, allPlace
     data: { placement: component.placement },
   })
 
+  const layout = (component.manifest as { layout?: ComponentLayout } | null)?.layout
+  const autoSize = useAutoSize(
+    component.componentId,
+    component.placement,
+    {
+      enabled: layout?.autoSize !== false,
+      minWidth: layout?.minWidth ?? 10,
+      minHeight: layout?.minHeight ?? 6,
+      maxWidth: layout?.maxWidth,
+      maxHeight: layout?.maxHeight,
+    },
+    allPlacements,
+    onUpdatePlacement,
+  )
+
   const style: React.CSSProperties = {
     left: x * GRID_PX,
     top: y * GRID_PX,
@@ -82,7 +97,9 @@ export function CanvasItem({ component, isSelected, onSelect, onRemove, allPlace
 
       {/* Component content */}
       <div className="overflow-hidden" style={{ height: height * GRID_PX - 24 }}>
-        <DynamicComponent bundle={component.bundle} />
+        <div ref={autoSize.contentRef} className="w-full h-full">
+          <DynamicComponent bundle={component.bundle} />
+        </div>
       </div>
     </div>
   )
