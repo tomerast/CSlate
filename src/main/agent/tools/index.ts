@@ -12,6 +12,7 @@ export { createWritePipelineTool } from './writePipeline'
 export { createDryRunPipelineTool } from './dryRunPipeline'
 export { createScanLocalPipelinesTool } from './scanLocalPipelines'
 export { createSearchPipelineBlueprintsTool } from './searchPipelineBlueprints'
+export { createRemoveComponentTool } from './removeComponent'
 export type { CSTool, ToolResult, ToolUseContext, ValidationResult } from './types'
 export { buildTool } from './types'
 
@@ -38,6 +39,7 @@ import { createGlobCSTool } from './glob'
 import { createBashCSTool } from './bash'
 import { createLspCSTool } from './lsp'
 import { createWebFetchCSTool } from './webFetch'
+import { createRemoveComponentTool } from './removeComponent'
 
 // PermissionBroker defined in bash/permissions.ts to avoid circular imports
 export type { PermissionBroker } from './bash/permissions'
@@ -106,6 +108,7 @@ export function buildToolSet(
     createScanLocalComponentsCSTool(deps.projectDir),
     createRenderComponentTool(),
     createWriteComponentTool(deps.projectDir),
+    createRemoveComponentTool(deps.projectDir),
     createReviewCodeTool(deps.registry, deps.fastModelId),
     createReadFileCSTool(deps.projectDir),
     createGrepCSTool(deps.projectDir),

@@ -136,6 +136,21 @@ export function useChat() {
         }
       }
 
+      if (d.tool === 'removeComponent') {
+        const r = (d.result?.data ?? d.result) as { removed?: string[] }
+        if (r?.removed) {
+          for (const id of r.removed) {
+            useCanvasStore.getState().removeComponent(id)
+          }
+          // Also remove from active session tracking
+          const remaining = useChatStore.getState().activeComponentIds.filter(
+            id => !r.removed!.includes(id)
+          )
+          useChatStore.getState().setActiveComponentIds(remaining)
+        }
+        return
+      }
+
       if (d.tool === 'writeComponent') {
         // buildTool wraps results in { data: {...} } — unwrap for stream path (skills)
         // Orchestrator sends unwrapped results directly, so handle both shapes

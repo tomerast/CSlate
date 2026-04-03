@@ -3,7 +3,7 @@ import { PLATFORM_KNOWLEDGE, BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prom
 
 const FIX_TOOLS = [
   'readManifest', 'readProjectContext', 'readFile', 'grep', 'glob',
-  'writeComponent', 'renderComponent', 'validateManifest',
+  'writeComponent', 'removeComponent', 'renderComponent', 'validateManifest',
   'bash', 'lsp',
 ]
 
@@ -26,11 +26,19 @@ export function componentFixSkill(allTools: Record<string, import('ai').Tool>): 
       const manifest = target?.manifest as Record<string, unknown> | undefined
       const targetName = (manifest?.name as string) ?? targetId ?? 'unknown'
 
-      return `You are the CSlate Agent fixing an existing component.
+      const activeList = ctx.activeComponents.length > 0
+        ? ctx.activeComponents.map(c => {
+            const m = (c.manifest ?? {}) as Record<string, unknown>
+            return `- ${c.componentId} ("${(m.name as string) || c.componentId.replace(/_/g, ' ')}")`
+          }).join('\n')
+        : 'None'
 
-## Target Component
-- ID: \`${targetId}\`
-- Name: ${targetName}
+      return `You are the CSlate Agent — you fix, modify, and manage existing components on the canvas.
+
+## Active Components on Canvas
+${activeList}
+
+${targetId ? `## Target Component\n- ID: \`${targetId}\`\n- Name: ${targetName}` : '## No specific target\nThe user may be referring to all components or asking a general canvas operation.'}
 
 ## Workflow
 1. READ — Call readManifest for "${targetId}" to get the manifest contract. Then readFile each source file listed in the manifest's files array.
@@ -42,6 +50,12 @@ export function componentFixSkill(allTools: Record<string, import('ai').Tool>): 
    - manifest: the manifest (updated if needed, otherwise pass the original)
    - republish: true for bug fixes and functional changes, false for minor visual/style tweaks
    writeComponent handles bundling, validation, and canvas update automatically.
+
+## Removing Components
+If the user asks to remove a component (or clear/remove all), call removeComponent:
+- Single: removeComponent({ componentIds: ["${targetId}"] })
+- All: removeComponent({ componentIds: ["*"] })
+After removing, tell the user they can restore any component from the Component History panel.
 
 ## Rules
 - Read before writing — never guess the current source
