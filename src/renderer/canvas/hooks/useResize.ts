@@ -78,7 +78,7 @@ export function findNearestDetent(
 // ── Direction helpers ──────────────────────────────────────────────────
 
 const GRID_PX = 8
-const COLLISION_GUTTER = 1
+const COLLISION_GUTTER = 2
 const DETENT_THRESHOLD = 4 // grid units
 
 function isCornerDirection(dir: ResizeDirection): boolean {

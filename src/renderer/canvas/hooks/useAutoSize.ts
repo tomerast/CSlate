@@ -25,27 +25,38 @@ export function useAutoSize(
   const hasInitialized = useRef(false)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Stabilize tryGrow via refs to avoid ResizeObserver disconnect/reconnect churn
+  // when placement or allPlacements change (which happens on every drag/resize).
+  const placementRef = useRef(placement)
+  placementRef.current = placement
+  const allPlacementsRef = useRef(allPlacements)
+  allPlacementsRef.current = allPlacements
+  const configRef = useRef(config)
+  configRef.current = config
+
   const tryGrow = useCallback(
     (contentWidth: number, contentHeight: number) => {
-      const neededW = Math.max(config.minWidth, Math.ceil(contentWidth / GRID_PX))
-      const neededH = Math.max(config.minHeight, Math.ceil(contentHeight / GRID_PX))
-      const targetW = config.maxWidth ? Math.min(neededW, config.maxWidth) : neededW
-      const targetH = config.maxHeight ? Math.min(neededH, config.maxHeight) : neededH
+      const cfg = configRef.current
+      const pl = placementRef.current
+      const neededW = Math.max(cfg.minWidth, Math.ceil(contentWidth / GRID_PX))
+      const neededH = Math.max(cfg.minHeight, Math.ceil(contentHeight / GRID_PX))
+      const targetW = cfg.maxWidth ? Math.min(neededW, cfg.maxWidth) : neededW
+      const targetH = cfg.maxHeight ? Math.min(neededH, cfg.maxHeight) : neededH
 
       // Grow only
-      const newW = Math.max(placement.width, targetW)
-      const newH = Math.max(placement.height, targetH)
+      const newW = Math.max(pl.width, targetW)
+      const newH = Math.max(pl.height, targetH)
 
-      if (newW === placement.width && newH === placement.height) return
+      if (newW === pl.width && newH === pl.height) return
 
       // Collision check
-      const candidate: Placement = { x: placement.x, y: placement.y, width: newW, height: newH }
-      const others = allPlacements.filter((p) => p.id !== componentId)
+      const candidate: Placement = { x: pl.x, y: pl.y, width: newW, height: newH }
+      const others = allPlacementsRef.current.filter((p) => p.id !== componentId)
       if (checkCollision(candidate, others, GUTTER).collides) return
 
       onUpdate(componentId, candidate)
     },
-    [componentId, placement, config, allPlacements, onUpdate],
+    [componentId, onUpdate],
   )
 
   useEffect(() => {

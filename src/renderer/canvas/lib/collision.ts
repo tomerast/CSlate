@@ -115,7 +115,8 @@ export function clampDragPosition(
 
 /**
  * Binary search to shrink resize delta until no collision.
- * Keeps position (x, y) fixed, interpolates width/height between original and candidate.
+ * Interpolates x, y, width, height between original and candidate so that
+ * N/W/NW handle resizes (which shift position) are correctly handled.
  */
 export function clampResize(
   candidate: Placement,
@@ -128,8 +129,10 @@ export function clampResize(
     return candidate;
   }
 
-  let lo = 0; // original size
-  let hi = 1; // candidate size
+  let lo = 0; // original
+  let hi = 1; // candidate
+  const dx = candidate.x - original.x;
+  const dy = candidate.y - original.y;
   const dw = candidate.width - original.width;
   const dh = candidate.height - original.height;
 
@@ -137,8 +140,8 @@ export function clampResize(
   for (let i = 0; i < ITERATIONS; i++) {
     const mid = (lo + hi) / 2;
     const test: Placement = {
-      x: candidate.x,
-      y: candidate.y,
+      x: original.x + dx * mid,
+      y: original.y + dy * mid,
       width: original.width + dw * mid,
       height: original.height + dh * mid,
     };
@@ -150,8 +153,8 @@ export function clampResize(
   }
 
   return {
-    x: candidate.x,
-    y: candidate.y,
+    x: Math.round(original.x + dx * lo),
+    y: Math.round(original.y + dy * lo),
     width: Math.round(original.width + dw * lo),
     height: Math.round(original.height + dh * lo),
   };

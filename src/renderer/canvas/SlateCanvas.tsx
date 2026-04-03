@@ -17,7 +17,7 @@ import { clampDragPosition, clampToBounds, type PlacementWithId } from './lib/co
 
 const GRID_PX = 8
 const SNAP_THRESHOLD = 1 // grid units
-const COLLISION_GUTTER = 1 // grid units
+const COLLISION_GUTTER = 2 // grid units — must match all subsystems
 
 export function SlateCanvas() {
   const components = useCanvasStore((s) => s.components)
