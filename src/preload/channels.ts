@@ -36,6 +36,7 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'canvas:load',
   'canvas:add-component',
   'canvas:update-placement',
+  'canvas:remove-component',
   'session:create',
   'session:save',
   'session:load',

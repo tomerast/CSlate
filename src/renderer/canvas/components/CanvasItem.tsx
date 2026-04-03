@@ -1,8 +1,11 @@
 import React from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import type { CanvasComponent } from '../../store/canvasStore'
+import type { CanvasComponent, Placement } from '../../store/canvasStore'
 import { DynamicComponent } from '../../sandbox/DynamicComponent'
+import { useAutoSize } from '../hooks/useAutoSize'
+import type { PlacementWithId } from '../lib/collision'
+import type { ComponentLayout } from '../../../shared/blueprintTypes'
 
 const GRID_PX = 8
 
@@ -10,9 +13,12 @@ interface Props {
   component: CanvasComponent
   isSelected: boolean
   onSelect: (id: string) => void
+  onRemove: (componentId: string) => void
+  allPlacements: PlacementWithId[]
+  onUpdatePlacement: (componentId: string, placement: Placement) => void
 }
 
-export function CanvasItem({ component, isSelected, onSelect }: Props) {
+export function CanvasItem({ component, isSelected, onSelect, onRemove, allPlacements, onUpdatePlacement }: Props) {
   const { x, y, width, height } = component.placement
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -60,6 +66,18 @@ export function CanvasItem({ component, isSelected, onSelect }: Props) {
         <span className="text-[10px] text-muted/50 truncate leading-none">
           {component.componentId}
         </span>
+        <button
+          className="ml-auto p-0.5 rounded hover:bg-error/20 hover:text-error text-muted/40 transition-colors"
+          title="Remove component"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove(component.componentId)
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 3l6 6M9 3l-6 6" />
+          </svg>
+        </button>
       </div>
 
       {/* Component content */}

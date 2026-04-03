@@ -24,6 +24,7 @@ export function SlateCanvas() {
   const preview = useCanvasStore((s) => s.preview)
   const buildingCards = useCanvasStore((s) => s.buildingCards)
   const updatePlacement = useCanvasStore((s) => s.updatePlacement)
+  const removeComponent = useCanvasStore((s) => s.removeComponent)
 
   const shortcut = window.electron.platform === 'darwin' ? '⌘K' : 'Ctrl+K'
   const isEmpty = components.length === 0 && !preview && buildingCards.length === 0
@@ -118,6 +119,12 @@ export function SlateCanvas() {
     setSelectedId(id)
   }, [])
 
+  const handleRemove = useCallback((componentId: string) => {
+    window.electron.invoke('canvas:remove-component', { componentId, deleteFiles: false })
+    removeComponent(componentId)
+    setSelectedId((prev) => (prev === componentId ? null : prev))
+  }, [removeComponent])
+
   // Deselect when clicking canvas background
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -165,6 +172,7 @@ export function SlateCanvas() {
               component={comp}
               isSelected={selectedId === comp.componentId}
               onSelect={handleSelect}
+              onRemove={handleRemove}
             />
           ))}
 
