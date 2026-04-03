@@ -1,20 +1,44 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { useCanvasStore } from '../store/canvasStore'
+
+const COUNTDOWN_MS = 120_000
 
 export function PublishToast() {
   const publishState = useChatStore((s) => s.publishState)
   const setPublishState = useChatStore((s) => s.setPublishState)
+  const panelOpen = useChatStore((s) => s.panelOpen)
   const preview = useCanvasStore((s) => s.preview)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevPanelOpenRef = useRef<boolean>(panelOpen)
 
+  // Auto-upload after countdown expires
   useEffect(() => {
-    if (publishState === 'published') {
-      const timer = setTimeout(() => {
-        setPublishState('hidden')
-      }, 3000)
-      return () => clearTimeout(timer)
+    if (publishState !== 'countdown') return
+    timerRef.current = setTimeout(() => {
+      handleShare()
+    }, COUNTDOWN_MS)
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [publishState, setPublishState])
+  }, [publishState])
+
+  // Cancel countdown when panel closes (only when it transitions from open to closed)
+  useEffect(() => {
+    const wasOpen = prevPanelOpenRef.current
+    prevPanelOpenRef.current = panelOpen
+    if (wasOpen && !panelOpen && publishState === 'countdown') {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      setPublishState('hidden')
+    }
+  }, [panelOpen])
+
+  // Auto-hide after published
+  useEffect(() => {
+    if (publishState !== 'published') return
+    const timer = setTimeout(() => setPublishState('hidden'), 3000)
+    return () => clearTimeout(timer)
+  }, [publishState])
 
   async function handleShare() {
     setPublishState('publishing')
@@ -28,19 +52,17 @@ export function PublishToast() {
         manifest: preview?.manifest,
       })
       setPublishState('published')
-    } catch (error) {
-      console.error('Failed to publish:', error)
-      setPublishState('prompting')
+    } catch {
+      setPublishState('hidden')
     }
   }
 
-  function handleDecline() {
-    setPublishState('declined')
+  function handleKeepPrivate() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setPublishState('hidden')
   }
 
-  if (publishState === 'hidden' || publishState === 'declined') {
-    return null
-  }
+  if (publishState === 'hidden' || !preview?.manifest) return null
 
   if (!preview?.manifest) {
     return null
@@ -73,26 +95,32 @@ export function PublishToast() {
     )
   }
 
-  // publishState === 'prompting'
+  // publishState === 'countdown'
   return (
-    <div className="mx-3 mb-2 p-3 bg-surface border border-border rounded-md">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm text-text">Share with the CSlate community?</span>
-        <div className="flex gap-2">
-          <button
-            onClick={handleDecline}
-            className="px-3 py-1 text-xs text-muted hover:text-text border border-border rounded-md transition-colors"
-          >
-            Not now
-          </button>
-          <button
-            onClick={handleShare}
-            className="px-3 py-1 text-xs text-white bg-primary rounded-md hover:opacity-90 transition-opacity"
-          >
-            Share
-          </button>
-        </div>
+    <div className="mx-3 mb-2 bg-surface border border-border rounded-md overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-3 py-2">
+        <span className="text-sm text-text">Sharing with community…</span>
+        <button
+          onClick={handleKeepPrivate}
+          className="px-3 py-1 text-xs text-muted hover:text-text border border-border rounded-md transition-colors flex-shrink-0"
+        >
+          Keep private
+        </button>
       </div>
+      <div
+        role="progressbar"
+        aria-label="Sharing countdown"
+        className="h-0.5 bg-primary/40 origin-left"
+        style={{
+          animation: `shrink ${COUNTDOWN_MS}ms linear forwards`,
+        }}
+      />
+      <style>{`
+        @keyframes shrink {
+          from { transform: scaleX(1); }
+          to   { transform: scaleX(0); }
+        }
+      `}</style>
     </div>
   )
 }

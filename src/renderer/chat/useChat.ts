@@ -113,7 +113,6 @@ export function useChat() {
         const { bundle, files, manifest, placement } = d.result
         if (bundle && files && manifest) {
           useCanvasStore.getState().setPreview({ bundle, files, manifest, placement })
-          setPublishState('prompting')
         }
       } else if (d.tool === 'writeComponent' && d.result?.success) {
         const { componentId, bundle, placement, manifest } = d.result
@@ -121,7 +120,7 @@ export function useChat() {
           useCanvasStore.getState().addComponent({ componentId, bundle, placement, manifest })
           useCanvasStore.getState().clearPreview()
           useCanvasStore.getState().removeBuildingCard(tabId)
-          setPublishState('prompting')
+          setPublishState('countdown')
         }
       }
     })

@@ -8,7 +8,7 @@ interface ChatState {
   status: 'idle' | 'generating' | 'error'
   panelOpen: boolean
   turnCount: number
-  publishState: 'hidden' | 'prompting' | 'publishing' | 'published' | 'declined'
+  publishState: 'hidden' | 'countdown' | 'publishing' | 'published'
   statusLabel: string
   messageQueue: string[]
   addMessage(msg: NewMessage): void
