@@ -26,9 +26,7 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
   } = useConfigForm(props)
 
   const [connectEmail, setConnectEmail] = useState('')
-  const [connectStatus, setConnectStatus] = useState<'idle' | 'connecting' | 'pending_email' | 'error'>(
-    props.serverEmail ? 'idle' : 'idle'
-  )
+  const [connectStatus, setConnectStatus] = useState<'idle' | 'connecting' | 'pending_email' | 'error'>('idle')
   const [connectError, setConnectError] = useState('')
   const isConnected = !!props.serverEmail
 
