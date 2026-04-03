@@ -126,6 +126,7 @@ export function useChat() {
       const d = data as {
         tool: string
         result: {
+          data?: Record<string, unknown>
           success?: boolean
           bundle?: string
           files?: Record<string, string>
@@ -135,8 +136,12 @@ export function useChat() {
         }
       }
 
-      if (d.tool === 'writeComponent' && d.result?.success) {
-        const { componentId, bundle, placement, manifest } = d.result
+      if (d.tool === 'writeComponent') {
+        // buildTool wraps results in { data: {...} } — unwrap for stream path (skills)
+        // Orchestrator sends unwrapped results directly, so handle both shapes
+        const r = (d.result?.data ?? d.result) as typeof d.result
+        if (!r?.success) return
+        const { componentId, bundle, placement, manifest } = r
         if (componentId && bundle && placement && manifest) {
           // Capture publish payload BEFORE clearing preview (preview has source files)
           const preview = useCanvasStore.getState().preview

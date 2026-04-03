@@ -87,7 +87,7 @@ export class AgentEngine {
     if (route.route === 'orchestrator') {
       yield* this.runOrchestrator(compactedInput, route, memory, activeComponents, log, abortController)
     } else if (route.route === 'skill' && route.skill) {
-      yield* this.runSkill(route.skill, compactedInput, memory, activeComponents, log, abortController)
+      yield* this.runSkill(route.skill, compactedInput, route, memory, activeComponents, log, abortController)
     } else {
       yield* this.runDirect(compactedInput, memory, log, abortController)
     }
@@ -131,6 +131,7 @@ export class AgentEngine {
   private async *runSkill(
     skillName: string,
     input: RunInput,
+    route: { targetComponentId?: string | null },
     memory: Awaited<ReturnType<typeof readMemory>>,
     activeComponents: Array<{ componentId: string; manifest: unknown }>,
     log: Logger,
@@ -145,7 +146,7 @@ export class AgentEngine {
       tabId: this.options.tabId,
       memory,
       activeComponents,
-      targetComponentId: input.targetComponentId,
+      targetComponentId: input.targetComponentId ?? route.targetComponentId ?? undefined,
       conversationHistory: input.conversationHistory,
     }
 
