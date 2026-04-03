@@ -97,12 +97,20 @@ export function useChat() {
         assignment: t.assignment,
         status: 'pending' as const,
       }))
-      useCanvasStore.getState().updateBuildingCard(tabId, {
-        phase: 'plan',
-        componentName: d.componentId.replace(/_/g, ' '),
-        description: d.description,
-        tasks,
-      })
+
+      // If modifying an existing component, remove the building card — the fix
+      // happens in-place on the existing canvas component, no overlay needed.
+      const existing = useCanvasStore.getState().components.find(c => c.componentId === d.componentId)
+      if (existing) {
+        useCanvasStore.getState().removeBuildingCard(tabId)
+      } else {
+        useCanvasStore.getState().updateBuildingCard(tabId, {
+          phase: 'plan',
+          componentName: d.componentId.replace(/_/g, ' '),
+          description: d.description,
+          tasks,
+        })
+      }
     })
 
     const offBuildPartial = window.electron.on('agent:build:partial', (data: unknown) => {
@@ -216,6 +224,7 @@ export function useChat() {
         projectDir,
         tabId,
         conversationHistory: history.map(m => ({ role: m.role, content: m.content })),
+        activeComponentIds: useChatStore.getState().activeComponentIds,
       })
       setStatus('idle')
       incrementTurnCount()

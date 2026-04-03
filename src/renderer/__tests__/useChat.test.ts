@@ -145,7 +145,8 @@ describe('useChat', () => {
         message: 'Hello',
         projectDir: '',
         tabId: expect.any(String),
-        conversationHistory: []
+        conversationHistory: [],
+        activeComponentIds: [],
       })
     })
 
