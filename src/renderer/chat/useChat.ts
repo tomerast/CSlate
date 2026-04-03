@@ -157,7 +157,11 @@ export function useChat() {
           useCanvasStore.getState().addComponent({ componentId, bundle, placement, manifest })
           useCanvasStore.getState().clearPreview()
           useCanvasStore.getState().removeBuildingCard(tabId)
-          setPublishState('countdown')
+          // Only trigger publish countdown if the agent marked this as worth sharing
+          const shouldPublish = (r as Record<string, unknown>).republish !== false
+          if (shouldPublish) {
+            setPublishState('countdown')
+          }
           // Link this component to the active session
           useChatStore.getState().addActiveComponentId(componentId)
         }

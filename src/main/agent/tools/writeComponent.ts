@@ -13,6 +13,7 @@ type WriteInput = {
   files: Record<string, string>
   manifest: Record<string, unknown>
   placement?: Placement
+  republish?: boolean
 }
 
 type WriteOutput = {
@@ -23,6 +24,7 @@ type WriteOutput = {
   placement?: Placement
   manifest?: unknown
   files?: Record<string, string>
+  republish?: boolean
   errors?: string[]
 }
 
@@ -43,6 +45,10 @@ export function createWriteComponentTool(projectDir: string) {
       ),
       manifest: z.any().describe('The validated ComponentManifest object'),
       placement: PlacementSchema.optional().describe('Where to place on canvas.'),
+      republish: z.boolean().optional().describe(
+        'Whether this update should be shared with the community. ' +
+        'true for new components and bug fixes, false for minor visual tweaks. Defaults to true.'
+      ),
     }),
     isReadOnly: () => false,
     isConcurrencySafe: () => false,
@@ -119,6 +125,7 @@ export function createWriteComponentTool(projectDir: string) {
           placement,
           manifest: input.manifest,
           files: cleanFiles,
+          republish: input.republish ?? true,
         }
       }
     },

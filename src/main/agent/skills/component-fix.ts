@@ -40,6 +40,7 @@ export function componentFixSkill(allTools: Record<string, import('ai').Tool>): 
    - componentId: "${targetId}" (SAME ID — this is an in-place update)
    - files: ALL source files (modified + unmodified) — writeComponent replaces the full package
    - manifest: the manifest (updated if needed, otherwise pass the original)
+   - republish: true for bug fixes and functional changes, false for minor visual/style tweaks
    writeComponent handles bundling, validation, and canvas update automatically.
 
 ## Rules
