@@ -31,11 +31,26 @@ interface CanvasState {
   hydrate(components: CanvasComponent[]): void
   addComponent(comp: CanvasComponent): void
   removeComponent(componentId: string): void
+  updatePlacement(componentId: string, placement: Placement): void
   setPreview(preview: CanvasPreview): void
   clearPreview(): void
   addBuildingCard(card: BuildingCard): void
   updateBuildingCard(buildId: string, patch: Partial<Omit<BuildingCard, 'buildId'>>): void
   removeBuildingCard(buildId: string): void
+}
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+const pendingUpdates = new Map<string, Placement>()
+function debouncedPersistPlacement(componentId: string, placement: Placement) {
+  pendingUpdates.set(componentId, placement)
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = setTimeout(() => {
+    for (const [id, p] of pendingUpdates) {
+      window.electron.invoke('canvas:update-placement', { componentId: id, placement: p })
+    }
+    pendingUpdates.clear()
+    persistTimer = null
+  }, 500)
 }
 
 export const useCanvasStore = create<CanvasState>()(persist((set) => ({
@@ -55,6 +70,15 @@ export const useCanvasStore = create<CanvasState>()(persist((set) => ({
   removeComponent: (componentId) => set((s) => ({
     components: s.components.filter(c => c.componentId !== componentId),
   })),
+
+  updatePlacement: (componentId, placement) => {
+    set((s) => ({
+      components: s.components.map(c =>
+        c.componentId === componentId ? { ...c, placement } : c
+      ),
+    }))
+    debouncedPersistPlacement(componentId, placement)
+  },
 
   setPreview: (preview) => set({ preview }),
   clearPreview: () => set({ preview: null }),
