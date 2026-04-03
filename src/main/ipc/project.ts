@@ -160,8 +160,8 @@ export function register(ipcMain: IpcMain): void {
   ipcMain.handle('component:list', (_e, args: { projectDir: string }) =>
     listComponents(args.projectDir))
   ipcMain.handle('canvas:load', async (_e, args: { projectDir: string }) => {
-    if (!args.projectDir) return { components: [] }
-    const canvasPath = path.join(args.projectDir, 'canvas.json')
+    const projectDir = args.projectDir || process.cwd()
+    const canvasPath = path.join(projectDir, 'canvas.json')
     let canvas: { components: Array<{ componentId: string; placement: { x: number; y: number; width: number; height: number } }> }
     try {
       const raw = await fs.readFile(canvasPath, 'utf-8')
@@ -179,7 +179,7 @@ export function register(ipcMain: IpcMain): void {
 
     for (const entry of (canvas.components ?? [])) {
       try { safeComponentId(entry.componentId) } catch { continue }
-      const componentDir = path.join(args.projectDir, 'components', entry.componentId)
+      const componentDir = path.join(projectDir, 'components', entry.componentId)
       try {
         const bundle = await fs.readFile(path.join(componentDir, 'bundle.js'), 'utf-8')
         const manifestRaw = await fs.readFile(path.join(componentDir, 'manifest.json'), 'utf-8')
