@@ -58,3 +58,42 @@ describe('chatStore messageQueue', () => {
     expect(useChatStore.getState().messageQueue).toEqual([])
   })
 })
+
+describe('chatStore session fields', () => {
+  beforeEach(() => {
+    useChatStore.getState().reset()
+  })
+
+  it('starts with null activeSessionId', () => {
+    expect(useChatStore.getState().activeSessionId).toBeNull()
+  })
+
+  it('starts with empty activeComponentIds', () => {
+    expect(useChatStore.getState().activeComponentIds).toEqual([])
+  })
+
+  it('setActiveSessionId updates the session id', () => {
+    useChatStore.getState().setActiveSessionId('session-123')
+    expect(useChatStore.getState().activeSessionId).toBe('session-123')
+  })
+
+  it('setActiveComponentIds updates the component ids', () => {
+    useChatStore.getState().setActiveComponentIds(['widget_a', 'widget_b'])
+    expect(useChatStore.getState().activeComponentIds).toEqual(['widget_a', 'widget_b'])
+  })
+
+  it('addActiveComponentId adds without duplicates', () => {
+    useChatStore.getState().setActiveComponentIds(['widget_a'])
+    useChatStore.getState().addActiveComponentId('widget_a')
+    useChatStore.getState().addActiveComponentId('widget_b')
+    expect(useChatStore.getState().activeComponentIds).toEqual(['widget_a', 'widget_b'])
+  })
+
+  it('reset clears session fields', () => {
+    useChatStore.getState().setActiveSessionId('session-123')
+    useChatStore.getState().setActiveComponentIds(['widget_a'])
+    useChatStore.getState().reset()
+    expect(useChatStore.getState().activeSessionId).toBeNull()
+    expect(useChatStore.getState().activeComponentIds).toEqual([])
+  })
+})
