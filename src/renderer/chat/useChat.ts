@@ -143,14 +143,15 @@ export function useChat() {
         if (!r?.success) return
         const { componentId, bundle, placement, manifest } = r
         if (componentId && bundle && placement && manifest) {
-          // Capture publish payload BEFORE clearing preview (preview has source files)
+          // Source files: prefer preview (orchestrator path), fall back to result (fix skill path)
           const preview = useCanvasStore.getState().preview
+          const sourceFiles = preview?.files ?? (r as Record<string, unknown>).files as Record<string, string> | undefined ?? {}
           const m = (manifest ?? {}) as Record<string, unknown>
           setPublishPayload({
             name: (m.name as string) ?? 'Untitled Component',
             description: (m.description as string) ?? 'A CSlate component',
             tags: (m.tags as string[]) ?? [],
-            source: preview?.files ?? {},
+            source: sourceFiles,
             manifest,
           })
           useCanvasStore.getState().addComponent({ componentId, bundle, placement, manifest })

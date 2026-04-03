@@ -22,6 +22,7 @@ type WriteOutput = {
   bundle?: string
   placement?: Placement
   manifest?: unknown
+  files?: Record<string, string>
   errors?: string[]
 }
 
@@ -117,6 +118,7 @@ export function createWriteComponentTool(projectDir: string) {
           bundle,
           placement,
           manifest: input.manifest,
+          files: cleanFiles,
         }
       }
     },

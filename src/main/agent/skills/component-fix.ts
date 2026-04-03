@@ -21,7 +21,7 @@ export function componentFixSkill(allTools: Record<string, import('ai').Tool>): 
     temperature: 0.1,
     tools,
     systemPrompt: (ctx: AgentContext) => {
-      const targetId = ctx.targetComponentId
+      const targetId = ctx.targetComponentId ?? ctx.activeComponents[0]?.componentId
       const target = ctx.activeComponents.find(c => c.componentId === targetId)
       const manifest = target?.manifest as Record<string, unknown> | undefined
       const targetName = (manifest?.name as string) ?? targetId ?? 'unknown'
