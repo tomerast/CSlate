@@ -112,12 +112,10 @@ export class CSlateServerClient {
   }
 
   /**
-   * The client's manifest.json uses a different schema from the server's ComponentManifestSchema.
-   * This method normalizes it:
-   *   - Adds `title` (display name) and derives `name` (slug) from it
-   *   - Adds `version` default
-   *   - Converts `files` from array-of-objects to array-of-strings
-   *   - Converts `inputs`/`outputs`/`events`/`actions` from records to arrays
+   * Normalizes the client manifest.json to match the server's upload schema.
+   * The client uses @cslate/shared format (records for inputs/outputs/events/actions,
+   * FileEntry objects for files) while the server expects arrays and filename strings.
+   * See packages/pipeline/src/types.ts for the full server schema.
    */
   private normalizeManifest(payload: PublishPayload): RawManifest {
     const raw = (payload.manifest ?? {}) as RawManifest
@@ -129,10 +127,10 @@ export class CSlateServerClient {
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '')
 
-    // Convert a record of { key: {...} } to an array of [{ name: key, ...rest }]
+    // Convert a {key: {...}} record to [{name: key, ...rest}] array
     function recordToArray(value: unknown): RawManifest[] | undefined {
       if (value == null) return undefined
-      if (Array.isArray(value)) return value.length > 0 ? value as RawManifest[] : undefined
+      if (Array.isArray(value)) return value.length > 0 ? (value as RawManifest[]) : undefined
       if (typeof value === 'object') {
         const entries = Object.entries(value as Record<string, RawManifest>).map(([k, v]) => ({
           name: k,
@@ -143,7 +141,7 @@ export class CSlateServerClient {
       return undefined
     }
 
-    // Normalize files: array of {path,...} objects → array of path strings
+    // Normalize files: [{path: "ui.tsx", ...}] → ["ui.tsx"], falling back to source keys
     let files: string[]
     const rawFiles = raw.files
     if (Array.isArray(rawFiles) && rawFiles.length > 0) {
@@ -154,28 +152,33 @@ export class CSlateServerClient {
     if (files.length === 0) files = Object.keys(payload.source)
 
     const normalized: RawManifest = {
+      ...raw,
       name,
       title: displayName,
       description: (raw.description as string | undefined) ?? payload.description,
       version: (raw.version as string | undefined) ?? '1.0.0',
       files,
-      defaultSize: raw.defaultSize ?? { width: 40, height: 30 },
       tags: Array.isArray(raw.tags) && (raw.tags as string[]).length > 0
         ? raw.tags
         : payload.tags.length > 0 ? payload.tags : ['component'],
     }
 
+    // Convert records to arrays (server schema uses arrays, shared schema uses records)
     const inputs = recordToArray(raw.inputs)
     if (inputs) normalized.inputs = inputs
+    else delete normalized.inputs
 
     const outputs = recordToArray(raw.outputs)
     if (outputs) normalized.outputs = outputs
+    else delete normalized.outputs
 
     const events = recordToArray(raw.events)
     if (events) normalized.events = events
+    else delete normalized.events
 
     const actions = recordToArray(raw.actions)
     if (actions) normalized.actions = actions
+    else delete normalized.actions
 
     return normalized
   }
