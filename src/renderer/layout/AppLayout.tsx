@@ -77,7 +77,7 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
     await submit(text)
   }, [submit])
 
-  const showTriggerButton = messages.length === 0 && !panelOpen
+  const showTriggerButton = messages.length === 0 && !panelOpen && !cmdBarOpen
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background">

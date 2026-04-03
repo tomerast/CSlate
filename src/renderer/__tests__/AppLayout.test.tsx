@@ -30,11 +30,13 @@ describe('AppLayout chat visibility', () => {
   })
 
   it('Cmd+K after ESC restores and opens chat bar', () => {
-    const { queryByTitle } = render(<AppLayout />)
+    const { queryByPlaceholderText } = render(<AppLayout />)
     fireEvent.keyDown(window, { key: 'Escape' })
-    expect(queryByTitle(/Ask anything/i)).toBeNull()
+    // After ESC, FloatingChatBar is hidden so input is gone
+    expect(queryByPlaceholderText(/Ask anything/i)).toBeNull()
     fireEvent.keyDown(window, { key: 'k', metaKey: true })
-    expect(queryByTitle(/Ask anything/i)).toBeTruthy()
+    // After Cmd+K, FloatingChatBar is restored and cmdBarOpen=true shows the input
+    expect(queryByPlaceholderText(/Ask anything/i)).toBeTruthy()
   })
 
   it('ESC also closes an open panel', () => {
