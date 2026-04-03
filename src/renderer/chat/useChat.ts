@@ -227,6 +227,20 @@ export function useChat() {
       }
     })
 
+    const offAction = window.electron.on('agent:action', (data: unknown) => {
+      const d = data as { type: string; componentId?: string; componentIds?: string[] }
+      if (d.type === 'remove-component' && d.componentId) {
+        useCanvasStore.getState().removeComponent(d.componentId)
+        const remaining = useChatStore.getState().activeComponentIds.filter(id => id !== d.componentId)
+        useChatStore.getState().setActiveComponentIds(remaining)
+      } else if (d.type === 'clear-canvas' && d.componentIds) {
+        for (const id of d.componentIds) {
+          useCanvasStore.getState().removeComponent(id)
+        }
+        useChatStore.getState().setActiveComponentIds([])
+      }
+    })
+
     const offError = window.electron.on('agent:error', (data: unknown) => {
       const d = data as { message: string; code?: string }
       if (d.code === 'UNCONFIGURED_LLM') {
@@ -268,6 +282,7 @@ export function useChat() {
       offBuildPartial()
       offToolResult()
       offOrchestratorStatus()
+      offAction()
       offError()
       useChatStore.setState({ statusLabel: '' })
       useCanvasStore.getState().removeBuildingCard(tabId)

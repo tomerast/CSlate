@@ -3,7 +3,7 @@ import { PLATFORM_KNOWLEDGE, BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prom
 
 const FIX_TOOLS = [
   'readManifest', 'readProjectContext', 'readFile', 'grep', 'glob',
-  'writeComponent', 'removeComponent', 'renderComponent', 'validateManifest',
+  'writeComponent', 'renderComponent', 'validateManifest',
   'bash', 'lsp',
 ]
 
@@ -50,12 +50,6 @@ ${targetId ? `## Target Component\n- ID: \`${targetId}\`\n- Name: ${targetName}`
    - manifest: the manifest (updated if needed, otherwise pass the original)
    - republish: true for bug fixes and functional changes, false for minor visual/style tweaks
    writeComponent handles bundling, validation, and canvas update automatically.
-
-## Removing Components
-If the user asks to remove a component (or clear/remove all), call removeComponent:
-- Single: removeComponent({ componentIds: ["${targetId}"] })
-- All: removeComponent({ componentIds: ["*"] })
-After removing, tell the user they can restore any component from the Component History panel.
 
 ## Rules
 - Read before writing — never guess the current source

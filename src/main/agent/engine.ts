@@ -16,6 +16,7 @@ import { buildSkillRegistry, type AgentContext } from './skills/index'
 import { Orchestrator } from './orchestrator/index'
 import type { OrchestratorContext } from './orchestrator/types'
 import { buildToolSet } from './tools/index'
+import { actionRegistry, type ActionName } from './actions/index'
 import type { PermissionBroker } from './tools/bash/permissions'
 import { createReadProjectContextCSTool } from './tools/readProjectContext'
 import { CSlateServerClient } from '../server/CSlateServerClient'
@@ -84,7 +85,9 @@ export class AgentEngine {
     log.info({ route: route.route, skill: route.skill, summary: route.summary }, 'intent routed')
 
     // Dispatch based on route
-    if (route.route === 'orchestrator') {
+    if (route.route === 'action' && route.action) {
+      yield* this.runAction(route.action as ActionName, route, activeComponents, log)
+    } else if (route.route === 'orchestrator') {
       yield* this.runOrchestrator(compactedInput, route, memory, activeComponents, log, abortController)
     } else if (route.route === 'skill' && route.skill) {
       yield* this.runSkill(route.skill, compactedInput, route, memory, activeComponents, log, abortController)
@@ -217,6 +220,38 @@ export class AgentEngine {
 
     for await (const part of result.fullStream) {
       yield part
+    }
+  }
+
+  private async *runAction(
+    actionName: ActionName,
+    route: { targetComponentId?: string | null },
+    activeComponents: Array<{ componentId: string; manifest: unknown }>,
+    log: Logger
+  ): AsyncGenerator<unknown> {
+    log.info({ action: actionName }, 'running direct action')
+    const handler = actionRegistry[actionName]
+    if (!handler) {
+      yield { type: 'text-delta', text: `Unknown action: ${actionName}` }
+      yield { type: 'finish', response: { usage: {} } }
+      return
+    }
+
+    try {
+      const result = await handler(
+        { targetComponentId: route.targetComponentId ?? undefined },
+        {
+          projectDir: this.projectDir,
+          sender: this.options.sender,
+          activeComponents,
+        }
+      )
+      yield { type: 'text-delta', text: result.message }
+      yield { type: 'finish', response: { usage: {} } }
+    } catch (err) {
+      log.error({ action: actionName, err }, 'action failed')
+      yield { type: 'text-delta', text: `Action failed: ${err instanceof Error ? err.message : String(err)}` }
+      yield { type: 'error', error: err }
     }
   }
 

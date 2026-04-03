@@ -65,6 +65,7 @@ export const ALLOWED_LISTEN_CHANNELS = [
   'pipeline:status-change',
   'pipeline:error',
   'agent:build:pipeline-plan',
+  'agent:action',
 ] as const
 
 export type SendChannel = typeof ALLOWED_SEND_CHANNELS[number]

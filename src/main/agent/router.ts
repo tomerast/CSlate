@@ -1,27 +1,32 @@
 import { z } from 'zod'
 import { runStructuredAgent, fastModelId, type LLMConfig } from '@cslate/shared/agent'
 import { engineLog } from '../lib/logger'
+import type { ActionName } from './actions/index'
 
 const RouteSchema = z.object({
-  route: z.enum(['orchestrator', 'skill', 'direct']),
+  route: z.enum(['orchestrator', 'skill', 'action', 'direct']),
   skill: z.enum(['state-wirer', 'component-search', 'pipeline-wirer', 'component-fix']).nullable(),
+  action: z.enum(['remove-component', 'clear-canvas']).nullable(),
   summary: z.string(),
   targetComponentId: z.string().nullable(),
 })
 
 export type RouteResult = z.infer<typeof RouteSchema>
 
-const ROUTER_SYSTEM = `You are the CSlate router. Classify the user's message into one of three routes:
+const ROUTER_SYSTEM = `You are the CSlate router. Classify the user's message into one of four routes:
 
 - orchestrator: Building NEW components from scratch. Keywords: "build", "create", "add", "make" (when no existing component is referenced).
-- skill: Operations on existing components or cross-component work:
-  - component-fix: Fixing, modifying, updating, restyling, removing, or iterating on EXISTING components on the canvas. This includes: "fix", "update", "modify", "change", "restyle", "make it prettier", "I don't like", "remove", "delete", "clear the canvas", "remove all", AND symptom descriptions like "it's stuck", "nothing loads", "it's not working", "nothing is showing", "it crashed", "I see an error", "can you fix". Use this whenever the user references a specific active component or there is only one active component and the message is clearly about it. Set targetComponentId when a specific component is referenced (null for "remove all").
+- skill: Operations that need AI reasoning on existing components or cross-component work:
+  - component-fix: Fixing, modifying, updating, restyling, or iterating on an EXISTING component. Includes: "fix", "update", "modify", "change", "restyle", "make it prettier", "I don't like", AND symptom descriptions like "it's stuck", "nothing loads", "it's not working", "it crashed", "can you fix". Use when the user references a specific active component or there is only one active component and the message is clearly about it. ALWAYS set targetComponentId.
   - state-wirer: "connect", "wire", "link", "when X updates Y", "share data between"
   - component-search: "find", "search", "show me components", "browse", "what components exist"
   - pipeline-wirer: "connect pipeline", "wire pipeline", "link pipeline to", "use pipeline in" — ONLY when wiring an EXISTING pipeline to an EXISTING component; building new pipelines routes to orchestrator
+- action: Deterministic app operations that don't need AI reasoning — just execute directly:
+  - remove-component: "remove X", "delete the kanban", "take X off the canvas". Set targetComponentId.
+  - clear-canvas: "remove all", "clear the canvas", "delete everything", "start fresh"
 - direct: General questions, settings help, non-component tasks. Only use this when no active components are relevant and the message is clearly not about a component.
 
-targetComponentId: the snake_case ID of an existing component being referenced. Null if creating new or not applicable.
+targetComponentId: the snake_case ID of an existing component being referenced. Null if creating new, clearing all, or not applicable.
 summary: one sentence describing what to do.`
 
 interface ComponentInfo {
@@ -82,6 +87,6 @@ export async function classifyIntent(
     return object
   } catch (err) {
     log.warn({ modelId, err }, 'classifyIntent failed, defaulting to orchestrator')
-    return { route: 'orchestrator', skill: null, summary: message, targetComponentId: null }
+    return { route: 'orchestrator', skill: null, action: null, summary: message, targetComponentId: null }
   }
 }
