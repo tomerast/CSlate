@@ -21,12 +21,6 @@ export function register(ipcMain: IpcMain): void {
     return client.search(args.query, args.limit ?? 5)
   })
 
-  ipcMain.handle('server:publish', async (_event: IpcMainInvokeEvent, args: { name: string; description: string; tags: string[]; source: Record<string, string>; manifest?: unknown }) => {
-    const client = getClient()
-    if (!client) return { error: 'Server not configured' }
-    return client.publish(args)
-  })
-
   ipcMain.handle('server:connect', async (_event: IpcMainInvokeEvent, args: { email: string; serverUrl: string }) => {
     try {
       const base = args.serverUrl.replace(/\/$/, '')
