@@ -83,6 +83,39 @@ export class CSlateServerClient {
   }
 
   /**
+   * Upload a component manifest + source files to the server for review.
+   * The server runs the 7-stage review pipeline asynchronously.
+   * Returns immediately with an uploadId — review progress can be tracked
+   * via GET /upload/:id/status or the SSE stream.
+   */
+  async uploadComponent(
+    manifest: unknown,
+    files: Record<string, string>,
+  ): Promise<{ uploadId?: string; status?: string; error?: string }> {
+    try {
+      const url = new URL('/api/v1/components/upload', this.serverUrl)
+      const res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          ...this.authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ manifest, files }),
+        signal: AbortSignal.timeout(15000),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        return { error: (body as { message?: string }).message ?? `Server returned ${res.status}` }
+      }
+
+      return (await res.json()) as { uploadId: string; status: string }
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
+  /**
    * Fetch the stored files + manifest for a published component.
    *
    * The server returns `{ id, manifest, files, summary, version, updatedAt }`

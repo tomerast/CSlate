@@ -21,6 +21,16 @@ export function useChat(modelId: string) {
   const endStream = useChatStore((s) => s.endStream)
   const setError = useChatStore((s) => s.setError)
   const setSessions = useChatStore((s) => s.setSessions)
+  const setOrchestratorPhase = useChatStore((s) => s.setOrchestratorPhase)
+  const setWorkerTotal = useChatStore((s) => s.setWorkerTotal)
+  const setWorkerDone = useChatStore((s) => s.setWorkerDone)
+  const addToolCall = useChatStore((s) => s.addToolCall)
+  const updateToolCall = useChatStore((s) => s.updateToolCall)
+  const clearOrchestrator = useChatStore((s) => s.clearOrchestrator)
+
+  const resetOrchestrator = useCallback(() => {
+    clearOrchestrator()
+  }, [clearOrchestrator])
 
   const tabIdRef = useRef<string>(crypto.randomUUID())
 
@@ -42,12 +52,45 @@ export function useChat(modelId: string) {
       setError(message)
       endStream()
     })
+    const offStatus = window.electron.on('agent:orchestrator:status', (payload: unknown) => {
+      const p = payload as { phase: string; workerCount?: number; workerId?: number; file?: string; status?: string }
+      if (p.phase) {
+        setOrchestratorPhase(p.phase as import('../store/chatStore').OrchestratorPhase)
+      }
+      if (p.workerCount !== undefined) {
+        setWorkerTotal(p.workerCount)
+      }
+      if (p.status === 'done') {
+        const state = useChatStore.getState()
+        setWorkerDone(Math.min(state.orchestrator.workerDone + 1, state.orchestrator.workerTotal || 1))
+      }
+    })
+    const offToolCall = window.electron.on('agent:tool-call', (payload: unknown) => {
+      const p = payload as { tool: string; args?: Record<string, unknown> }
+      addToolCall({
+        name: p.tool,
+        status: 'running',
+        timestamp: Date.now(),
+        detail: p.args ? Object.keys(p.args).slice(0, 3).join(', ') : undefined,
+      })
+    })
+    const offToolResult = window.electron.on('agent:tool-result', (payload: unknown) => {
+      const p = payload as { tool: string; result?: { success?: boolean; error?: string } }
+      updateToolCall(
+        p.tool,
+        p.result?.success === false ? 'error' : 'done',
+        p.result?.error ?? (p.result?.success ? 'completed' : undefined)
+      )
+    })
 
     return () => {
       offToken()
       offCard()
       offDone()
       offError()
+      offStatus()
+      offToolCall()
+      offToolResult()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -55,6 +98,7 @@ export function useChat(modelId: string) {
   const finalizeStream = useCallback(async () => {
     const { activeSessionId: sid, messages, streamingMessageId } = useChatStore.getState()
     endStream()
+    resetOrchestrator()
     if (!sid || !streamingMessageId) return
     const assistantMsg = messages.find((m) => m.id === streamingMessageId)
     if (assistantMsg) {
@@ -63,7 +107,7 @@ export function useChat(modelId: string) {
     // Refresh sidebar so updatedAt + messageCount are current
     const list = await sessionsApi.list()
     setSessions(list)
-  }, [endStream, setSessions])
+  }, [endStream, setSessions, resetOrchestrator])
 
   const submit = useCallback(
     async (text: string): Promise<void> => {

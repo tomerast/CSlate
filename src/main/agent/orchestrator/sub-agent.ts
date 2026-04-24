@@ -39,6 +39,17 @@ export function buildSubAgentPrompt(params: {
   return `## CONTRACT (shared types — follow exactly):\n\`\`\`typescript\n${contract}\n\`\`\`\n${blueprintSection}\n\n## ASSIGNMENT:\nBuild file \`${task.file}\`: ${task.assignment}`
 }
 
+const SUB_AGENT_TIMEOUT_MS = 60_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ])
+}
+
 export async function spawnBuildAgent(params: {
   task: BuildTask
   contract: string
@@ -52,7 +63,11 @@ export async function spawnBuildAgent(params: {
 
   try {
     const prompt = buildSubAgentPrompt({ task, contract })
-    const { text } = await runSubAgent({ modelId, registry, system: BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 })
+    const { text } = await withTimeout(
+      runSubAgent({ modelId, registry, system: BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 }),
+      SUB_AGENT_TIMEOUT_MS,
+      `build agent (${task.file})`
+    )
 
     log.info({ file: task.file, durationMs: Date.now() - t0 }, 'build agent done')
     return { file: task.file, code: stripFences(text), status: 'success', error: null }
@@ -94,7 +109,11 @@ export async function spawnPipelineBuildAgent(params: {
       const prompt = `## PIPELINE ID: ${pipelinePlan.pipelineId}\n## REQUIREMENTS:\n${pipelinePlan.requirements}\n${blueprintSection}\n\n## ASSIGNMENT:\nBuild file \`${task.file}\`: ${task.assignment}`
 
       try {
-        const { text } = await runSubAgent({ modelId, registry, system: PIPELINE_BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 })
+        const { text } = await withTimeout(
+          runSubAgent({ modelId, registry, system: PIPELINE_BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 }),
+          SUB_AGENT_TIMEOUT_MS,
+          `pipeline build agent (${task.file})`
+        )
         log.info({ pipelineId: pipelinePlan.pipelineId, file: task.file, durationMs: Date.now() - t0 }, 'pipeline sub-agent done')
         return { file: task.file, code: stripFences(text), status: 'success', error: null }
       } catch (err) {
@@ -124,7 +143,11 @@ export async function spawnFixAgent(params: {
   try {
     const prompt = `## CONTRACT:\n\`\`\`typescript\n${contract}\n\`\`\`\n\n## BROKEN CODE (file: ${file}):\n\`\`\`\n${brokenCode}\n\`\`\`\n\n## ERROR:\n${error}\n\nFix the code. Return ONLY the corrected file content.`
 
-    const { text } = await runSubAgent({ modelId, registry, system: FIX_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 })
+    const { text } = await withTimeout(
+      runSubAgent({ modelId, registry, system: FIX_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 }),
+      SUB_AGENT_TIMEOUT_MS,
+      `fix agent (${file})`
+    )
 
     log.info({ file, durationMs: Date.now() - t0 }, 'fix agent done')
     return { file, code: stripFences(text), status: 'success', error: null }

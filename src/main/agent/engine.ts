@@ -21,6 +21,9 @@ import { CSlateServerClient } from '../server/CSlateServerClient'
 import { runRenderSkill } from './skills/render-decision/index'
 import { engineLog } from '../lib/logger'
 
+/** Hard ceiling on orchestrator wall time — prevents hangs from bad models / gateways. */
+const ORCHESTRATOR_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+
 export interface EngineOptions {
   serverUrl: string
   serverApiKey: string
@@ -53,6 +56,11 @@ export class AgentEngine {
     // Create abort controller for this stream and link it to the IPC-level
     // controller so agent:abort and superseding runs actually cancel provider calls.
     const abortController = new AbortController()
+    const timeoutId = setTimeout(() => {
+      log.warn('orchestrator timed out — aborting stream')
+      abortController.abort(new Error('Build timed out after 5 minutes. Please retry.'))
+    }, ORCHESTRATOR_TIMEOUT_MS)
+
     if (input.abortSignal?.aborted) {
       abortController.abort(input.abortSignal.reason)
     } else {
@@ -95,14 +103,18 @@ export class AgentEngine {
     log.info({ route: route.route, skill: route.skill, summary: route.summary }, 'intent routed')
 
     // Dispatch based on new chat-portal taxonomy
-    if (route.route === 'render') {
-      yield* this.runRender(compactedInput, userMemory, log, abortController)
-    } else if (route.route === 'build') {
-      yield* this.runOrchestrator(compactedInput, route, userMemory, activeComponents, log, abortController)
-    } else if (route.route === 'skill' && route.skill) {
-      yield* this.runSkill(route.skill, compactedInput, route, userMemory, activeComponents, log, abortController)
-    } else {
-      yield* this.runDirect(compactedInput, userMemory, log, abortController)
+    try {
+      if (route.route === 'render') {
+        yield* this.runRender(compactedInput, userMemory, log, abortController)
+      } else if (route.route === 'build') {
+        yield* this.runOrchestrator(compactedInput, route, userMemory, activeComponents, log, abortController)
+      } else if (route.route === 'skill' && route.skill) {
+        yield* this.runSkill(route.skill, compactedInput, route, userMemory, activeComponents, log, abortController)
+      } else {
+        yield* this.runDirect(compactedInput, userMemory, log, abortController)
+      }
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
 

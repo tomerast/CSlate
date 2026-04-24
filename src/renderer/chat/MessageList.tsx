@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useChatStore } from '../store/chatStore'
 import { DynamicComponent } from '../sandbox/DynamicComponent'
+import { OrchestratorProgress } from './OrchestratorProgress'
 import type { AgentMessage, MessageCard } from '@shared/agentTypes'
 
 interface MessageListProps {
@@ -13,17 +14,20 @@ export function MessageList({ onRegenerate, onFork }: MessageListProps) {
   const messages = useChatStore((s) => s.messages)
   const status = useChatStore((s) => s.status)
   const error = useChatStore((s) => s.error)
+  const orchestrator = useChatStore((s) => s.orchestrator)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, status])
+  }, [messages, status, orchestrator])
 
   if (messages.length === 0) {
     return <EmptyState />
   }
 
   const lastAssistantIdx = findLastAssistantIdx(messages)
+  const showOrchestrator = status === 'generating' && orchestrator.currentPhase !== null
+  const showErrorInline = error && status !== 'generating'
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -33,12 +37,15 @@ export function MessageList({ onRegenerate, onFork }: MessageListProps) {
             key={msg.id}
             message={msg}
             isLatestAssistant={idx === lastAssistantIdx}
+            showError={!!showErrorInline && idx === lastAssistantIdx}
+            error={showErrorInline && idx === lastAssistantIdx ? error : null}
             onRegenerate={onRegenerate}
             onFork={onFork}
           />
         ))}
-        {status === 'generating' && <TypingIndicator />}
-        {error && <ErrorBubble message={error} />}
+        {showOrchestrator && <OrchestratorProgress status={orchestrator} />}
+        {status === 'generating' && !showOrchestrator && <TypingIndicator />}
+        {!showErrorInline && error && <ErrorBubble message={error} />}
         <div ref={bottomRef} />
       </div>
     </div>
@@ -55,11 +62,13 @@ function findLastAssistantIdx(messages: AgentMessage[]): number {
 interface MessageBubbleProps {
   message: AgentMessage
   isLatestAssistant: boolean
+  showError?: boolean
+  error?: string | null
   onRegenerate?: () => void | Promise<void>
   onFork?: (messageId: string) => void | Promise<void>
 }
 
-function MessageBubble({ message, isLatestAssistant, onRegenerate, onFork }: MessageBubbleProps) {
+function MessageBubble({ message, isLatestAssistant, showError, error, onRegenerate, onFork }: MessageBubbleProps) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -84,6 +93,7 @@ function MessageBubble({ message, isLatestAssistant, onRegenerate, onFork }: Mes
           ))}
         </div>
       )}
+      {showError && error && <ErrorBubble message={error} />}
       <MessageActions
         message={message}
         canRegenerate={isLatestAssistant}
@@ -205,8 +215,19 @@ function TypingIndicator() {
 
 function ErrorBubble({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
-      {message}
+    <div className="msg-enter rounded-lg border border-error/30 bg-error/5 px-4 py-3"
+    >
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-error/15 flex items-center justify-center">
+          <svg className="w-3 h-3 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-error">Something went wrong</div>
+          <div className="text-xs text-error/70 mt-0.5">{message}</div>
+        </div>
+      </div>
     </div>
   )
 }

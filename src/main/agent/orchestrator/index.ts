@@ -22,9 +22,118 @@ import { createLspCSTool } from '../tools/lsp'
 import { createWebFetchCSTool } from '../tools/webFetch'
 import { engineLog } from '../../lib/logger'
 import { saveStaging, clearStaging, listStaging, type StagingState } from './staging'
+import type { Logger } from 'pino'
 import { buildToolSet } from '../tools/index'
 
+/**
+ * Assemble built files into a component, validate, write to disk, bundle,
+ * emit agent:card, and optionally upload to server.
+ * Returns true if shipping succeeded.
+ */
+async function shipComponent(
+  ctx: OrchestratorContext,
+  buildResults: SubAgentResult[],
+  componentId: string,
+  contextMd: string,
+  log: Logger
+): Promise<boolean> {
+  const files: Record<string, string> = {}
+  for (const r of buildResults) {
+    if (r.status === 'success') {
+      files[r.file] = r.code
+    }
+  }
 
+  if (!files['ui.tsx']) {
+    log.warn('auto-assembly skipped: ui.tsx missing')
+    return false
+  }
+  if (!files['manifest.json']) {
+    log.warn('auto-assembly skipped: manifest.json missing')
+    return false
+  }
+
+  let manifest: unknown
+  try {
+    manifest = JSON.parse(files['manifest.json'])
+  } catch (e) {
+    log.warn({ err: e }, 'auto-assembly skipped: manifest.json is not valid JSON')
+    return false
+  }
+
+  const rawValidation = (await validateManifest.execute!(
+    { manifest },
+    {} as any
+  )) as { data?: Record<string, unknown> } & Record<string, unknown>
+  const validation = (rawValidation?.data ?? rawValidation) as { valid: boolean; errors: string[] }
+  if (!validation.valid) {
+    log.warn({ errors: validation.errors }, 'auto-assembly skipped: manifest invalid')
+    return false
+  }
+
+  const bridgeErrors = validateBridgeDataUsage(files, manifest)
+  if (bridgeErrors.length > 0) {
+    log.warn({ errors: bridgeErrors }, 'auto-assembly skipped: bridge validation failed')
+    return false
+  }
+
+  const writeTool = createWriteComponentTool(ctx.projectDir).toAISDKTool()
+  const writeFiles: Record<string, string> = { ...files }
+  if (contextMd) {
+    writeFiles['context.md'] = contextMd
+  }
+
+  const rawWriteResult = await writeTool.execute!(
+    {
+      componentId,
+      files: writeFiles,
+      manifest: manifest as Record<string, unknown>,
+    },
+    {} as any
+  ) as { data?: Record<string, unknown> } & Record<string, unknown>
+
+  const writeResult = (rawWriteResult?.data ?? rawWriteResult) as {
+    success: boolean; componentId?: string; bundle?: string;
+    placement?: unknown; manifest?: unknown; files?: Record<string, string>; errors?: string[]
+  }
+
+  if (!writeResult.success) {
+    log.warn({ errors: writeResult.errors }, 'auto-assembly skipped: write failed')
+    return false
+  }
+
+  ctx.sender.send('agent:tool-result', { tool: 'writeComponent', result: writeResult })
+  if (writeResult.bundle) {
+    ctx.sender.send('agent:card', {
+      card: {
+        bundle: writeResult.bundle,
+        manifest: writeResult.manifest,
+        componentId: writeResult.componentId,
+        source: 'generated',
+      },
+    })
+  }
+
+  await clearStaging(ctx.projectDir, componentId)
+  ctx.sender.send('agent:orchestrator:status', { phase: 'ship' })
+  log.info({ componentId }, 'component shipped (auto-assembly)')
+
+  if (ctx.serverClient && writeResult.files) {
+    const uploadFiles: Record<string, string> = { ...writeResult.files }
+    if (writeResult.bundle) {
+      uploadFiles['bundle.js'] = writeResult.bundle
+    }
+    ctx.serverClient.uploadComponent(writeResult.manifest, uploadFiles).then((result) => {
+      if (result.error) {
+        log.warn({ componentId, error: result.error }, 'background upload failed')
+      } else {
+        log.info({ componentId, uploadId: result.uploadId, status: result.status }, 'component uploaded for review')
+      }
+    })
+  }
+
+  return true
+}
 
 export class Orchestrator {
   private ctx: OrchestratorContext
@@ -262,115 +371,32 @@ export class Orchestrator {
           contextMd: z.string(),
         }),
         execute: async (input) => {
-          this.log.info(
-            { componentId: input.componentId },
-            'assembling component'
-          )
+          this.log.info({ componentId: input.componentId }, 'assembling component')
           ctx.sender.send('agent:orchestrator:status', { phase: 'validate' })
 
-          // Read build results from closure — not passed by model to avoid token blowout
-          const files: Record<string, string> = {}
-          for (const r of lastBuildResults) {
-            if (r.status === 'success') {
-              files[r.file] = r.code
-            }
-          }
-
-          if (!files['ui.tsx']) {
-            return {
-              success: false,
-              error: 'ui.tsx build failed — cannot assemble component',
-            }
-          }
-
-          // Read manifest from built manifest.json — model doesn't pass it to avoid token blowout
-          if (!files['manifest.json']) {
-            return {
-              success: false,
-              error: 'manifest.json missing — ensure manifest.json is included as a sub-agent task',
-            }
-          }
-          let manifest: unknown
-          try {
-            manifest = JSON.parse(files['manifest.json'])
-          } catch (e) {
-            return {
-              success: false,
-              error: `manifest.json is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
-            }
-          }
-
-          // Validate manifest
-          const rawValidation = (await validateManifest.execute!(
-            { manifest },
-            {} as any
-          )) as { data?: Record<string, unknown> } & Record<string, unknown>
-          const validation = (rawValidation?.data ?? rawValidation) as { valid: boolean; errors: string[] }
-          if (!validation.valid) {
-            return {
-              success: false,
-              error: `Manifest invalid: ${validation.errors.join(', ')}`,
-            }
-          }
-
-          const bridgeErrors = validateBridgeDataUsage(files, manifest)
-          if (bridgeErrors.length > 0) {
-            return {
-              success: false,
-              error: bridgeErrors.join(', '),
-            }
-          }
-
-          // Write to disk — pass all built files + context.md
-          const writeTool = createWriteComponentTool(ctx.projectDir).toAISDKTool()
-          const writeFiles: Record<string, string> = { ...files }
-          if (input.contextMd) {
-            writeFiles['context.md'] = input.contextMd
-          }
-
-          const rawWriteResult = await writeTool.execute!(
-            {
-              componentId: input.componentId,
-              files: writeFiles,
-              manifest: manifest as Record<string, unknown>,
-            },
-            {} as any
-          ) as { data?: Record<string, unknown> } & Record<string, unknown>
-
-          // buildTool wraps results in { data: {...} } — unwrap it
-          const writeResult = (rawWriteResult?.data ?? rawWriteResult) as {
-            success: boolean; componentId?: string; bundle?: string;
-            placement?: unknown; manifest?: unknown; errors?: string[]
-          }
-
-          if (!writeResult.success) {
-            return { success: false, error: (writeResult.errors ?? []).join(', ') || 'Write failed' }
-          }
-
-          // Notify renderer as a generic tool-result (for tracing) AND as an
-          // inline chat card — the latter is what actually renders in the
-          // conversation.
-          ctx.sender.send('agent:tool-result', { tool: 'writeComponent', result: writeResult })
-          if (writeResult.bundle) {
-            ctx.sender.send('agent:card', {
-              card: {
-                bundle: writeResult.bundle,
-                manifest: writeResult.manifest,
-                componentId: writeResult.componentId,
-                source: 'generated',
-              },
-            })
-          }
-
-          componentShipped = true
-          // Clear staging — build is complete
-          await clearStaging(ctx.projectDir, input.componentId)
-          ctx.sender.send('agent:orchestrator:status', { phase: 'ship' })
-          this.log.info(
-            { componentId: input.componentId },
-            'component shipped'
+          const shipped = await shipComponent(
+            ctx,
+            lastBuildResults,
+            input.componentId,
+            input.contextMd,
+            this.log
           )
-          return { success: true, componentId: input.componentId }
+          if (shipped) {
+            componentShipped = true
+            return { success: true, componentId: input.componentId }
+          }
+
+          // shipComponent failed — give model a reason so it can fix or retry
+          const failedFiles = lastBuildResults
+            .filter((r) => r.status === 'error')
+            .map((r) => ({ file: r.file, error: r.error ?? 'Build failed' }))
+          return {
+            success: false,
+            error:
+              failedFiles.length > 0
+                ? `Build errors: ${failedFiles.map((f) => `${f.file}: ${f.error}`).join('; ')}`
+                : 'Assembly failed — check build results',
+          }
         },
       }),
 
@@ -493,16 +519,57 @@ export class Orchestrator {
           0
         )
 
+        // Some models / providers don't support forced tool_choice (e.g.
+        // DeepSeek via OpenRouter). Detect capability from modelId so we
+        // don't break on any model — native providers keep forced tools,
+        // everything else falls back to 'auto' with activeTools restriction.
+        const supportsForcedTools = (() => {
+          const [provider, model] = modelId.split(':')
+          switch (provider) {
+            case 'anthropic':
+              return true
+            case 'openai':
+              // Native OpenAI models support forced tools; gateway-routed
+              // models (deepseek/, mistral/, etc.) masquerade as openai:...
+              return (
+                model.startsWith('gpt-') ||
+                model.startsWith('o1-') ||
+                model.startsWith('o3-')
+              )
+            case 'google':
+              return true
+            case 'local':
+              return false
+            default:
+              return false
+          }
+        })()
+
+        const forceTool = (
+          toolName: ToolName
+        ): { toolChoice: 'auto' | { type: 'tool'; toolName: ToolName }; activeTools: ToolName[] } => {
+          if (supportsForcedTools) {
+            return { toolChoice: { type: 'tool' as const, toolName }, activeTools: [toolName] }
+          }
+          return { toolChoice: 'auto' as const, activeTools: [toolName] }
+        }
+
+        const requireTool = (
+          activeTools: ToolName[]
+        ): { toolChoice: 'required' | 'auto'; activeTools: ToolName[] } => {
+          if (supportsForcedTools) {
+            return { toolChoice: 'required' as const, activeTools }
+          }
+          return { toolChoice: 'auto' as const, activeTools }
+        }
+
         // Phase 5: second validate done (fix cycle complete) — stop
         if (validateCount >= 2) {
           return { toolChoice: 'none' as const }
         }
         // Phase 4b: after fix dispatch — must validate again
         if (called.has('dispatchFixAgents')) {
-          return {
-            toolChoice: { type: 'tool' as const, toolName: 'assembleAndValidate' as ToolName },
-            activeTools: ['assembleAndValidate' as ToolName],
-          }
+          return forceTool('assembleAndValidate')
         }
         // Phase 4a: after first validate — allow fix or finish naturally (model decides based on result)
         if (called.has('assembleAndValidate')) {
@@ -513,31 +580,19 @@ export class Orchestrator {
         }
         // Phase 3: after dispatch — must validate
         if (called.has('dispatchSubAgents')) {
-          return {
-            toolChoice: { type: 'tool' as const, toolName: 'assembleAndValidate' as ToolName },
-            activeTools: ['assembleAndValidate' as ToolName],
-          }
+          return forceTool('assembleAndValidate')
         }
         // Phase 2: after plan — must dispatch
         if (called.has('planComponent')) {
-          return {
-            toolChoice: { type: 'tool' as const, toolName: 'dispatchSubAgents' as ToolName },
-            activeTools: ['dispatchSubAgents' as ToolName],
-          }
+          return forceTool('dispatchSubAgents')
         }
         // Phase 1: after first search — allow remaining search tools + coding tools + plan (model decides when ready)
         if (SEARCH_TOOLS.some(t => called.has(t))) {
           const remainingSearch = SEARCH_TOOLS.filter(t => !called.has(t)) as ToolName[]
-          return {
-            toolChoice: 'required' as const,
-            activeTools: [...remainingSearch, ...CODING_TOOLS, 'planComponent' as ToolName],
-          }
+          return requireTool([...remainingSearch, ...CODING_TOOLS, 'planComponent' as ToolName])
         }
         // Phase 0: no tools called yet — must search first (coding tools also available for project exploration)
-        return {
-          toolChoice: 'required' as const,
-          activeTools: [...SEARCH_TOOLS, ...CODING_TOOLS] as ToolName[],
-        }
+        return requireTool([...SEARCH_TOOLS, ...CODING_TOOLS] as ToolName[])
       },
     })
 
@@ -546,22 +601,44 @@ export class Orchestrator {
     }
 
     // Recovery: if build results exist but the stream ended without shipping,
-    // surface a clear error rather than silently dropping the work.
-    // We can't recover without the manifest (model-generated), so prompt the user to retry.
+    // attempt auto-assembly before giving up. Many gateway-routed models skip
+    // the final assembleAndValidate call when tool_choice is not forced.
     if (!componentShipped && lastBuildResults.length > 0) {
       const successCount = lastBuildResults.filter(r => r.status === 'success').length
       this.log.warn(
         { successCount, total: lastBuildResults.length },
-        'stream ended without shipping — build results were dropped'
+        'stream ended without shipping — attempting auto-assembly'
       )
-      // Clear staging — this build won't recover without a fresh attempt
-      if (stagedComponentId) {
-        await clearStaging(ctx.projectDir, stagedComponentId)
+
+      if (stagedComponentId && successCount > 0) {
+        const assembled = await shipComponent(
+          ctx,
+          lastBuildResults,
+          stagedComponentId,
+          '',
+          this.log
+        )
+        if (assembled) {
+          componentShipped = true
+          this.log.info({ componentId: stagedComponentId }, 'auto-assembly succeeded')
+        } else {
+          this.log.warn({ componentId: stagedComponentId }, 'auto-assembly failed')
+          // Clear staging — this build won't recover without a fresh attempt
+          await clearStaging(ctx.projectDir, stagedComponentId)
+          ctx.sender.send('agent:error', {
+            message: `${successCount} of ${lastBuildResults.length} files built successfully but assembly failed. Please retry.`,
+            code: 'ASSEMBLY_FAILED',
+          })
+        }
+      } else {
+        if (stagedComponentId) {
+          await clearStaging(ctx.projectDir, stagedComponentId)
+        }
+        ctx.sender.send('agent:error', {
+          message: `${successCount} of ${lastBuildResults.length} files built successfully but the component wasn't assembled — the LLM stopped before finishing. Please retry.`,
+          code: 'ASSEMBLY_DROPPED',
+        })
       }
-      ctx.sender.send('agent:error', {
-        message: `${successCount} of ${lastBuildResults.length} files built successfully but the component wasn't assembled — the LLM stopped before finishing. Please send the same request again to complete it.`,
-        code: 'ASSEMBLY_DROPPED',
-      })
     }
 
     this.log.info({ durationMs: Date.now() - t0 }, 'orchestrator done')

@@ -119,3 +119,53 @@ html, body, #root {
 .msg-enter {
   animation: msg-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+/* ── Orchestrator progress ────────────────────────────────── */
+@keyframes orchestrator-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(99, 102, 241, 0.15); }
+  50%      { box-shadow: 0 0 20px rgba(99, 102, 241, 0.35); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes orbit {
+  0%   { transform: rotate(0deg) translateX(8px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(8px) rotate(-360deg); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.orchestrator-active-glow {
+  animation: orchestrator-glow 2.5s ease-in-out infinite;
+}
+
+.orchestrator-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.orchestrator-orbit {
+  animation: orbit 3s linear infinite;
+}
+
+.orchestrator-pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 1px solid var(--slate-primary);
+  opacity: 0.4;
+  animation: pulse-ring 2s ease-out infinite;
+}
