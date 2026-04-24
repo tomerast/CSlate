@@ -116,6 +116,42 @@ describe('runRenderSkill', () => {
     fetchSpy.mockRestore()
   })
 
+  it('uses server relevance_score fields when scoring library hits', async () => {
+    vi.mocked(runStructuredAgent).mockResolvedValueOnce({
+      shouldRender: true,
+      renderType: 'price-chart',
+      searchQuery: 'tesla stock price chart',
+      reasoning: 'price question',
+    })
+
+    const searchSpy = vi
+      .spyOn(CSlateServerClient.prototype, 'search')
+      .mockResolvedValue({
+        results: [
+          {
+            id: 'tesla_stock_chart',
+            relevance_score: 0.91,
+            manifest: { name: 'tesla_stock_chart' },
+          },
+        ],
+        total: 1,
+      })
+    const fetchSpy = vi.spyOn(CSlateServerClient.prototype, 'fetchSource').mockResolvedValue({
+      source: { 'bundle.js': 'module.exports.default = () => null' },
+      manifest: { name: 'tesla_stock_chart' },
+    })
+
+    const { sender, sent } = makeSender()
+    await drain(runRenderSkill(makeCtx({ sender })))
+
+    expect(searchSpy).toHaveBeenCalled()
+    expect(fetchSpy).toHaveBeenCalledWith('tesla_stock_chart')
+    expect(sent.find((e) => e.channel === 'agent:card')).toBeDefined()
+
+    searchSpy.mockRestore()
+    fetchSpy.mockRestore()
+  })
+
   it('delegates to the orchestrator when no confident library hit exists', async () => {
     vi.mocked(runStructuredAgent).mockResolvedValueOnce({
       shouldRender: true,

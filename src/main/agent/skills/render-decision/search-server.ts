@@ -10,6 +10,8 @@ interface SearchHitRaw {
   id?: string
   score?: number
   similarity?: number
+  relevanceScore?: number
+  relevance_score?: number
   manifest?: unknown
 }
 
@@ -38,7 +40,7 @@ export async function findLibraryCard(
     const scored = results
       .map((r) => ({
         componentId: (r.componentId ?? r.id) as string | undefined,
-        score: (r.score ?? r.similarity ?? 0) as number,
+        score: (r.score ?? r.similarity ?? r.relevanceScore ?? r.relevance_score ?? 0) as number,
         manifest: r.manifest,
       }))
       .filter((r): r is { componentId: string; score: number; manifest: unknown } =>
