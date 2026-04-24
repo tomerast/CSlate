@@ -1,35 +1,47 @@
 import { z } from 'zod'
 import { runStructuredAgent, fastModelId, type LLMConfig } from '@cslate/shared/agent'
 import { engineLog } from '../lib/logger'
-import type { ActionName } from './actions/index'
 
+/**
+ * Post-canvas-retirement routing taxonomy (Phase 4).
+ *
+ * - render: The user asked an informational question that benefits from a
+ *   live visualization (chart, table, map, timeline, comparison, stats card,
+ *   diagram). Example: "show me tesla this week", "how's my portfolio",
+ *   "compare python vs rust".
+ * - build: The user explicitly asked to build or modify a component.
+ *   Example: "build me a pomodoro timer", "make a dashboard for my expenses".
+ * - chat: Pure conversation — questions, opinions, advice, code snippets,
+ *   settings help. No visualization needed.
+ * - skill: Targeted operations on a card already rendered in the conversation:
+ *     - component-fix: "make that chart blue", "add a tooltip", "it crashed"
+ *     - component-search: "find a timer component", "what components exist"
+ */
 const RouteSchema = z.object({
-  route: z.enum(['orchestrator', 'skill', 'action', 'direct']),
-  skill: z.enum(['state-wirer', 'component-search', 'pipeline-wirer', 'component-fix']).nullable(),
-  action: z.enum(['remove-component', 'clear-canvas']).nullable(),
+  route: z.enum(['render', 'build', 'chat', 'skill']),
+  skill: z.enum(['component-search', 'component-fix']).nullable(),
   summary: z.string(),
   targetComponentId: z.string().nullable(),
 })
 
 export type RouteResult = z.infer<typeof RouteSchema>
 
-const ROUTER_SYSTEM = `You are the CSlate router. Classify the user's message into one of four routes:
+const ROUTER_SYSTEM = `You are the CSlate router. CSlate is a chat portal where assistant responses can include live React components rendered inline in the conversation. Classify the user's message into exactly one route:
 
-- orchestrator: Building NEW components from scratch. Keywords: "build", "create", "add", "make" (when no existing component is referenced).
-- skill: Operations that need AI reasoning on existing components or cross-component work:
-  - component-fix: Fixing, modifying, updating, restyling, or iterating on an EXISTING component. Includes: "fix", "update", "modify", "change", "restyle", "make it prettier", "I don't like", AND symptom descriptions like "it's stuck", "nothing loads", "it's not working", "it crashed", "can you fix". Use when the user references a specific active component or there is only one active component and the message is clearly about it. ALWAYS set targetComponentId.
-  - state-wirer: "connect", "wire", "link", "when X updates Y", "share data between"
-  - component-search: "find", "search", "show me components", "browse", "what components exist"
-  - pipeline-wirer: "connect pipeline", "wire pipeline", "link pipeline to", "use pipeline in" — ONLY when wiring an EXISTING pipeline to an EXISTING component; building new pipelines routes to orchestrator
-- action: Deterministic app operations that don't need AI reasoning — just execute directly:
-  - remove-component: "remove X", "delete the kanban", "take X off the canvas". Set targetComponentId.
-  - clear-canvas: "remove all", "clear the canvas", "delete everything", "start fresh"
-- direct: General questions, settings help, non-component tasks. Only use this when no active components are relevant and the message is clearly not about a component.
+- render: The user is seeking information that would be clearer as a visual — a chart, table, timeline, comparison, map, dashboard, or stats card. Default for "show me", "how's", "track", "compare", "what's happening with", and any question where a picture beats paragraphs. DO NOT use for pure conversation or settings.
 
-targetComponentId: the snake_case ID of an existing component being referenced. Null if creating new, clearing all, or not applicable.
-summary: one sentence describing what to do.`
+- build: The user explicitly wants a new component built. Keywords: "build", "create", "make me", "I need a component that", "design a".
 
-interface ComponentInfo {
+- chat: Plain conversation. Questions with text answers, opinions, explanations, code snippets, help with settings, small talk. No component involved.
+
+- skill: Operations on a previously rendered card:
+  - component-fix: modifying, restyling, or fixing a card. "make it blue", "bigger font", "it crashed", "add a legend". ALWAYS set targetComponentId if a specific card is referenced.
+  - component-search: browsing the library. "what timer components exist", "find me a kanban".
+
+targetComponentId: the snake_case ID of a card being referenced. Null otherwise.
+summary: one short sentence describing the intent.`
+
+interface CardInfo {
   componentId: string
   name?: string
   description?: string
@@ -38,24 +50,24 @@ interface ComponentInfo {
 function buildContextualPrompt(
   message: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
-  activeComponents: ComponentInfo[]
+  recentCards: CardInfo[],
 ): string {
   const parts: string[] = []
 
-  if (activeComponents.length > 0) {
-    const lines = activeComponents.map((c) => {
+  if (recentCards.length > 0) {
+    const lines = recentCards.map((c) => {
       const label = c.name || c.componentId.replace(/_/g, ' ')
       return c.description
         ? `- ${c.componentId} ("${label}"): ${c.description}`
         : `- ${c.componentId} ("${label}")`
     })
-    parts.push(`Active components on canvas:\n${lines.join('\n')}`)
+    parts.push(`Cards rendered earlier in this conversation:\n${lines.join('\n')}`)
   }
 
   if (history.length > 0) {
     const recent = history.slice(-2)
     const historyLines = recent.map((m) => `${m.role}: ${m.content}`).join('\n')
-    parts.push(`Recent conversation:\n${historyLines}`)
+    parts.push(`Recent messages:\n${historyLines}`)
   }
 
   if (parts.length === 0) return message
@@ -66,9 +78,9 @@ function buildContextualPrompt(
 export async function classifyIntent(
   message: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
-  activeComponents: ComponentInfo[],
+  recentCards: CardInfo[],
   config: LLMConfig,
-  registry: { languageModel: (id: string) => any }
+  registry: { languageModel: (id: string) => any },
 ): Promise<RouteResult> {
   const modelId = fastModelId(config)
   const log = engineLog.child({ component: 'router' })
@@ -80,13 +92,13 @@ export async function classifyIntent(
       modelId,
       registry,
       system: ROUTER_SYSTEM,
-      prompt: buildContextualPrompt(message, history, activeComponents),
+      prompt: buildContextualPrompt(message, history, recentCards),
       schema: RouteSchema,
     })
     log.debug({ modelId, durationMs: Date.now() - t0, route: object.route }, 'classifyIntent done')
     return object
   } catch (err) {
-    log.warn({ modelId, err }, 'classifyIntent failed, defaulting to orchestrator')
-    return { route: 'orchestrator', skill: null, action: null, summary: message, targetComponentId: null }
+    log.warn({ modelId, err }, 'classifyIntent failed, defaulting to chat')
+    return { route: 'chat', skill: null, summary: message, targetComponentId: null }
   }
 }

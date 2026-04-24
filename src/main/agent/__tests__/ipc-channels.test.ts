@@ -13,4 +13,8 @@ describe('IPC channels', () => {
     expect(ALLOWED_LISTEN_CHANNELS).toContain('agent:done')
     expect(ALLOWED_LISTEN_CHANNELS).toContain('agent:error')
   })
+
+  it('exposes the inline card channel', () => {
+    expect(ALLOWED_LISTEN_CHANNELS).toContain('agent:card')
+  })
 })

@@ -12,7 +12,7 @@ type ReadContextOutput = { app: Record<string, unknown>; components: Record<stri
 export function createReadProjectContextCSTool(projectDir: string): CSTool<ReadContextInput, ReadContextOutput> {
   return buildTool({
     name: 'readProjectContext',
-    description: 'Read the current project context: the app name/description and all component manifests currently on the canvas.',
+    description: 'Read the current project context: the app name/description and all component manifests rendered in the current conversation.',
     inputSchema: z.object({
       includeSourceSummaries: z.boolean().default(false).describe('Whether to include context.md summaries for each component'),
     }),

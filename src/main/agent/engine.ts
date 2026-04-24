@@ -6,20 +6,19 @@ import {
   fastModelId,
   runAgentStream,
   autoCompactIfNeeded,
-  createChildAbortController,
   type LLMConfig,
   type AgentRegistry,
 } from '@cslate/shared/agent'
 import { classifyIntent } from './router'
-import { readMemory, writeMemoryEntry } from './memory/index'
+import { loadUserMemory } from '../memory/context'
 import { buildSkillRegistry, type AgentContext } from './skills/index'
 import { Orchestrator } from './orchestrator/index'
 import type { OrchestratorContext } from './orchestrator/types'
 import { buildToolSet } from './tools/index'
-import { actionRegistry, type ActionName } from './actions/index'
 import type { PermissionBroker } from './tools/bash/permissions'
 import { createReadProjectContextCSTool } from './tools/readProjectContext'
 import { CSlateServerClient } from '../server/CSlateServerClient'
+import { runRenderSkill } from './skills/render-decision/index'
 import { engineLog } from '../lib/logger'
 
 export interface EngineOptions {
@@ -61,8 +60,8 @@ export class AgentEngine {
     const compactedInput = { ...input, conversationHistory: compactedHistory }
 
     // Load context upfront — needed for both routing and execution
-    const [memory, activeComponents] = await Promise.all([
-      readMemory(this.projectDir),
+    const [userMemory, activeComponents] = await Promise.all([
+      loadUserMemory(),
       this.loadActiveComponents(),
     ])
 
@@ -84,22 +83,44 @@ export class AgentEngine {
     )
     log.info({ route: route.route, skill: route.skill, summary: route.summary }, 'intent routed')
 
-    // Dispatch based on route
-    if (route.route === 'action' && route.action) {
-      yield* this.runAction(route.action as ActionName, route, activeComponents, log)
-    } else if (route.route === 'orchestrator') {
-      yield* this.runOrchestrator(compactedInput, route, memory, activeComponents, log, abortController)
+    // Dispatch based on new chat-portal taxonomy
+    if (route.route === 'render') {
+      yield* this.runRender(compactedInput, userMemory, log, abortController)
+    } else if (route.route === 'build') {
+      yield* this.runOrchestrator(compactedInput, route, userMemory, activeComponents, log, abortController)
     } else if (route.route === 'skill' && route.skill) {
-      yield* this.runSkill(route.skill, compactedInput, route, memory, activeComponents, log, abortController)
+      yield* this.runSkill(route.skill, compactedInput, route, userMemory, activeComponents, log, abortController)
     } else {
-      yield* this.runDirect(compactedInput, memory, log, abortController)
+      yield* this.runDirect(compactedInput, log, abortController)
     }
+  }
+
+  private async *runRender(
+    input: RunInput,
+    userMemory: string,
+    log: Logger,
+    abortController?: AbortController,
+  ): AsyncGenerator<unknown> {
+    log.info('running render-decision skill')
+    yield* runRenderSkill({
+      message: input.message,
+      conversationHistory: input.conversationHistory,
+      userMemory,
+      projectDir: this.projectDir,
+      tabId: this.options.tabId,
+      config: this.config,
+      registry: this.registry,
+      serverUrl: this.options.serverUrl,
+      serverApiKey: this.options.serverApiKey,
+      sender: this.options.sender,
+      abortSignal: abortController?.signal,
+    })
   }
 
   private async *runOrchestrator(
     input: RunInput,
     route: { summary: string; targetComponentId?: string | null },
-    memory: Awaited<ReturnType<typeof readMemory>>,
+    userMemory: string,
     activeComponents: Array<{ componentId: string; manifest: unknown }>,
     log: Logger,
     abortController?: AbortController
@@ -111,7 +132,7 @@ export class AgentEngine {
     const orchCtx: OrchestratorContext = {
       projectDir: this.projectDir,
       tabId: this.options.tabId,
-      memory,
+      userMemory,
       activeComponents,
       targetComponentId: input.targetComponentId ?? route.targetComponentId ?? undefined,
       conversationHistory: input.conversationHistory,
@@ -120,6 +141,7 @@ export class AgentEngine {
       serverClient,
       sender: this.options.sender,
       permissionBroker: this.options.permissionBroker,
+      abortSignal: abortController?.signal,
     }
 
     const orchestrator = new Orchestrator(orchCtx)
@@ -127,15 +149,14 @@ export class AgentEngine {
     for await (const part of orchestrator.stream(input.message)) {
       yield part
     }
-    this.writeSessionMemory(route.summary, null).catch(() => {})
-    log.info({ durationMs: Date.now() - t0 }, 'orchestrator stream finished')
+    log.info({ durationMs: Date.now() - t0, summary: route.summary }, 'orchestrator stream finished')
   }
 
   private async *runSkill(
     skillName: string,
     input: RunInput,
     route: { targetComponentId?: string | null },
-    memory: Awaited<ReturnType<typeof readMemory>>,
+    userMemory: string,
     activeComponents: Array<{ componentId: string; manifest: unknown }>,
     log: Logger,
     abortController?: AbortController
@@ -147,7 +168,7 @@ export class AgentEngine {
     const ctx: AgentContext = {
       projectDir: this.projectDir,
       tabId: this.options.tabId,
-      memory,
+      userMemory,
       activeComponents,
       targetComponentId: input.targetComponentId ?? route.targetComponentId ?? undefined,
       conversationHistory: input.conversationHistory,
@@ -169,7 +190,7 @@ export class AgentEngine {
     }
 
     const modelId = mainModelId(this.config)
-    log.info({ modelId, skill: skillName }, 'running legacy skill')
+    log.info({ modelId, skill: skillName }, 'running skill')
     const t0 = Date.now()
 
     const result = runAgentStream({
@@ -198,7 +219,6 @@ export class AgentEngine {
 
   private async *runDirect(
     input: RunInput,
-    _memory: Awaited<ReturnType<typeof readMemory>>,
     log: Logger,
     abortController?: AbortController
   ): AsyncGenerator<unknown> {
@@ -223,38 +243,6 @@ export class AgentEngine {
     }
   }
 
-  private async *runAction(
-    actionName: ActionName,
-    route: { targetComponentId?: string | null },
-    activeComponents: Array<{ componentId: string; manifest: unknown }>,
-    log: Logger
-  ): AsyncGenerator<unknown> {
-    log.info({ action: actionName }, 'running direct action')
-    const handler = actionRegistry[actionName]
-    if (!handler) {
-      yield { type: 'text-delta', text: `Unknown action: ${actionName}` }
-      yield { type: 'finish', response: { usage: {} } }
-      return
-    }
-
-    try {
-      const result = await handler(
-        { targetComponentId: route.targetComponentId ?? undefined },
-        {
-          projectDir: this.projectDir,
-          sender: this.options.sender,
-          activeComponents,
-        }
-      )
-      yield { type: 'text-delta', text: result.message }
-      yield { type: 'finish', response: { usage: {} } }
-    } catch (err) {
-      log.error({ action: actionName, err }, 'action failed')
-      yield { type: 'text-delta', text: `Action failed: ${err instanceof Error ? err.message : String(err)}` }
-      yield { type: 'error', error: err }
-    }
-  }
-
   private async loadActiveComponents(): Promise<Array<{ componentId: string; manifest: unknown }>> {
     const tool = createReadProjectContextCSTool(this.projectDir)
     try {
@@ -263,15 +251,5 @@ export class AgentEngine {
     } catch {
       return []
     }
-  }
-
-  private async writeSessionMemory(summary: string, usage: { totalTokens?: number } | null): Promise<void> {
-    const date = new Date().toISOString().slice(0, 16)
-    const tokens = usage?.totalTokens ?? 0
-    await writeMemoryEntry(
-      this.projectDir,
-      'componentHistory',
-      `[${date}] ${summary} (${tokens} tokens)`
-    )
   }
 }

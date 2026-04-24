@@ -3,7 +3,7 @@ import { PLATFORM_KNOWLEDGE, BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prom
 
 const FIX_TOOLS = [
   'readManifest', 'readProjectContext', 'readFile', 'grep', 'glob',
-  'writeComponent', 'renderComponent', 'validateManifest',
+  'writeComponent', 'validateManifest',
   'bash', 'lsp',
 ]
 
@@ -16,7 +16,7 @@ export function componentFixSkill(allTools: Record<string, import('ai').Tool>): 
 
   return {
     name: 'component-fix',
-    description: 'Fix or modify an existing component on the canvas',
+    description: 'Fix or modify a card rendered earlier in the conversation',
     maxSteps: 10,
     temperature: 0.1,
     tools,
@@ -33,12 +33,12 @@ export function componentFixSkill(allTools: Record<string, import('ai').Tool>): 
           }).join('\n')
         : 'None'
 
-      return `You are the CSlate Agent — you fix, modify, and manage existing components on the canvas.
+      return `You are the CSlate Agent — you fix, modify, and iterate on cards already rendered in the conversation.
 
-## Active Components on Canvas
+## Cards rendered in this conversation
 ${activeList}
 
-${targetId ? `## Target Component\n- ID: \`${targetId}\`\n- Name: ${targetName}` : '## No specific target\nThe user may be referring to all components or asking a general canvas operation.'}
+${targetId ? `## Target Card\n- ID: \`${targetId}\`\n- Name: ${targetName}` : '## No specific target\nThe user may be referring to the latest card or asking a general question. Ask for clarification if truly ambiguous.'}
 
 ## Workflow
 1. READ — Call readManifest for "${targetId}" to get the manifest contract. Then readFile each source file listed in the manifest's files array.
@@ -49,7 +49,7 @@ ${targetId ? `## Target Component\n- ID: \`${targetId}\`\n- Name: ${targetName}`
    - files: ALL source files (modified + unmodified) — writeComponent replaces the full package
    - manifest: the manifest (updated if needed, otherwise pass the original)
    - republish: true for bug fixes and functional changes, false for minor visual/style tweaks
-   writeComponent handles bundling, validation, and canvas update automatically.
+   writeComponent handles bundling and validation; the updated bundle is re-emitted as a card inline in the conversation.
 
 ## Rules
 - Read before writing — never guess the current source

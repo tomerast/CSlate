@@ -6,14 +6,12 @@ import type { OrchestratorContext, SubAgentResult } from './types'
 import { ComponentPlanSchema, PipelinePlanSchema, WiringPlanSchema } from './types'
 import { buildOrchestratorSystemPrompt } from './prompts'
 import { spawnBuildAgent, spawnFixAgent, spawnPipelineBuildAgent } from './sub-agent'
-import { buildContextString } from '../memory/context-builder'
 import { mainModelId, fastModelId } from '@cslate/shared/agent'
 import { createSearchBlueprintsTool } from '../tools/searchBlueprints'
 import { createScanLocalComponentsTool } from '../tools/scanLocalComponents'
 import { createReadProjectContextTool } from '../tools/readProjectContext'
 import { createReadManifestTool } from '../tools/readManifest'
 import { validateManifest } from '../tools/validateManifest'
-import { createRenderComponentTool } from '../tools/renderComponent'
 import { createWriteComponentTool } from '../tools/writeComponent'
 import { createReadFileCSTool } from '../tools/readFile'
 import { createGrepCSTool } from '../tools/grep'
@@ -22,7 +20,6 @@ import { createBashCSTool } from '../tools/bash'
 import { createLspCSTool } from '../tools/lsp'
 import { createWebFetchCSTool } from '../tools/webFetch'
 import { engineLog } from '../../lib/logger'
-import { bundlePartialUiTsx } from '../lib/bundler'
 import { saveStaging, clearStaging, listStaging, type StagingState } from './staging'
 import { buildToolSet } from '../tools/index'
 
@@ -49,8 +46,8 @@ export class Orchestrator {
     }
     const { aiTools: buildAgentTools } = buildToolSet(toolDeps, 'build')
     const { aiTools: fixAgentTools } = buildToolSet(toolDeps, 'fix')
-    const memoryContext = buildContextString(ctx.memory)
-    const canvasContext =
+    const memoryContext = ctx.userMemory
+    const cardContext =
       ctx.activeComponents.length > 0
         ? ctx.activeComponents
             .map(
@@ -81,7 +78,7 @@ export class Orchestrator {
 
     const systemPrompt = buildOrchestratorSystemPrompt({
       memoryContext,
-      canvasContext,
+      cardContext,
       targetComponentId: ctx.targetComponentId,
       resumePhase: resumeFrom?.phase,
     })
@@ -142,19 +139,6 @@ export class Orchestrator {
             'plan created'
           )
           stagedComponentId = plan.componentId
-          ctx.sender.send('agent:build:plan', {
-            buildId: ctx.tabId,
-            componentId: plan.componentId,
-            description: plan.requirements,
-            tasks: plan.tasks.map(t => ({ file: t.file, assignment: t.assignment })),
-          })
-          // Emit pipeline plan to renderer if pipelines are included
-          if (plan.pipelines.length > 0) {
-            ctx.sender.send('agent:build:pipeline-plan', {
-              pipelines: plan.pipelines.map(p => ({ pipelineId: p.pipelineId, requirements: p.requirements })),
-              wiring: plan.wiring,
-            })
-          }
           // Staging is saved in onStepFinish after this step completes so
           // accumulatedMessages includes the plan tool call + result.
           return {
@@ -219,18 +203,6 @@ export class Orchestrator {
                     file: task.file,
                     status: 'done',
                   })
-                  // Attempt partial bundle for ui.tsx so the renderer can show a preview
-                  if (task.file === 'ui.tsx' && result.status === 'success') {
-                    try {
-                      const bundle = await bundlePartialUiTsx(result.code)
-                      ctx.sender.send('agent:build:partial', { buildId: ctx.tabId, bundle })
-                    } catch {
-                      ctx.sender.send('agent:build:partial', {
-                        buildId: ctx.tabId,
-                        source: result.code,
-                      })
-                    }
-                  }
                   return result
                 })
               })
@@ -340,18 +312,6 @@ export class Orchestrator {
             }
           }
 
-          // Render in sandbox — pass all built files, not just hardcoded names
-          const renderTool = createRenderComponentTool().toAISDKTool()
-          const rawRenderResult = (await renderTool.execute!(
-            { files, manifest },
-            {} as any
-          )) as { data?: Record<string, unknown> } & Record<string, unknown>
-          const renderResult = (rawRenderResult?.data ?? rawRenderResult) as { success: boolean; componentId: string; errors?: string[] }
-          if (!renderResult.success) {
-            const errDetail = (renderResult.errors ?? []).join(', ')
-            return { success: false, error: errDetail ? `Render failed: ${errDetail}` : 'Render failed' }
-          }
-
           // Write to disk — pass all built files + context.md
           const writeTool = createWriteComponentTool(ctx.projectDir).toAISDKTool()
           const writeFiles: Record<string, string> = { ...files }
@@ -378,8 +338,20 @@ export class Orchestrator {
             return { success: false, error: (writeResult.errors ?? []).join(', ') || 'Write failed' }
           }
 
-          // Notify renderer so it can add the component to the canvas
+          // Notify renderer as a generic tool-result (for tracing) AND as an
+          // inline chat card — the latter is what actually renders in the
+          // conversation.
           ctx.sender.send('agent:tool-result', { tool: 'writeComponent', result: writeResult })
+          if (writeResult.bundle) {
+            ctx.sender.send('agent:card', {
+              card: {
+                bundle: writeResult.bundle,
+                manifest: writeResult.manifest,
+                componentId: writeResult.componentId,
+                source: 'generated',
+              },
+            })
+          }
 
           componentShipped = true
           // Clear staging — build is complete
@@ -448,7 +420,6 @@ export class Orchestrator {
 
     // Run the orchestrator agent loop
     this.log.info({ modelId, message }, 'orchestrator starting')
-    ctx.sender.send('agent:build:start', { buildId: ctx.tabId })
     ctx.sender.send('agent:orchestrator:status', { phase: 'understand' })
     const t0 = Date.now()
 
@@ -469,6 +440,7 @@ export class Orchestrator {
       maxSteps: 15,
       maxOutputTokens: 16000,
       temperature: 0.2,
+      abortSignal: ctx.abortSignal,
       onStepFinish: async ({ toolCalls, response }) => {
         // Accumulate response messages (assistant turn + tool results) for resume
         accumulatedMessages.push(...response.messages)

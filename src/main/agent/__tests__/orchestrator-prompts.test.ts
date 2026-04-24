@@ -5,7 +5,7 @@ describe('buildOrchestratorSystemPrompt', () => {
   it('includes platform knowledge', () => {
     const prompt = buildOrchestratorSystemPrompt({
       memoryContext: '',
-      canvasContext: '',
+      cardContext: '',
     })
     expect(prompt).toContain('CSlate Platform Rules')
   })
@@ -13,7 +13,7 @@ describe('buildOrchestratorSystemPrompt', () => {
   it('includes orchestrator role description', () => {
     const prompt = buildOrchestratorSystemPrompt({
       memoryContext: '',
-      canvasContext: '',
+      cardContext: '',
     })
     expect(prompt).toContain('You are the CSlate Orchestrator')
     expect(prompt).toContain('You NEVER write component code yourself')
@@ -22,15 +22,15 @@ describe('buildOrchestratorSystemPrompt', () => {
   it('includes memory context when provided', () => {
     const prompt = buildOrchestratorSystemPrompt({
       memoryContext: '### User Preferences\nPrefers dark themes',
-      canvasContext: '',
+      cardContext: '',
     })
     expect(prompt).toContain('Prefers dark themes')
   })
 
-  it('includes canvas context when provided', () => {
+  it('includes card context when provided', () => {
     const prompt = buildOrchestratorSystemPrompt({
       memoryContext: '',
-      canvasContext: '- stock_ticker: "Stock Ticker"',
+      cardContext: '- stock_ticker: "Stock Ticker"',
     })
     expect(prompt).toContain('stock_ticker')
   })

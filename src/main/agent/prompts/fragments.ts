@@ -31,7 +31,7 @@ Every component is a multi-file package:
 
 ### Component Code Rules
 
-- ui.tsx is the entry point. It must have a **default export** — this is the component rendered on the canvas.
+- ui.tsx is the entry point. It must have a **default export** — this is the component rendered inline in the conversation.
   \`\`\`tsx
   // CORRECT:
   export default function WeatherDashboard() { ... }
@@ -150,7 +150,7 @@ Seed data should be realistic enough to demonstrate the UI layout. One or two re
 - \`defaultSize\` is the initial size. \`layout\` provides resize constraints.
 - \`minWidth\`/\`minHeight\`: smallest the component can be resized to (required)
 - \`maxWidth\`/\`maxHeight\`: largest allowed (optional, omit for uncapped)
-- \`autoSize: true\` (default): canvas measures DOM and adjusts size automatically
+- \`autoSize: true\` (default): the host measures DOM and adjusts the card size automatically
 - \`breakpoints\`: optional responsive sizes the component is designed for. Name them descriptively ("compact", "medium", "full"). Order small to large.
 - Simple widgets (clock, button): skip breakpoints, set tight min/max
 - Complex dashboards: declare 2-3 breakpoints matching your responsive CSS

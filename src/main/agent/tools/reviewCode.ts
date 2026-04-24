@@ -28,7 +28,7 @@ export function createReviewCodeTool(
 ) {
   return buildTool<ReviewInput, ReviewResult>({
     name: 'reviewCode',
-    description: 'Spawn an isolated code review sub-agent to check the generated component. Run in parallel with renderComponent. If issues are found, fix them before calling writeComponent.',
+    description: 'Spawn an isolated code review sub-agent to check the generated component. If issues are found, fix them before calling writeComponent.',
     inputSchema: z.object({
       files: FilesSchema,
       manifest: z.any().describe('The ComponentManifest object'),

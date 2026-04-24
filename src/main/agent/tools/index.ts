@@ -1,6 +1,5 @@
 export { validateManifest, validateManifestTool } from './validateManifest'
 export { createReviewCodeTool } from './reviewCode'
-export { createRenderComponentTool } from './renderComponent'
 export { createWriteComponentTool } from './writeComponent'
 export { createReadManifestTool } from './readManifest'
 export { createReadProjectContextTool } from './readProjectContext'
@@ -12,7 +11,6 @@ export { createWritePipelineTool } from './writePipeline'
 export { createDryRunPipelineTool } from './dryRunPipeline'
 export { createScanLocalPipelinesTool } from './scanLocalPipelines'
 export { createSearchPipelineBlueprintsTool } from './searchPipelineBlueprints'
-export { createRemoveComponentTool } from './removeComponent'
 export type { CSTool, ToolResult, ToolUseContext, ValidationResult } from './types'
 export { buildTool } from './types'
 
@@ -21,7 +19,6 @@ import type { CSlateServerClient } from '../../server/CSlateServerClient'
 import type { PermissionBroker } from './bash/permissions'
 import { validateManifestTool } from './validateManifest'
 import { createReviewCodeTool } from './reviewCode'
-import { createRenderComponentTool } from './renderComponent'
 import { createWriteComponentTool } from './writeComponent'
 import { createReadManifestCSTool } from './readManifest'
 import { createReadProjectContextCSTool } from './readProjectContext'
@@ -39,7 +36,6 @@ import { createGlobCSTool } from './glob'
 import { createBashCSTool } from './bash'
 import { createLspCSTool } from './lsp'
 import { createWebFetchCSTool } from './webFetch'
-import { createRemoveComponentTool } from './removeComponent'
 
 // PermissionBroker defined in bash/permissions.ts to avoid circular imports
 export type { PermissionBroker } from './bash/permissions'
@@ -83,7 +79,6 @@ export function buildToolSet(
     ...pipelineTools,
     createSearchBlueprintsCSTool(deps.serverClient),
     createScanLocalComponentsCSTool(deps.projectDir),
-    createRenderComponentTool(),
     createWriteComponentTool(deps.projectDir),
     createReviewCodeTool(deps.registry, deps.fastModelId),
     createReadFileCSTool(deps.projectDir),
@@ -106,9 +101,7 @@ export function buildToolSet(
     ...pipelineTools,
     createSearchBlueprintsCSTool(deps.serverClient),
     createScanLocalComponentsCSTool(deps.projectDir),
-    createRenderComponentTool(),
     createWriteComponentTool(deps.projectDir),
-    createRemoveComponentTool(deps.projectDir),
     createReviewCodeTool(deps.registry, deps.fastModelId),
     createReadFileCSTool(deps.projectDir),
     createGrepCSTool(deps.projectDir),

@@ -1,83 +1,91 @@
 import { create } from 'zustand'
-import type { AgentMessage } from '@shared/agentTypes'
+import type { AgentMessage, MessageCard, SessionSummary } from '@shared/agentTypes'
 
-export type NewMessage = Pick<AgentMessage, 'role' | 'content'>
-
-export interface PublishPayload {
-  name: string
-  description: string
-  tags: string[]
-  source: Record<string, string>
-  manifest?: unknown
-}
+type Status = 'idle' | 'generating' | 'error'
 
 interface ChatState {
-  messages: AgentMessage[]
-  status: 'idle' | 'generating' | 'error'
-  panelOpen: boolean
-  turnCount: number
-  publishState: 'hidden' | 'countdown' | 'publishing' | 'published'
-  publishPayload: PublishPayload | null
-  statusLabel: string
-  messageQueue: string[]
   activeSessionId: string | null
-  activeComponentIds: string[]
-  addMessage(msg: NewMessage): void
-  setStatus(s: ChatState['status']): void
-  setPanelOpen(v: boolean): void
-  incrementTurnCount(): void
-  setPublishState(s: ChatState['publishState']): void
-  setPublishPayload(payload: PublishPayload | null): void
-  enqueueMessage(msg: string): void
-  shiftQueue(): string | undefined
-  setActiveSessionId(id: string | null): void
-  setActiveComponentIds(ids: string[]): void
-  addActiveComponentId(id: string): void
-  reset(): void
+  messages: AgentMessage[]
+  sessions: SessionSummary[]
+  streamingMessageId: string | null
+  status: Status
+  error: string | null
+
+  setSessions(sessions: SessionSummary[]): void
+  setActiveSession(sessionId: string | null, messages: AgentMessage[]): void
+  appendMessage(message: AgentMessage): void
+  beginAssistantStream(messageId: string): void
+  appendStreamDelta(delta: string): void
+  attachCardToStream(card: MessageCard): void
+  endStream(): void
+  setStatus(status: Status): void
+  setError(error: string | null): void
+  clear(): void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  messages: [],
-  status: 'idle',
-  panelOpen: false,
-  turnCount: 0,
-  publishState: 'hidden',
-  publishPayload: null,
-  statusLabel: '',
-  messageQueue: [],
   activeSessionId: null,
-  activeComponentIds: [],
-  addMessage: (msg) =>
-    set((s) => ({ messages: [...s.messages, { ...msg, timestamp: Date.now() }] })),
-  setStatus: (status) => set({ status }),
-  setPanelOpen: (v) => set({ panelOpen: v }),
-  incrementTurnCount: () => set((s) => ({ turnCount: s.turnCount + 1 })),
-  setPublishState: (publishState) => set({ publishState }),
-  setPublishPayload: (publishPayload) => set({ publishPayload }),
-  enqueueMessage: (msg) => set((s) => ({ messageQueue: [...s.messageQueue, msg] })),
-  shiftQueue: () => {
-    const { messageQueue } = get()
-    if (messageQueue.length === 0) return undefined
-    set({ messageQueue: messageQueue.slice(1) })
-    return messageQueue[0]
+  messages: [],
+  sessions: [],
+  streamingMessageId: null,
+  status: 'idle',
+  error: null,
+
+  setSessions: (sessions) => set({ sessions }),
+
+  setActiveSession: (sessionId, messages) =>
+    set({ activeSessionId: sessionId, messages, streamingMessageId: null, status: 'idle', error: null }),
+
+  appendMessage: (message) =>
+    set((state) => ({ messages: [...state.messages, message] })),
+
+  beginAssistantStream: (messageId) => {
+    const draft: AgentMessage = {
+      id: messageId,
+      role: 'assistant',
+      content: '',
+      cards: [],
+      createdAt: Date.now(),
+    }
+    set((state) => ({
+      messages: [...state.messages, draft],
+      streamingMessageId: messageId,
+      status: 'generating',
+    }))
   },
-  setActiveSessionId: (id) => set({ activeSessionId: id }),
-  setActiveComponentIds: (ids) => set({ activeComponentIds: ids }),
-  addActiveComponentId: (id) => set((s) => ({
-    activeComponentIds: s.activeComponentIds.includes(id)
-      ? s.activeComponentIds
-      : [...s.activeComponentIds, id],
-  })),
-  reset: () => set({
-    messages: [],
-    status: 'idle',
-    panelOpen: false,
-    turnCount: 0,
-    publishState: 'hidden',
-    publishPayload: null,
-    statusLabel: '',
-    messageQueue: [],
-    activeSessionId: null,
-    activeComponentIds: [],
-  }),
+
+  appendStreamDelta: (delta) => {
+    const { streamingMessageId } = get()
+    if (!streamingMessageId) return
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === streamingMessageId ? { ...m, content: m.content + delta } : m,
+      ),
+    }))
+  },
+
+  attachCardToStream: (card) => {
+    const { streamingMessageId } = get()
+    if (!streamingMessageId) return
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === streamingMessageId ? { ...m, cards: [...m.cards, card] } : m,
+      ),
+    }))
+  },
+
+  endStream: () => set({ streamingMessageId: null, status: 'idle' }),
+
+  setStatus: (status) => set({ status }),
+
+  setError: (error) => set({ error, status: error ? 'error' : 'idle' }),
+
+  clear: () =>
+    set({
+      activeSessionId: null,
+      messages: [],
+      streamingMessageId: null,
+      status: 'idle',
+      error: null,
+    }),
 }))

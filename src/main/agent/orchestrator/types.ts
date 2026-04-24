@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { MemoryFiles } from '../memory/index'
 
 // --- Zod Schemas ---
 
@@ -64,7 +63,7 @@ export type BuildPlan = z.infer<typeof BuildPlanSchema>
 export interface OrchestratorContext {
   projectDir: string
   tabId: string
-  memory: MemoryFiles
+  userMemory: string
   activeComponents: Array<{ componentId: string; manifest: unknown }>
   targetComponentId?: string
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
@@ -73,6 +72,7 @@ export interface OrchestratorContext {
   serverClient: import('../../server/CSlateServerClient').CSlateServerClient | null
   sender: import('electron').WebContents
   permissionBroker?: { request(command: string): Promise<boolean> }
+  abortSignal?: AbortSignal
 }
 
 export type OrchestratorPhase =
