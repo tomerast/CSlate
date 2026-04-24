@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { IpcMain } from 'electron'
 
-// Mock electron-store
 const storeData = new Map<string, unknown>()
 vi.mock('electron-store', () => ({
   default: class {
-    get(key: string, def?: unknown) { return storeData.has(key) ? storeData.get(key) : def }
-    set(key: string, val: unknown) { storeData.set(key, val) }
-  }
+    get(key: string, def?: unknown) {
+      return storeData.has(key) ? storeData.get(key) : def
+    }
+    set(key: string, val: unknown) {
+      storeData.set(key, val)
+    }
+  },
 }))
 
-// Mock electron safeStorage
 const mockEncrypt = vi.fn((s: string) => Buffer.from(`enc:${s}`))
 const mockDecrypt = vi.fn((b: Buffer) => b.toString().replace(/^enc:/, ''))
 vi.mock('electron', () => ({
@@ -19,18 +21,15 @@ vi.mock('electron', () => ({
     isEncryptionAvailable: vi.fn(() => true),
     encryptString: mockEncrypt,
     decryptString: mockDecrypt,
-  }
+  },
 }))
 
-// Mock CSlateServerClient
 const mockSearch = vi.fn()
-const mockPublish = vi.fn()
 vi.mock('../../server/CSlateServerClient', () => ({
   CSlateServerClient: class {
     constructor(public serverUrl: string, public apiKey: string) {}
     search = mockSearch
-    publish = mockPublish
-  }
+  },
 }))
 
 beforeEach(() => {
@@ -47,140 +46,75 @@ function createMockIpcMain(): IpcMain {
     handle: (channel: string, handler: Function) => {
       handlers.set(channel, handler)
     },
-    // Helper to call handlers in tests
-    _invoke: (channel: string, args: any) => {
+    _invoke: (channel: string, args: unknown) => {
       const handler = handlers.get(channel)
       if (!handler) throw new Error(`No handler for ${channel}`)
       return handler({}, args)
-    }
-  } as any
+    },
+  } as unknown as IpcMain
 }
 
-describe('server IPC handlers', () => {
-  describe('server:search', () => {
-    it('returns error when server is not configured', async () => {
-      const ipc = createMockIpcMain()
-      register(ipc)
+describe('server IPC — server:search', () => {
+  it('returns a "not configured" error when no server is set', async () => {
+    const ipc = createMockIpcMain()
+    register(ipc)
 
-      const result = await (ipc as any)._invoke('server:search', { query: 'test' })
+    const result = await (ipc as any)._invoke('server:search', { query: 'test' })
 
-      expect(result).toEqual({ results: [], total: 0, error: 'Server not configured' })
-      expect(mockSearch).not.toHaveBeenCalled()
-    })
-
-    it('calls CSlateServerClient.search when configured', async () => {
-      setConfigValue('serverUrl', 'http://localhost:3000')
-      setConfigValue('serverApiKey', 'test-key')
-
-      mockSearch.mockResolvedValue({ results: [{ id: '1', name: 'test' }], total: 1 })
-
-      const ipc = createMockIpcMain()
-      register(ipc)
-
-      const result = await (ipc as any)._invoke('server:search', { query: 'test component', limit: 3 })
-
-      expect(mockSearch).toHaveBeenCalledWith('test component', 3)
-      expect(result).toEqual({ results: [{ id: '1', name: 'test' }], total: 1 })
-    })
-
-    it('uses default limit of 5 when not provided', async () => {
-      setConfigValue('serverUrl', 'http://localhost:3000')
-      setConfigValue('serverApiKey', 'test-key')
-
-      mockSearch.mockResolvedValue({ results: [], total: 0 })
-
-      const ipc = createMockIpcMain()
-      register(ipc)
-
-      await (ipc as any)._invoke('server:search', { query: 'test' })
-
-      expect(mockSearch).toHaveBeenCalledWith('test', 5)
-    })
-
-    it('returns null when serverUrl is missing', async () => {
-      setConfigValue('serverApiKey', 'test-key')
-      // serverUrl not set
-
-      const ipc = createMockIpcMain()
-      register(ipc)
-
-      const result = await (ipc as any)._invoke('server:search', { query: 'test' })
-
-      expect(result).toEqual({ results: [], total: 0, error: 'Server not configured' })
-    })
-
-    it('returns null when serverApiKey is missing', async () => {
-      setConfigValue('serverUrl', 'http://localhost:3000')
-      // serverApiKey not set
-
-      const ipc = createMockIpcMain()
-      register(ipc)
-
-      const result = await (ipc as any)._invoke('server:search', { query: 'test' })
-
-      expect(result).toEqual({ results: [], total: 0, error: 'Server not configured' })
-    })
+    expect(result).toEqual({ results: [], total: 0, error: 'Server not configured' })
+    expect(mockSearch).not.toHaveBeenCalled()
   })
 
-  describe('server:publish', () => {
-    it('returns error when server is not configured', async () => {
-      const ipc = createMockIpcMain()
-      register(ipc)
+  it('forwards query + limit to CSlateServerClient.search', async () => {
+    setConfigValue('serverUrl', 'http://localhost:3000')
+    setConfigValue('serverApiKey', 'test-key')
 
-      const result = await (ipc as any)._invoke('server:publish', {
-        name: 'test',
-        description: 'desc',
-        tags: ['tag1'],
-        source: { 'main.tsx': 'code' }
-      })
+    mockSearch.mockResolvedValue({ results: [{ id: '1', name: 'test' }], total: 1 })
 
-      expect(result).toEqual({ error: 'Server not configured' })
-      expect(mockPublish).not.toHaveBeenCalled()
+    const ipc = createMockIpcMain()
+    register(ipc)
+
+    const result = await (ipc as any)._invoke('server:search', {
+      query: 'test component',
+      limit: 3,
     })
 
-    it('calls CSlateServerClient.publish when configured', async () => {
-      setConfigValue('serverUrl', 'http://localhost:3000')
-      setConfigValue('serverApiKey', 'test-key')
+    expect(mockSearch).toHaveBeenCalledWith('test component', 3)
+    expect(result).toEqual({ results: [{ id: '1', name: 'test' }], total: 1 })
+  })
 
-      mockPublish.mockResolvedValue({ id: 'comp-123', status: 'success' })
+  it('defaults limit to 5 when omitted', async () => {
+    setConfigValue('serverUrl', 'http://localhost:3000')
+    setConfigValue('serverApiKey', 'test-key')
+    mockSearch.mockResolvedValue({ results: [], total: 0 })
 
-      const ipc = createMockIpcMain()
-      register(ipc)
+    const ipc = createMockIpcMain()
+    register(ipc)
 
-      const payload = {
-        name: 'MyComponent',
-        description: 'A test component',
-        tags: ['react', 'ui'],
-        source: { 'main.tsx': 'export default function() {}' },
-        manifest: { id: 'test' }
-      }
+    await (ipc as any)._invoke('server:search', { query: 'test' })
 
-      const result = await (ipc as any)._invoke('server:publish', payload)
+    expect(mockSearch).toHaveBeenCalledWith('test', 5)
+  })
 
-      expect(mockPublish).toHaveBeenCalledWith(payload)
-      expect(result).toEqual({ id: 'comp-123', status: 'success' })
-    })
+  it('treats missing serverUrl as not-configured', async () => {
+    setConfigValue('serverApiKey', 'test-key')
 
-    it('works without optional manifest field', async () => {
-      setConfigValue('serverUrl', 'http://localhost:3000')
-      setConfigValue('serverApiKey', 'test-key')
+    const ipc = createMockIpcMain()
+    register(ipc)
 
-      mockPublish.mockResolvedValue({ id: 'comp-456', status: 'success' })
+    const result = await (ipc as any)._invoke('server:search', { query: 'test' })
 
-      const ipc = createMockIpcMain()
-      register(ipc)
+    expect(result).toEqual({ results: [], total: 0, error: 'Server not configured' })
+  })
 
-      const payload = {
-        name: 'SimpleComponent',
-        description: 'No manifest',
-        tags: [],
-        source: { 'index.tsx': 'code' }
-      }
+  it('treats missing serverApiKey as not-configured', async () => {
+    setConfigValue('serverUrl', 'http://localhost:3000')
 
-      const result = await (ipc as any)._invoke('server:publish', payload)
+    const ipc = createMockIpcMain()
+    register(ipc)
 
-      expect(mockPublish).toHaveBeenCalledWith(payload)
-      expect(result).toEqual({ id: 'comp-456', status: 'success' })
-    })
+    const result = await (ipc as any)._invoke('server:search', { query: 'test' })
+
+    expect(result).toEqual({ results: [], total: 0, error: 'Server not configured' })
   })
 })

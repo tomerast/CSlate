@@ -21,7 +21,6 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'agent:abort',
   'agent:permission-response',
   'server:search',
-  'server:publish',
   'server:connect',
   'server:disconnect',
   'shell:openExternal',
