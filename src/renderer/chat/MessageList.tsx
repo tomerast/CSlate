@@ -171,7 +171,7 @@ function RefreshIcon() {
 function InlineCard({ card }: { card: MessageCard }) {
   return (
     <div>
-      <DynamicComponent bundle={card.bundle} variant="inline" />
+      <DynamicComponent bundle={card.bundle} manifest={card.manifest} variant="inline" />
       <CardFooter card={card} />
     </div>
   )

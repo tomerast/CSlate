@@ -13,6 +13,7 @@ import { createReadProjectContextTool } from '../tools/readProjectContext'
 import { createReadManifestTool } from '../tools/readManifest'
 import { validateManifest } from '../tools/validateManifest'
 import { createWriteComponentTool } from '../tools/writeComponent'
+import { validateBridgeDataUsage } from '../tools/bridgeValidation'
 import { createReadFileCSTool } from '../tools/readFile'
 import { createGrepCSTool } from '../tools/grep'
 import { createGlobCSTool } from '../tools/glob'
@@ -309,6 +310,14 @@ export class Orchestrator {
             return {
               success: false,
               error: `Manifest invalid: ${validation.errors.join(', ')}`,
+            }
+          }
+
+          const bridgeErrors = validateBridgeDataUsage(files, manifest)
+          if (bridgeErrors.length > 0) {
+            return {
+              success: false,
+              error: bridgeErrors.join(', '),
             }
           }
 

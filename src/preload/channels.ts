@@ -1,5 +1,4 @@
 export const ALLOWED_SEND_CHANNELS = [
-  'bridge:fetch',
   'bridge:subscribe',
   'bridge:unsubscribe',
   'sandbox:load',
@@ -9,6 +8,7 @@ export const ALLOWED_SEND_CHANNELS = [
 ] as const
 
 export const ALLOWED_INVOKE_CHANNELS = [
+  'bridge:fetch',
   'config:get',
   'config:set',
   'file:read',

@@ -2,8 +2,10 @@ import { app, type IpcMain, type WebContents } from 'electron'
 import path from 'path'
 import { AgentEngine } from './engine'
 import { getConfigValue } from '../ipc/config'
-import type { LLMConfig } from '@cslate/shared/agent'
+import { buildRegistry, type LLMConfig } from '@cslate/shared/agent'
 import type { PermissionBroker } from './tools/bash/permissions'
+import { loadUserMemory } from '../memory/context'
+import { extractAndStoreUiMemories } from '../memory/auto-extract'
 import { agentLog, logFile } from '../lib/logger'
 
 const DIRECT_MODEL_IDS: Record<string, string> = {
@@ -157,6 +159,8 @@ export function register(ipcMain: IpcMain): void {
     })
 
     log.debug('engine created, starting stream')
+    const assistantText: string[] = []
+    let completed = false
     try {
       for await (const part of engine.stream({
         message,
@@ -167,6 +171,7 @@ export function register(ipcMain: IpcMain): void {
         const p = part as Record<string, unknown>
         switch (p['type']) {
           case 'text-delta':
+            assistantText.push(String(p['text'] ?? ''))
             sender.send('agent:token', { delta: p['text'] })
             break
           case 'tool-call':
@@ -178,6 +183,7 @@ export function register(ipcMain: IpcMain): void {
             sender.send('agent:tool-result', { tool: p['toolName'], result: p['result'] })
             break
           case 'finish':
+            completed = true
             log.info({ usage: (p['response'] as any)?.usage }, 'stream finished')
             sender.send('agent:done', { usage: (p['response'] as any)?.usage ?? {} })
             break
@@ -186,6 +192,20 @@ export function register(ipcMain: IpcMain): void {
             sender.send('agent:error', { message: String((p['error'] as Error)?.message ?? p['error']) })
             break
         }
+      }
+      if (completed && !abortController.signal.aborted) {
+        void loadUserMemory()
+          .then((userMemory) =>
+            extractAndStoreUiMemories({
+              message,
+              assistantText: assistantText.join(''),
+              history: conversationHistory,
+              userMemory,
+              config,
+              registry: buildRegistry(config),
+            }),
+          )
+          .catch((err) => log.warn({ err }, 'failed to schedule UI memory extraction'))
       }
     } catch (err: unknown) {
       if (abortController.signal.aborted) {

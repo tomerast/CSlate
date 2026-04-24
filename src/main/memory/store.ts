@@ -21,7 +21,7 @@ export const MEMORY_FILES: MemoryFile[] = [
     description:
       'How you like answers to look. Density, tone, units, favorite frameworks, color palettes, dashboard style.',
     defaultContent:
-      '# User Preferences\n\n<!-- Describe how you prefer answers and UI cards. The assistant reads this every turn. -->\n\n- Tone:\n- Density:\n- Units:\n- Visual style:\n',
+      '# User Preferences\n\n<!-- Describe how you prefer answers and UI cards. The assistant reads this every turn. -->\n\n- Tone:\n- Density:\n- Units:\n- Visual style:\n\n## Auto-Learned UI Preferences\n\n<!-- CSlate adds durable UI/card preferences here when you state them in chat. Edit or delete freely. -->\n',
   },
   {
     name: 'domain_context.md',
@@ -94,6 +94,69 @@ async function readOrSeed(meta: MemoryFile): Promise<MemoryEntry> {
   }
 }
 
+const AUTO_UI_HEADING = '## Auto-Learned UI Preferences'
+const AUTO_UI_NOTE =
+  '<!-- CSlate adds durable UI/card preferences here when you state them in chat. Edit or delete freely. -->'
+const MAX_AUTO_UI_PREFERENCES = 30
+
+function normalizePreference(line: string): string {
+  return line
+    .replace(/^[-*]\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function canonicalPreference(line: string): string {
+  return normalizePreference(line)
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+}
+
+function formatPreference(text: string): string {
+  const normalized = normalizePreference(text)
+  return normalized ? `- ${normalized}` : ''
+}
+
+export function mergeAutoUiPreferences(content: string, preferences: string[]): string {
+  const incoming = preferences
+    .map(formatPreference)
+    .filter(Boolean)
+
+  if (incoming.length === 0) return content
+
+  const headingIndex = content.indexOf(AUTO_UI_HEADING)
+  const beforeSection =
+    headingIndex >= 0 ? content.slice(0, headingIndex).trimEnd() : content.trimEnd()
+  const section =
+    headingIndex >= 0 ? content.slice(headingIndex) : `${AUTO_UI_HEADING}\n\n${AUTO_UI_NOTE}\n`
+  const nextHeadingMatch = section.slice(AUTO_UI_HEADING.length).match(/\n##\s+/)
+  const sectionEnd = nextHeadingMatch
+    ? AUTO_UI_HEADING.length + nextHeadingMatch.index! + 1
+    : section.length
+  const autoSection = section.slice(0, sectionEnd)
+  const afterSection = section.slice(sectionEnd).trimStart()
+
+  const existing = autoSection
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^[-*]\s+/.test(line))
+
+  const seen = new Set(existing.map(canonicalPreference))
+  const additions = incoming.filter((line) => {
+    const key = canonicalPreference(line)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  if (additions.length === 0) return content
+
+  const merged = [...existing, ...additions].slice(-MAX_AUTO_UI_PREFERENCES)
+  const rebuiltSection = `${AUTO_UI_HEADING}\n\n${AUTO_UI_NOTE}\n${merged.join('\n')}\n`
+  const rebuilt = `${beforeSection}\n\n${rebuiltSection}${afterSection ? `\n${afterSection}` : ''}`
+  return `${rebuilt.trimEnd()}\n`
+}
+
 export const memoryStore = {
   async list(): Promise<MemoryEntry[]> {
     return Promise.all(MEMORY_FILES.map(readOrSeed))
@@ -111,5 +174,13 @@ export const memoryStore = {
     const dir = await ensureDir()
     await fs.writeFile(join(dir, meta.name), content, 'utf-8')
     return readOrSeed(meta)
+  },
+
+  async addAutoUiPreferences(preferences: string[]): Promise<MemoryEntry | null> {
+    const current = await this.read('user_preferences.md')
+    if (!current) return null
+    const next = mergeAutoUiPreferences(current.content, preferences)
+    if (next === current.content) return current
+    return this.write('user_preferences.md', next)
   },
 }

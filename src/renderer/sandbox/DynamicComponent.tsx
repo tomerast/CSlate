@@ -22,6 +22,7 @@ type Variant = 'inline' | 'fullscreen'
 
 interface Props {
   bundle: string
+  manifest?: unknown
   variant?: Variant
 }
 
@@ -50,7 +51,40 @@ interface Bridge {
   pipelineSubscribe: (pipelineId: string, callback: (data: unknown) => void) => () => void
 }
 
-function createBridge(preferences: UserPreferences): Bridge {
+type DataSourceEndpoint = {
+  path?: unknown
+  method?: unknown
+}
+
+type DataSource = {
+  baseUrl?: unknown
+  endpoints?: Record<string, DataSourceEndpoint>
+}
+
+function getDataSource(
+  manifest: unknown,
+  sourceId: string,
+  endpointId: string,
+): { source: DataSource; endpoint: DataSourceEndpoint } {
+  const record = manifest && typeof manifest === 'object' ? manifest as Record<string, unknown> : null
+  const dataSources = record?.dataSources && typeof record.dataSources === 'object'
+    ? record.dataSources as Record<string, unknown>
+    : null
+  const source = dataSources?.[sourceId]
+  if (!source || typeof source !== 'object') {
+    throw new Error(`Data source "${sourceId}" is not declared in manifest.json`)
+  }
+
+  const typedSource = source as DataSource
+  const endpoint = typedSource.endpoints?.[endpointId]
+  if (!endpoint || typeof endpoint !== 'object') {
+    throw new Error(`Endpoint "${sourceId}/${endpointId}" is not declared in manifest.json`)
+  }
+
+  return { source: typedSource, endpoint }
+}
+
+function createBridge(preferences: UserPreferences, getManifest: () => unknown): Bridge {
   return {
     user: {
       theme: preferences.theme,
@@ -58,11 +92,15 @@ function createBridge(preferences: UserPreferences): Bridge {
       preferences: preferences.extras,
     },
 
-    fetch: async (sourceId, endpointId) => {
-      console.warn(
-        `[bridge.fetch] "${sourceId}/${endpointId}" — data source registry not yet available, returning null`,
-      )
-      return null
+    fetch: async (sourceId, endpointId, params = {}) => {
+      const { source, endpoint } = getDataSource(getManifest(), sourceId, endpointId)
+      return window.electron.invoke('bridge:fetch', {
+        sourceId,
+        endpointId,
+        params,
+        source,
+        endpoint,
+      })
     },
 
     subscribe: (sourceId, endpointId) => {
@@ -205,14 +243,19 @@ function evalBundleCached(bundle: string, bridge: Bridge): EvalResult {
  * embed. The inline variant is constrained to the message bubble width and
  * has internal scroll if content overflows.
  */
-export function DynamicComponent({ bundle, variant = 'inline' }: Props) {
+export function DynamicComponent({ bundle, manifest, variant = 'inline' }: Props) {
   const preferences = useAppStore((s) => s.preferences)
   const [result, setResult] = React.useState<EvalResult>({ Component: null, error: null })
   const [runtimeError, setRuntimeError] = React.useState<string | null>(null)
-  const bridgeRef = React.useRef<Bridge>(createBridge(preferences))
+  const manifestRef = React.useRef<unknown>(manifest)
+  const bridgeRef = React.useRef<Bridge>(createBridge(preferences, () => manifestRef.current))
   const storeRef = React.useRef(createComponentStore())
 
   // Keep bridge.user fresh as preferences change without breaking cached bundles.
+  React.useEffect(() => {
+    manifestRef.current = manifest
+  }, [manifest])
+
   React.useEffect(() => {
     bridgeRef.current.user = {
       theme: preferences.theme,

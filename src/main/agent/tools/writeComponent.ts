@@ -5,6 +5,7 @@ import { validateComponentPackage } from '@cslate/shared'
 import { bundleComponentDir } from '../lib/bundler'
 import { stripFences } from '@cslate/shared/agent'
 import { buildTool } from './types'
+import { validateBridgeDataUsage } from './bridgeValidation'
 
 type WriteInput = {
   componentId: string
@@ -75,6 +76,10 @@ export function createWriteComponentTool(projectDir: string) {
       const validation = validateComponentPackage({ manifest: input.manifest, files: cleanFiles })
       if (!validation.valid) {
         return { data: { success: false, path: '', errors: validation.errors } }
+      }
+      const bridgeErrors = validateBridgeDataUsage(cleanFiles, input.manifest)
+      if (bridgeErrors.length > 0) {
+        return { data: { success: false, path: '', errors: bridgeErrors } }
       }
 
       await mkdir(componentDir, { recursive: true })

@@ -54,6 +54,9 @@ const data = await bridge.fetch('sourceId', 'endpointId', { param: value })
 const unsub = bridge.subscribe('sourceId', 'endpointId', params, (data) => setState(data))
 const apiKey = bridge.getConfig('apiKeyName')  // for userConfig fields
 \`\`\`
+- \`endpointId\` is the manifest endpoint key, not the URL path. If manifest has \`"getSimplePrice": { "path": "/simple/price" }\`, call \`bridge.fetch('coingecko', 'getSimplePrice', params)\`.
+- For "current", "latest", "live", ticker, price, status, or monitoring requests, fetch once on mount and keep data fresh with polling or a subscription. A manual refresh button alone is not live.
+- Seed/mock data is only a render fallback. Label it as sample/stale until the first successful fetch when the user asked for current/live data.
 
 ### Bridge-Safe Loading Patterns (CRITICAL — violating this causes infinite loading)
 
