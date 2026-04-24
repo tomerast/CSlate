@@ -242,7 +242,7 @@ function EmptyState() {
       </div>
       <h2 className="text-lg font-medium text-text mb-2">Ask anything</h2>
       <p className="text-sm text-muted max-w-sm">
-        Answers that belong as pictures, tables, or dashboards render right here in the conversation.
+        Answers that belong as charts, tables, or compact visuals render right here in the conversation.
       </p>
     </div>
   )

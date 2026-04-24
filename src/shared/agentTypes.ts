@@ -36,15 +36,3 @@ export interface SessionSummary {
 export interface Session extends Omit<SessionSummary, 'messageCount'> {
   messages: AgentMessage[]
 }
-
-export interface PipelineBuildPlanEvent {
-  type: 'pipeline-plan'
-  pipelines: Array<{
-    pipelineId: string
-    requirements: string
-  }>
-  wiring: Array<{
-    componentId: string
-    pipelineId: string
-  }>
-}

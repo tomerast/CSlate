@@ -2,7 +2,7 @@
 import { tool as defineTool } from 'ai'
 import { runAgentStream } from '@cslate/shared/agent'
 import { z } from 'zod'
-import type { OrchestratorContext, SubAgentResult } from './types'
+import type { BuildTask, OrchestratorContext, PipelinePlan, SubAgentResult } from './types'
 import { ComponentPlanSchema, PipelinePlanSchema, WiringPlanSchema } from './types'
 import { buildOrchestratorSystemPrompt } from './prompts'
 import { spawnBuildAgent, spawnFixAgent, spawnPipelineBuildAgent } from './sub-agent'
@@ -21,9 +21,32 @@ import { createBashCSTool } from '../tools/bash'
 import { createLspCSTool } from '../tools/lsp'
 import { createWebFetchCSTool } from '../tools/webFetch'
 import { engineLog } from '../../lib/logger'
-import { saveStaging, clearStaging, listStaging, type StagingState } from './staging'
+import { saveStaging, clearStaging, listStaging, type StagedBuildPlan, type StagingState } from './staging'
 import type { Logger } from 'pino'
 import { buildToolSet } from '../tools/index'
+
+type ShipFailure = { file: string; error: string }
+type ShipResult = { success: true } | { success: false; failures: ShipFailure[] }
+
+function failedShip(file: string, error: string): ShipResult {
+  return { success: false, failures: [{ file, error }] }
+}
+
+function bridgeFailures(errors: string[]): ShipFailure[] {
+  return errors.map((error) => {
+    const match = /^([^:]+):\s*(.+)$/.exec(error)
+    if (match) return { file: match[1], error: match[2] }
+    return { file: 'ui.tsx', error }
+  })
+}
+
+function writeFailures(errors: string[] | undefined): ShipFailure[] {
+  const normalized = errors && errors.length > 0 ? errors : ['writeComponent failed']
+  return normalized.map((error) => ({
+    file: /\bmanifest(?:\.json)?\b/i.test(error) ? 'manifest.json' : 'ui.tsx',
+    error,
+  }))
+}
 
 /**
  * Assemble built files into a component, validate, write to disk, bundle,
@@ -36,21 +59,21 @@ async function shipComponent(
   componentId: string,
   contextMd: string,
   log: Logger
-): Promise<boolean> {
+): Promise<ShipResult> {
   const files: Record<string, string> = {}
   for (const r of buildResults) {
-    if (r.status === 'success') {
-      files[r.file] = r.code
+    if (r.status === 'success' && r.code.trim()) {
+      files[r.file] = r.code.trim()
     }
   }
 
-  if (!files['ui.tsx']) {
+  if (!('ui.tsx' in files)) {
     log.warn('auto-assembly skipped: ui.tsx missing')
-    return false
+    return failedShip('ui.tsx', 'ui.tsx is missing or empty')
   }
-  if (!files['manifest.json']) {
+  if (!('manifest.json' in files)) {
     log.warn('auto-assembly skipped: manifest.json missing')
-    return false
+    return failedShip('manifest.json', 'manifest.json is missing or empty')
   }
 
   let manifest: unknown
@@ -58,7 +81,10 @@ async function shipComponent(
     manifest = JSON.parse(files['manifest.json'])
   } catch (e) {
     log.warn({ err: e }, 'auto-assembly skipped: manifest.json is not valid JSON')
-    return false
+    return failedShip(
+      'manifest.json',
+      `manifest.json is not valid JSON: ${e instanceof Error ? e.message : String(e)}`
+    )
   }
 
   const rawValidation = (await validateManifest.execute!(
@@ -68,13 +94,13 @@ async function shipComponent(
   const validation = (rawValidation?.data ?? rawValidation) as { valid: boolean; errors: string[] }
   if (!validation.valid) {
     log.warn({ errors: validation.errors }, 'auto-assembly skipped: manifest invalid')
-    return false
+    return failedShip('manifest.json', validation.errors.join('; ') || 'manifest.json failed validation')
   }
 
   const bridgeErrors = validateBridgeDataUsage(files, manifest)
   if (bridgeErrors.length > 0) {
     log.warn({ errors: bridgeErrors }, 'auto-assembly skipped: bridge validation failed')
-    return false
+    return { success: false, failures: bridgeFailures(bridgeErrors) }
   }
 
   const writeTool = createWriteComponentTool(ctx.projectDir).toAISDKTool()
@@ -99,7 +125,7 @@ async function shipComponent(
 
   if (!writeResult.success) {
     log.warn({ errors: writeResult.errors }, 'auto-assembly skipped: write failed')
-    return false
+    return { success: false, failures: writeFailures(writeResult.errors) }
   }
 
   ctx.sender.send('agent:tool-result', { tool: 'writeComponent', result: writeResult })
@@ -132,7 +158,7 @@ async function shipComponent(
     })
   }
 
-  return true
+  return { success: true }
 }
 
 export class Orchestrator {
@@ -146,6 +172,7 @@ export class Orchestrator {
   async *stream(message: string): AsyncGenerator<unknown> {
     const { ctx } = this
     const modelId = mainModelId(ctx.config)
+    const fastModel = fastModelId(ctx.config)
 
     const toolDeps = {
       projectDir: ctx.projectDir,
@@ -154,7 +181,6 @@ export class Orchestrator {
       serverClient: ctx.serverClient,
       permissionBroker: ctx.permissionBroker,
     }
-    const { aiTools: buildAgentTools } = buildToolSet(toolDeps, 'build')
     const { aiTools: fixAgentTools } = buildToolSet(toolDeps, 'fix')
     const memoryContext = ctx.userMemory
     const cardContext =
@@ -169,8 +195,10 @@ export class Orchestrator {
 
     // Persistent build state — survives crashes, restarts, rate limits.
     // Saved to disk after each phase; restored at start of next run.
-    let lastBuildResults: import('./types').SubAgentResult[] = []
-    let lastPipelinePlan: import('./types').PipelinePlan | null = null
+    let lastBuildResults: SubAgentResult[] = []
+    let lastBuildTasks: BuildTask[] = []
+    let lastPlan: StagedBuildPlan | null = null
+    let lastPipelinePlan: PipelinePlan | null = null
     let componentShipped = false
     let stagedComponentId: string | null = null
 
@@ -180,17 +208,38 @@ export class Orchestrator {
     //   (b) user explicitly referenced a component that has a staged build (intentional resume)
     // This prevents a new unrelated request from accidentally hijacking a stale staged build.
     const existingStates = await listStaging(ctx.projectDir)
-    const resumeFrom: StagingState | null =
+    let resumeFrom: StagingState | null =
       existingStates.find(s => s.buildId === ctx.tabId) ??
       (ctx.targetComponentId
         ? existingStates.find(s => s.componentId === ctx.targetComponentId) ?? null
         : null)
+
+    if (
+      resumeFrom?.phase === 'planned' &&
+      !resumeFrom.plan &&
+      resumeFrom.messages.length === 0
+    ) {
+      this.log.warn(
+        { componentId: resumeFrom.componentId },
+        'discarding planned staging state without plan or messages'
+      )
+      await clearStaging(ctx.projectDir, resumeFrom.componentId)
+      resumeFrom = null
+    }
 
     const systemPrompt = buildOrchestratorSystemPrompt({
       memoryContext,
       cardContext,
       targetComponentId: ctx.targetComponentId,
       resumePhase: resumeFrom?.phase,
+      resumePlanContext: resumeFrom?.plan
+        ? JSON.stringify({
+            componentId: resumeFrom.plan.componentId,
+            contract: resumeFrom.plan.contract,
+            tasks: resumeFrom.plan.tasks,
+            pipelines: resumeFrom.plan.pipelines,
+          }, null, 2)
+        : '',
     })
     if (resumeFrom) {
       this.log.info(
@@ -198,6 +247,9 @@ export class Orchestrator {
         'resuming from staged build state'
       )
       lastBuildResults = resumeFrom.buildResults
+      lastPlan = resumeFrom.plan ?? null
+      lastBuildTasks = resumeFrom.plan?.tasks ?? []
+      lastPipelinePlan = resumeFrom.plan?.pipelines[0] ?? null
       stagedComponentId = resumeFrom.componentId
       ctx.sender.send('agent:orchestrator:status', { phase: 'validate' })
     }
@@ -206,7 +258,10 @@ export class Orchestrator {
     // Do NOT seed with prior run messages — calledInHistory (derived from staging phase)
     // is sufficient for phase detection, and injecting a failed run's history causes
     // the model to loop re-planning the same component.
-    let accumulatedMessages: unknown[] = []
+    let accumulatedMessages: unknown[] =
+      resumeFrom?.phase === 'planned' && !resumeFrom.plan
+        ? resumeFrom.messages
+        : []
 
     // Derive which phases are already complete from the staging phase field.
     // Scanning message history is unreliable — a failed prior run may include
@@ -249,6 +304,13 @@ export class Orchestrator {
             'plan created'
           )
           stagedComponentId = plan.componentId
+          lastBuildTasks = plan.tasks
+          lastPlan = {
+            componentId: plan.componentId,
+            contract: plan.contract,
+            tasks: plan.tasks,
+            pipelines: plan.pipelines,
+          }
           // Staging is saved in onStepFinish after this step completes so
           // accumulatedMessages includes the plan tool call + result.
           return {
@@ -276,6 +338,7 @@ export class Orchestrator {
           pipelines: z.array(PipelinePlanSchema).default([]).describe('Pipeline plans to build in parallel'),
         }),
         execute: async (input) => {
+          lastBuildTasks = input.tasks
           this.log.info(
             { componentId: input.componentId, taskCount: input.tasks.length, pipelineCount: input.pipelines.length },
             'dispatching sub-agents'
@@ -290,7 +353,9 @@ export class Orchestrator {
             lastPipelinePlan = input.pipelines[0]
           }
 
-          // Dispatch component and pipeline agents in parallel
+          // Dispatch component and pipeline agents in parallel.
+          // Build agents run single-shot (no tools) for speed — the blueprint
+          // and contract give them enough context to generate in one turn.
           const [componentResults, pipelineResultsNested] = await Promise.all([
             Promise.all(
               input.tasks.map((task, i) => {
@@ -300,12 +365,14 @@ export class Orchestrator {
                   file: task.file,
                   status: 'building',
                 })
+                // Heavier files (ui.tsx) use the main model; boilerplate
+                // files (manifest, types, context) use the fast/cheap model.
+                const taskModelId = task.file === 'ui.tsx' ? modelId : fastModel
                 return spawnBuildAgent({
                   task,
                   contract: input.contract,
-                  modelId,
+                  modelId: taskModelId,
                   registry: ctx.registry,
-                  aiTools: buildAgentTools,
                 }).then(async (result) => {
                   ctx.sender.send('agent:orchestrator:status', {
                     phase: 'worker',
@@ -321,9 +388,8 @@ export class Orchestrator {
               input.pipelines.map((pipelinePlan) =>
                 spawnPipelineBuildAgent({
                   pipelinePlan,
-                  modelId,
+                  modelId: fastModel,
                   registry: ctx.registry,
-                  aiTools: buildAgentTools,
                 })
               )
             ),
@@ -343,6 +409,7 @@ export class Orchestrator {
               timestamp: Date.now(),
               messages: [],  // messages snapshotted at plan phase; files are what matter now
               buildResults: componentResults,
+              plan: lastPlan ?? undefined,
             })
           }
 
@@ -374,14 +441,14 @@ export class Orchestrator {
           this.log.info({ componentId: input.componentId }, 'assembling component')
           ctx.sender.send('agent:orchestrator:status', { phase: 'validate' })
 
-          const shipped = await shipComponent(
+          const shipResult = await shipComponent(
             ctx,
             lastBuildResults,
             input.componentId,
             input.contextMd,
             this.log
           )
-          if (shipped) {
+          if (shipResult.success) {
             componentShipped = true
             return { success: true, componentId: input.componentId }
           }
@@ -390,6 +457,7 @@ export class Orchestrator {
           const failedFiles = lastBuildResults
             .filter((r) => r.status === 'error')
             .map((r) => ({ file: r.file, error: r.error ?? 'Build failed' }))
+            .concat(shipResult.failures)
           return {
             success: false,
             error:
@@ -423,6 +491,18 @@ export class Orchestrator {
             input.fixes.map((fix) => {
               // Read broken code from stored results — model doesn't echo it back
               const stored = lastBuildResults.find(r => r.file === fix.file)
+              const task = lastBuildTasks.find(t => t.file === fix.file)
+              const needsRebuild = !stored || stored.status !== 'success' || !stored.code.trim()
+              if (needsRebuild && task) {
+                this.log.info({ file: fix.file }, 'rebuilding from scratch instead of fixing')
+                const taskModelId = task.file === 'ui.tsx' ? modelId : fastModel
+                return spawnBuildAgent({
+                  task,
+                  contract: input.contract,
+                  modelId: taskModelId,
+                  registry: ctx.registry,
+                })
+              }
               return spawnFixAgent({
                 file: fix.file,
                 brokenCode: stored?.code ?? '',
@@ -491,6 +571,7 @@ export class Orchestrator {
             timestamp: Date.now(),
             messages: accumulatedMessages,
             buildResults: [],
+            plan: lastPlan ?? undefined,
           })
         }
 
@@ -503,6 +584,7 @@ export class Orchestrator {
             timestamp: Date.now(),
             messages: accumulatedMessages,
             buildResults: lastBuildResults,
+            plan: lastPlan ?? undefined,
           })
         }
       },
@@ -596,8 +678,15 @@ export class Orchestrator {
       },
     })
 
+    // Hold finish until after recovery so late agent:card events still attach
+    // to the active streaming assistant message before renderer finalization.
+    const finishParts: unknown[] = []
     for await (const part of result.fullStream) {
-      yield part
+      if ((part as { type?: unknown }).type === 'finish') {
+        finishParts.push(part)
+      } else {
+        yield part
+      }
     }
 
     // Recovery: if build results exist but the stream ended without shipping,
@@ -618,11 +707,11 @@ export class Orchestrator {
           '',
           this.log
         )
-        if (assembled) {
+        if (assembled.success) {
           componentShipped = true
           this.log.info({ componentId: stagedComponentId }, 'auto-assembly succeeded')
         } else {
-          this.log.warn({ componentId: stagedComponentId }, 'auto-assembly failed')
+          this.log.warn({ componentId: stagedComponentId, failures: assembled.failures }, 'auto-assembly failed')
           // Clear staging — this build won't recover without a fresh attempt
           await clearStaging(ctx.projectDir, stagedComponentId)
           ctx.sender.send('agent:error', {
@@ -639,6 +728,10 @@ export class Orchestrator {
           code: 'ASSEMBLY_DROPPED',
         })
       }
+    }
+
+    for (const part of finishParts) {
+      yield part
     }
 
     this.log.info({ durationMs: Date.now() - t0 }, 'orchestrator done')

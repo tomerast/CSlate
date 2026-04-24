@@ -80,7 +80,6 @@ export function buildToolSet(
     createSearchBlueprintsCSTool(deps.serverClient),
     createScanLocalComponentsCSTool(deps.projectDir),
     createWriteComponentTool(deps.projectDir),
-    createReviewCodeTool(deps.registry, deps.fastModelId),
     createReadFileCSTool(deps.projectDir),
     createGrepCSTool(deps.projectDir),
     createGlobCSTool(deps.projectDir),
