@@ -3,7 +3,7 @@ import { runStructuredAgent, fastModelId, type LLMConfig } from '@cslate/shared/
 import { engineLog } from '../lib/logger'
 
 /**
- * Post-canvas-retirement routing taxonomy (Phase 4).
+ * Chat-portal routing taxonomy.
  *
  * - render: The user asked an informational question that benefits from a
  *   live visualization (chart, table, map, timeline, comparison, stats card,

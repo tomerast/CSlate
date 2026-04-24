@@ -27,12 +27,11 @@ The CSlate client is the desktop app. Its job is to:
 | Language | TypeScript 5.9 strict |
 | UI framework | React 18 |
 | Styling | Tailwind CSS 3 (semantic tokens only — no raw color utilities) |
-| State | Zustand 4 (`chatStore`, `canvasStore`, `appStore`) |
+| State | Zustand 4 (`chatStore`, `appStore`) |
 | AI SDK | Vercel AI SDK v6 (`ai`) |
 | LLM providers | `@ai-sdk/anthropic` `@ai-sdk/openai` `@ai-sdk/google` `ollama-ai-provider` |
 | Agent infrastructure | `@cslate/shared/agent` — `buildRegistry`, `runAgentStream`, `runSubAgent`, `runStructuredAgent` |
 | Component bundler | esbuild 0.27 (CJS, react/react-dom externalized) |
-| Drag & drop | `@dnd-kit/core` |
 | Markdown | `react-markdown` |
 | Config store | `electron-store` 8 (sensitive fields via `safeStorage`) |
 | Logger | `pino` 10 (main process) |
@@ -72,22 +71,18 @@ src/
 
   renderer/
     chat/
-      ChatPanel.tsx       Conversation view — message list + input
+      AppLayout.tsx       Chat surface composition
+      DockedChatBar.tsx   Input bar
+      SessionList.tsx     Session sidebar
       MessageList.tsx     Renders messages + inline UI cards
-      FloatingChatBar.tsx Input bar
       useChat.ts          Chat state + agent streaming hook
-      PublishToast.tsx    Upload/review progress notification
-    canvas/
-      SlateCanvas.tsx     Standalone canvas mode (secondary)
-      hooks/              useResize, useDrag, useAutoSize, ...
     sandbox/
       DynamicComponent.tsx  esbuild CJS eval + ErrorBoundary
     store/
       chatStore.ts        Messages, streaming state
-      canvasStore.ts      Canvas component positions + hydrate()
       appStore.ts         Provider config, app-level state
     layout/
-      AppLayout.tsx       Root layout — tabs (chat / canvas)
+      AppLayout.tsx       Root layout — session sidebar + chat surface
     App.tsx
 
   shared/
@@ -159,8 +154,6 @@ Key channels:
 | `agent:complete` | main → renderer | Turn complete signal |
 | `agent:send` | renderer → main | User sends a message |
 | `agent:cancel` | renderer → main | Cancel current stream |
-| `canvas:load` | renderer → main | Load canvas component list |
-| `canvas:add` | renderer → main | Add component to canvas |
 | `component:upload` | renderer → main | Trigger server upload |
 | `upload:progress` | main → renderer | SSE review stage events forwarded |
 | `config:get` | renderer → main | Read a config value |
@@ -239,7 +232,6 @@ Renderer errors → DevTools (Cmd+Option+I)
 
 - IPC channels must be in `src/preload/channels.ts` — missing channel = silent failure
 - All file paths go through `safePath()` / `safeComponentId()` — throws on traversal
-- `canvas:load` called at startup with empty `projectDir` — handle gracefully (hydrate even with empty array)
 - OpenAI structured outputs: all schema properties must be `required`; use `.nullable()` not `.optional()`
 - esbuild bundle format is CJS; entry must be `ui.tsx`; default export at `module.exports['default']`
 - `safeStorage` only works in packaged Electron — dev falls back to plain electron-store

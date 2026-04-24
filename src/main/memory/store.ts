@@ -3,7 +3,7 @@ import { join } from 'path'
 import { app } from 'electron'
 
 /**
- * Post-canvas-retirement memory layout. Memory is global to the user, not
+ * Chat-portal memory layout. Memory is global to the user, not
  * per-project. Files live in ~/.cslate/memory/ and are plain markdown so
  * users can edit them directly.
  */

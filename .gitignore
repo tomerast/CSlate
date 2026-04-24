@@ -24,7 +24,5 @@ agent/memory/
 .agent-staging/
 .stash
 
-# Runtime artifacts (canvas.json + components/ were written to cwd in dev)
-/canvas.json
+# Runtime component artifacts written to cwd in dev
 /components/
-

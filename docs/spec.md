@@ -91,7 +91,6 @@ This loop is the heartbeat of the entire platform. Every architectural decision 
 | LLM providers | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`, `ollama-ai-provider` |
 | Provider registry | `@cslate/shared/agent` → `buildRegistry` / `runAgentStream` |
 | Bundler (components) | esbuild 0.27 (CJS, react/react-dom externalized) |
-| Drag & drop | `@dnd-kit/core` |
 | Markdown | `react-markdown` |
 | Config store | `electron-store` 8 (sensitive fields via `safeStorage`) |
 | Logger | `pino` 10 |
@@ -109,10 +108,9 @@ Main Process (Node.js)
   └── lib/            store.ts, logger.ts, paths.ts
 
 Renderer Process (React + Vite)
-  ├── chat/           ChatPanel, MessageList, FloatingChatBar, useChat
-  ├── canvas/         SlateCanvas — secondary canvas mode
+  ├── chat/           AppLayout integration, MessageList, DockedChatBar, useChat
   ├── sandbox/        DynamicComponent — esbuild CJS eval + ErrorBoundary
-  └── store/          chatStore, canvasStore, appStore (Zustand)
+  └── store/          chatStore, appStore (Zustand)
 ```
 
 ### 5.3 Chat Interface (Primary Mode)
@@ -430,7 +428,7 @@ The 7-stage pipeline is the server-side security gate. No component enters the c
 
 To keep scope clear:
 
-- **Not a canvas/whiteboard app** — components rendered in the canvas mode are secondary. The primary UX is the chat interface.
+- **Not a whiteboard app** — generated components render as inline cards inside assistant messages.
 - **Not a no-code builder** — users do not drag-and-drop components. The LLM builds and arranges them.
 - **Not a general AI coding assistant** — CSlate's agent specializes in building and using render components. It is not a general-purpose coding agent.
 - **Not a cloud app** — CSlate is desktop-first. User data (memory, local components) stays local.

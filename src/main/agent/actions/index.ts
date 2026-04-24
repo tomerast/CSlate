@@ -13,8 +13,7 @@ export type ActionName = keyof typeof actionRegistry
 
 /**
  * Direct actions — deterministic operations that don't need an LLM agent.
- * Intentionally empty post-canvas-retirement. New actions (regenerate-last,
- * fork-session) will be added in later phases.
+ * Intentionally empty until deterministic chat/session actions are needed.
  */
 export const actionRegistry = {} as const satisfies Record<
   string,

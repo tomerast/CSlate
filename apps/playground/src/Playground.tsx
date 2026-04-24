@@ -9,7 +9,7 @@ interface Props {
 export function Playground({ componentName }: Props): React.ReactElement {
   return (
     <div style={{ display: 'flex', height: '100%' }}>
-      {/* Main canvas */}
+      {/* Component preview */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px', background: 'var(--slate-bg)' }}>
         {componentName ? (
           <div style={{ background: 'var(--slate-surface)', borderRadius: '8px', padding: '16px', minWidth: 300, minHeight: 200, boxShadow: 'var(--slate-shadow-md)' }}>

@@ -26,8 +26,8 @@ type WriteOutput = {
 
 /**
  * Save a component package to disk and build its bundle.
- * Post-canvas-retirement: placement is gone. Orchestrator emits agent:card
- * events for inline rendering directly (see Phase 3 of the migration plan).
+ * The chat portal has no placement model. Orchestrator emits agent:card
+ * events for inline rendering directly.
  */
 export function createWriteComponentTool(projectDir: string) {
   return buildTool<WriteInput, WriteOutput>({

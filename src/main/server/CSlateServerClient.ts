@@ -7,9 +7,8 @@
  *   - `fetchSource`                   → render-decision pulls the trusted
  *                                       `bundle.js` from the server library
  *
- * The canvas-era `publish`, `publishPipeline`, `fetchPipelineSource`, and
- * combined `searchAll` surfaces were retired along with the `PublishToast`
- * UI in the chat-portal migration. If auto-publish is ever re-added, do it
+ * The old direct-publish and combined search surfaces were retired in the
+ * chat-portal migration. If auto-publish is ever re-added, do it
  * behind a well-defined workflow (202 uploadId → SSE stream → final card)
  * rather than the previous fire-and-forget.
  */

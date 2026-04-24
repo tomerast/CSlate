@@ -89,7 +89,7 @@ Reusable prompt content is in `src/main/agent/prompts/fragments.ts`:
 
 ```typescript
 export const COMPONENT_CODE_RULES = `...`  // esbuild CJS rules, default export, etc.
-export const CANVAS_CONTEXT = `...`        // current canvas state description
+export const CHAT_CONTEXT = `...`          // current conversation/card context
 ```
 
 Use these in your system prompt to stay consistent with other skills.
@@ -99,9 +99,9 @@ Use these in your system prompt to stay consistent with other skills.
 | Tool | Use for |
 |------|---------|
 | `renderComponent` | Build + preview a component (no persistence) |
-| `writeComponent` | Write source + bundle to disk + update canvas |
+| `writeComponent` | Write source + bundle to disk for inline cards |
 | `readManifest` | Read a component's manifest.json |
-| `readProjectContext` | Read canvas state + all manifests |
+| `readProjectContext` | Read project manifests and card context |
 | `searchBlueprints` | Search server for existing components |
 | `reviewCode` | LLM self-review of generated code |
 | `validateManifest` | Validate manifest against schema |
