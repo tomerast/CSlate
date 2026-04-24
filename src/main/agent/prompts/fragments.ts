@@ -19,6 +19,13 @@ Every component is a multi-file package:
 - context.md   REQUIRED — 2-4 sentence summary of what was built and why
 - manifest.json REQUIRED — the contract (inputs/outputs/events/actions/dataSources)
 
+### Inline Card Surface
+- Components render inside assistant messages as inline model cards, not on a canvas.
+- Design for the card wrapper: \`w-full\`, constrained message width, and \`max-h-[480px]\` with wrapper scrolling.
+- Do not assume drag/drop placement, fixed canvas coordinates, side panels, or viewport-sized dashboards.
+- Prefer compact, self-contained cards. Use internal scrolling for long lists/tables instead of expanding indefinitely.
+- Use \`bridge.user.theme\`, \`bridge.user.density\`, and \`bridge.user.preferences\` when useful, but always render without them.
+
 ### Sandbox Constraints (CRITICAL — violating these breaks the component)
 - NO fetch() — use bridge.fetch() for external data
 - NO localStorage / sessionStorage
@@ -110,7 +117,7 @@ Seed data should be realistic enough to demonstrate the UI layout. One or two re
 ### Grid System
 - Base unit: 8px
 - All component dimensions are in grid units (multiply by 8 for pixels)
-- Typical sizes: small widget = 20×15, medium card = 30×25, large panel = 50×40
+- Typical inline sizes: small widget = 20×15, medium card = 30×25, wide card = 50×40 only when the request needs it
 
 ### Manifest Format (required fields)
 \`\`\`json
@@ -156,7 +163,7 @@ Seed data should be realistic enough to demonstrate the UI layout. One or two re
 - \`autoSize: true\` (default): the host measures DOM and adjusts the card size automatically
 - \`breakpoints\`: optional responsive sizes the component is designed for. Name them descriptively ("compact", "medium", "full"). Order small to large.
 - Simple widgets (clock, button): skip breakpoints, set tight min/max
-- Complex dashboards: declare 2-3 breakpoints matching your responsive CSS
+- Complex inline data cards: declare 2-3 breakpoints matching your responsive CSS
 `
 
 /**

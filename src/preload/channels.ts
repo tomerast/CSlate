@@ -1,8 +1,4 @@
 export const ALLOWED_SEND_CHANNELS = [
-  'bridge:subscribe',
-  'bridge:unsubscribe',
-  'sandbox:load',
-  'sandbox:unload',
   'pipeline:subscribe',
   'pipeline:unsubscribe',
 ] as const
@@ -49,10 +45,6 @@ export const ALLOWED_INVOKE_CHANNELS = [
 ] as const
 
 export const ALLOWED_LISTEN_CHANNELS = [
-  'bridge:fetch:resp',
-  'bridge:event',
-  'sandbox:load:resp',
-  'sandbox:error',
   'agent:token',
   'agent:tool-call',
   'agent:tool-result',

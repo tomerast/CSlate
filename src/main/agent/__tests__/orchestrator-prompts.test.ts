@@ -34,4 +34,27 @@ describe('buildOrchestratorSystemPrompt', () => {
     })
     expect(prompt).toContain('stock_ticker')
   })
+
+  it('includes exact dispatch input when resuming a saved plan', () => {
+    const resumePlanContext = JSON.stringify({
+      componentId: 'stock_ticker',
+      contract: '',
+      tasks: [
+        { file: 'ui.tsx', assignment: 'Build the card UI', blueprint: null },
+        { file: 'manifest.json', assignment: 'Build the manifest', blueprint: null },
+      ],
+      pipelines: [],
+    }, null, 2)
+
+    const prompt = buildOrchestratorSystemPrompt({
+      memoryContext: '',
+      cardContext: '',
+      resumePhase: 'planned',
+      resumePlanContext,
+    })
+
+    expect(prompt).toContain('## Existing Plan')
+    expect(prompt).toContain('"componentId": "stock_ticker"')
+    expect(prompt).toContain('Use this exact JSON as the dispatchSubAgents input')
+  })
 })

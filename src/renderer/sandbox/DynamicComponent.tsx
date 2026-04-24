@@ -222,22 +222,6 @@ function createComponentStore() {
   }
 }
 
-// Module-level cache: same bundle string → same Component reference.
-const bundleCache = new Map<string, EvalResult>()
-const MAX_CACHE_SIZE = 50
-
-function evalBundleCached(bundle: string, bridge: Bridge): EvalResult {
-  const cached = bundleCache.get(bundle)
-  if (cached) return cached
-  const result = evalBundle(bundle, bridge)
-  if (bundleCache.size >= MAX_CACHE_SIZE) {
-    const first = bundleCache.keys().next().value
-    if (first !== undefined) bundleCache.delete(first)
-  }
-  bundleCache.set(bundle, result)
-  return result
-}
-
 /**
  * Render a component bundle inline in the chat (default) or as a fullscreen
  * embed. The inline variant is constrained to the message bubble width and
@@ -266,7 +250,7 @@ export function DynamicComponent({ bundle, manifest, variant = 'inline' }: Props
 
   React.useEffect(() => {
     setRuntimeError(null)
-    setResult(evalBundleCached(bundle, bridgeRef.current))
+    setResult(evalBundle(bundle, bridgeRef.current))
   }, [bundle])
 
   if (result.error) return <ComponentError message={result.error} code={bundle} />

@@ -7,9 +7,16 @@
 import { readFile, writeFile, mkdir, unlink } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import type { SubAgentResult } from './types'
+import type { BuildTask, PipelinePlan, SubAgentResult } from './types'
 
 export type StagingPhase = 'planned' | 'dispatched'
+
+export interface StagedBuildPlan {
+  componentId: string
+  contract: string
+  tasks: BuildTask[]
+  pipelines: PipelinePlan[]
+}
 
 export interface StagingState {
   componentId: string
@@ -22,6 +29,9 @@ export interface StagingState {
   // Built file results — restored into the closure so assembleAndValidate
   // can read them without the model re-echoing large code
   buildResults: SubAgentResult[]
+  // Exact dispatch inputs. This lets simple models resume after a saved plan
+  // without reconstructing tasks from a previous tool-call transcript.
+  plan?: StagedBuildPlan
 }
 
 const STAGING_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours

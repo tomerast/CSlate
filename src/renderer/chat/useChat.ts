@@ -66,12 +66,12 @@ export function useChat(modelId: string) {
       }
     })
     const offToolCall = window.electron.on('agent:tool-call', (payload: unknown) => {
-      const p = payload as { tool: string; args?: Record<string, unknown> }
+      const p = payload as { tool: string; input?: Record<string, unknown> }
       addToolCall({
         name: p.tool,
         status: 'running',
         timestamp: Date.now(),
-        detail: p.args ? Object.keys(p.args).slice(0, 3).join(', ') : undefined,
+        detail: p.input ? Object.keys(p.input).slice(0, 3).join(', ') : undefined,
       })
     })
     const offToolResult = window.electron.on('agent:tool-result', (payload: unknown) => {
