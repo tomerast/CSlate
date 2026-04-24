@@ -1,3 +1,18 @@
+/**
+ * DynamicComponent — runs CJS bundles inside the renderer via `new Function()`.
+ *
+ * SECURITY MODEL
+ * Bundles reach this component from two sources only, both assumed trusted:
+ *   1. The CSlate server library, which runs every upload through the
+ *      7-stage review pipeline (static analysis + agent review + red-team)
+ *      before it can be fetched by `CSlateServerClient`.
+ *   2. The local orchestrator, which invokes `writeComponent` after
+ *      `validateComponentPackage` + esbuild succeed.
+ *
+ * There is no client-side sandbox beyond the require-shim below (React /
+ * bridge / JSX runtime allowed; everything else throws). Do NOT pipe bundles
+ * from arbitrary URLs, user paste, or unvetted servers into this component.
+ */
 import React from 'react'
 import ReactDOM from 'react-dom'
 import { ComponentError } from './ComponentError'

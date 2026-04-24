@@ -440,6 +440,7 @@ export class Orchestrator {
       maxSteps: 15,
       maxOutputTokens: 16000,
       temperature: 0.2,
+      abortSignal: ctx.abortSignal,
       onStepFinish: async ({ toolCalls, response }) => {
         // Accumulate response messages (assistant turn + tool results) for resume
         accumulatedMessages.push(...response.messages)

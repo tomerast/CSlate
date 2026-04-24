@@ -65,7 +65,11 @@ export function SessionList({ onNewSession, onLoadSession }: SessionListProps) {
   const visible = searchResults ?? sessions
   const groups = useMemo(() => groupByRecency(visible), [visible])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, title: string) => {
+    const confirmed = window.confirm(
+      `Delete “${title}”?\n\nThis can’t be undone. The cards in this conversation stay in your component library.`,
+    )
+    if (!confirmed) return
     await sessionsApi.delete(id)
     const list = await sessionsApi.list()
     setSessions(list)
@@ -125,7 +129,7 @@ export function SessionList({ onNewSession, onLoadSession }: SessionListProps) {
                   session={session}
                   active={session.id === activeSessionId}
                   onClick={() => void onLoadSession(session.id)}
-                  onDelete={() => void handleDelete(session.id)}
+                  onDelete={() => void handleDelete(session.id, session.title)}
                 />
               ))}
             </ul>

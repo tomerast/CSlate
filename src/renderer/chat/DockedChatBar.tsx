@@ -8,9 +8,11 @@ interface DockedChatBarProps {
 const MAX_ROWS = 8
 const MIN_HEIGHT = 44
 const LINE_HEIGHT = 20
+const MAX_INPUT_CHARS = 32_000
 
 export function DockedChatBar({ onSubmit }: DockedChatBarProps) {
   const [value, setValue] = useState('')
+  const [composing, setComposing] = useState(false)
   const status = useChatStore((s) => s.status)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -35,13 +37,21 @@ export function DockedChatBar({ onSubmit }: DockedChatBarProps) {
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault()
-        void handleSubmit()
-      }
+      if (e.key !== 'Enter' || e.shiftKey) return
+      // Skip while IME composition is active (Chinese/Japanese/Korean input,
+      // macOS Emoji palette, etc.) — pressing Enter there accepts the
+      // candidate, it should not send the message.
+      if (composing || e.nativeEvent.isComposing) return
+      e.preventDefault()
+      void handleSubmit()
     },
-    [handleSubmit],
+    [composing, handleSubmit],
   )
+
+  const onChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const next = e.target.value
+    setValue(next.length > MAX_INPUT_CHARS ? next.slice(0, MAX_INPUT_CHARS) : next)
+  }, [])
 
   const disabled = status === 'generating'
 
@@ -52,10 +62,13 @@ export function DockedChatBar({ onSubmit }: DockedChatBarProps) {
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={onChange}
             onKeyDown={onKeyDown}
+            onCompositionStart={() => setComposing(true)}
+            onCompositionEnd={() => setComposing(false)}
             placeholder="Ask anything…"
             rows={1}
+            maxLength={MAX_INPUT_CHARS}
             disabled={disabled}
             className="flex-1 resize-none bg-transparent px-4 py-3 text-sm text-text placeholder:text-muted/60 focus:outline-none disabled:opacity-50"
             style={{ minHeight: MIN_HEIGHT }}

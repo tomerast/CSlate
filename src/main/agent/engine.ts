@@ -141,6 +141,7 @@ export class AgentEngine {
       serverClient,
       sender: this.options.sender,
       permissionBroker: this.options.permissionBroker,
+      abortSignal: abortController?.signal,
     }
 
     const orchestrator = new Orchestrator(orchCtx)
@@ -148,7 +149,7 @@ export class AgentEngine {
     for await (const part of orchestrator.stream(input.message)) {
       yield part
     }
-    log.info({ durationMs: Date.now() - t0, summary: route.summary, abortController: !!abortController }, 'orchestrator stream finished')
+    log.info({ durationMs: Date.now() - t0, summary: route.summary }, 'orchestrator stream finished')
   }
 
   private async *runSkill(

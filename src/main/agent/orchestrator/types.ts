@@ -72,6 +72,7 @@ export interface OrchestratorContext {
   serverClient: import('../../server/CSlateServerClient').CSlateServerClient | null
   sender: import('electron').WebContents
   permissionBroker?: { request(command: string): Promise<boolean> }
+  abortSignal?: AbortSignal
 }
 
 export type OrchestratorPhase =

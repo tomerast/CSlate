@@ -132,6 +132,7 @@ async function* delegateToOrchestrator(
     registry: ctx.registry,
     serverClient,
     sender: ctx.sender,
+    abortSignal: ctx.abortSignal,
   }
   const orchestrator = new Orchestrator(orchCtx)
   for await (const part of orchestrator.stream(ctx.message)) {

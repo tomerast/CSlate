@@ -47,6 +47,20 @@ export function register(ipcMain: IpcMain): void {
     }
   })
 
+  // Explicit cancellation from the renderer (e.g. when the user loads a
+  // different session while a stream is in flight). Idempotent: no-op if
+  // there is no active run for this WebContents.
+  ipcMain.handle('agent:abort', (event) => {
+    const senderId = String(event.sender.id)
+    const current = activeRuns.get(senderId)
+    if (current) {
+      current.abort()
+      activeRuns.delete(senderId)
+      agentLog.info({ senderId }, 'agent:abort — stream cancelled by renderer')
+    }
+    return { ok: true }
+  })
+
   ipcMain.handle('agent:run', async (event, {
     message,
     projectDir,

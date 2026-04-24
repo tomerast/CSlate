@@ -18,6 +18,7 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'app:get-version',
   'window:set-title',
   'agent:run',
+  'agent:abort',
   'agent:permission-response',
   'server:search',
   'server:publish',

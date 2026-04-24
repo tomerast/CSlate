@@ -132,16 +132,30 @@ export function useChat(modelId: string) {
     ],
   )
 
+  /** Cancel any in-flight agent stream for this tab. */
+  const abortInFlight = useCallback(async () => {
+    try {
+      await window.electron.invoke('agent:abort', undefined)
+    } catch {
+      // Nothing to cancel or main process already reset — ignore
+    }
+    endStream()
+  }, [endStream])
+
   const startNewSession = useCallback(() => {
+    void abortInFlight()
     setActiveSession(null, [])
-  }, [setActiveSession])
+  }, [abortInFlight, setActiveSession])
 
   const loadSession = useCallback(
     async (id: string) => {
+      // Avoid re-loading the session that's already active
+      if (useChatStore.getState().activeSessionId === id) return
+      await abortInFlight()
       const session = await sessionsApi.get(id)
       if (session) setActiveSession(session.id, session.messages)
     },
-    [setActiveSession],
+    [abortInFlight, setActiveSession],
   )
 
   const refreshSessions = useCallback(async () => {

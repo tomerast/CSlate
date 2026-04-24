@@ -17,49 +17,69 @@ const TITLE_SYSTEM = `You name conversations. Given the user's first message, pr
 - "show me tesla stock this week" -> "Tesla Weekly Performance"
 - "build me a pomodoro timer" -> "Pomodoro Timer Component"`
 
-export function register(ipcMain: IpcMain): void {
-  ipcMain.handle('session:list', () => store.list())
+/**
+ * Wrap every store call in a guard that returns `null` on thrown errors
+ * (e.g. invalid session id format). Keeps the IPC contract stable: the
+ * renderer always gets either the requested resource or null.
+ */
+async function safeCall<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    agentLog.warn({ err }, 'session IPC handler caught error')
+    return fallback
+  }
+}
 
-  ipcMain.handle('session:get', (_e, { id }: { id: string }) => store.get(id))
+export function register(ipcMain: IpcMain): void {
+  ipcMain.handle('session:list', () => safeCall(() => store.list(), []))
+
+  ipcMain.handle('session:get', (_e, { id }: { id: string }) =>
+    safeCall(() => store.get(id), null),
+  )
 
   ipcMain.handle('session:create', (_e, { modelId }: { modelId: string }) =>
-    store.create(modelId),
+    safeCall(() => store.create(modelId ?? 'unknown'), null),
   )
 
   ipcMain.handle(
     'session:append',
     (_e, { id, message }: { id: string; message: AgentMessage }) =>
-      store.append(id, message),
+      safeCall(() => store.append(id, message), null),
   )
 
   ipcMain.handle(
     'session:replace',
     (_e, { id, messages }: { id: string; messages: AgentMessage[] }) =>
-      store.replaceMessages(id, messages),
+      safeCall(() => store.replaceMessages(id, messages), null),
   )
 
   ipcMain.handle(
     'session:rename',
-    (_e, { id, title }: { id: string; title: string }) => store.rename(id, title),
+    (_e, { id, title }: { id: string; title: string }) =>
+      safeCall(() => store.rename(id, title), null),
   )
 
-  ipcMain.handle('session:delete', (_e, { id }: { id: string }) => store.delete(id))
+  ipcMain.handle('session:delete', (_e, { id }: { id: string }) =>
+    safeCall(() => store.delete(id), false),
+  )
 
   ipcMain.handle('session:search', (_e, { query }: { query: string }) =>
-    store.search(query),
+    safeCall(() => store.search(query ?? ''), []),
   )
 
   ipcMain.handle(
     'session:fork',
-    async (_e, { id, fromMessageId }: { id: string; fromMessageId: string }) => {
-      const source = await store.get(id)
-      if (!source) return null
-      const idx = source.messages.findIndex((m) => m.id === fromMessageId)
-      if (idx < 0) return null
-      const slice = source.messages.slice(0, idx + 1)
-      const forked = await store.create(source.modelId)
-      return store.replaceMessages(forked.id, slice)
-    },
+    async (_e, { id, fromMessageId }: { id: string; fromMessageId: string }) =>
+      safeCall(async () => {
+        const source = await store.get(id)
+        if (!source) return null
+        const idx = source.messages.findIndex((m) => m.id === fromMessageId)
+        if (idx < 0) return null
+        const slice = source.messages.slice(0, idx + 1)
+        const forked = await store.create(source.modelId)
+        return store.replaceMessages(forked.id, slice)
+      }, null),
   )
 
   ipcMain.handle(
@@ -71,22 +91,22 @@ export function register(ipcMain: IpcMain): void {
         log.warn('no LLM configured — skipping auto-title')
         return null
       }
-      try {
+      if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+        return null
+      }
+      return safeCall(async () => {
         const registry = buildRegistry(config)
         const result = await runStructuredAgent({
           modelId: fastModelId(config),
           registry,
           system: TITLE_SYSTEM,
-          prompt,
+          prompt: prompt.slice(0, 4000),
           schema: TitleSchema,
         })
         const cleaned = result.title.replace(/["'.]+$/g, '').trim()
         log.info({ title: cleaned }, 'title generated')
-        return store.rename(id, cleaned)
-      } catch (err) {
-        log.warn({ err }, 'auto-title failed')
-        return null
-      }
+        return store.renameIfDefault(id, cleaned)
+      }, null)
     },
   )
 }
