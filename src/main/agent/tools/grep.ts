@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { readdir, readFile } from 'fs/promises'
 import { join, relative } from 'path'
 import { buildTool, type CSTool } from './types'
+import { safePath } from '../../lib/paths'
 
 type GrepInput = {
   pattern: string
@@ -40,7 +41,12 @@ export function createGrepCSTool(projectDir: string): CSTool<GrepInput, GrepOutp
       caseInsensitive: z.boolean().optional().describe('Case-insensitive matching'),
     }),
     call: async (input: GrepInput): Promise<{ data: GrepOutput }> => {
-      const searchRoot = input.path ? join(projectDir, input.path) : projectDir
+      let searchRoot: string
+      try {
+        searchRoot = input.path ? safePath(projectDir, input.path) : projectDir
+      } catch {
+        return { data: { error: `Invalid path: ${input.path}` } }
+      }
 
       let regex: RegExp
       try {

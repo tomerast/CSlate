@@ -33,6 +33,7 @@ export interface RunInput {
   message: string
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
   targetComponentId?: string
+  abortSignal?: AbortSignal
 }
 
 export class AgentEngine {
@@ -49,8 +50,18 @@ export class AgentEngine {
   async *stream(input: RunInput): AsyncGenerator<unknown> {
     const log = engineLog.child({ tabId: this.options.tabId })
 
-    // Create abort controller for this stream — can be cancelled via IPC
+    // Create abort controller for this stream and link it to the IPC-level
+    // controller so agent:abort and superseding runs actually cancel provider calls.
     const abortController = new AbortController()
+    if (input.abortSignal?.aborted) {
+      abortController.abort(input.abortSignal.reason)
+    } else {
+      input.abortSignal?.addEventListener(
+        'abort',
+        () => abortController.abort(input.abortSignal?.reason),
+        { once: true },
+      )
+    }
 
     // Compact conversation if approaching context limit
     const compactedHistory = autoCompactIfNeeded(
@@ -91,7 +102,7 @@ export class AgentEngine {
     } else if (route.route === 'skill' && route.skill) {
       yield* this.runSkill(route.skill, compactedInput, route, userMemory, activeComponents, log, abortController)
     } else {
-      yield* this.runDirect(compactedInput, log, abortController)
+      yield* this.runDirect(compactedInput, userMemory, log, abortController)
     }
   }
 
@@ -219,16 +230,22 @@ export class AgentEngine {
 
   private async *runDirect(
     input: RunInput,
+    userMemory: string,
     log: Logger,
     abortController?: AbortController
   ): AsyncGenerator<unknown> {
     const modelId = mainModelId(this.config)
     log.info({ modelId }, 'running direct response')
+    const base =
+      "You are the CSlate assistant. Answer the user's question helpfully and concisely. You do not have access to tools in this mode."
+    const system = userMemory.trim()
+      ? `${base}\n\nUser preferences (adapt accordingly):\n${userMemory.trim()}`
+      : base
 
     const result = runAgentStream({
       modelId,
       registry: this.registry,
-      system: 'You are the CSlate assistant. Answer the user\'s question helpfully and concisely. You do not have access to tools in this mode.',
+      system,
       messages: [
         ...input.conversationHistory,
         { role: 'user' as const, content: input.message },

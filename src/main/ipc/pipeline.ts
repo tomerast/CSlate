@@ -1,4 +1,5 @@
-import type { IpcMain } from 'electron'
+import { app, type IpcMain } from 'electron'
+import path from 'path'
 import { PipelineExecutor } from '../pipeline/executor'
 import { DataBus } from '../pipeline/data-bus'
 import { readPipelinesJson } from '../pipeline/pipelines-json'
@@ -9,7 +10,11 @@ let executor: PipelineExecutor | null = null
 let bus: DataBus | null = null
 
 function getProjectDir(): string {
-  return getConfigValue('projectDir') as string ?? ''
+  const configured = getConfigValue('projectDir')
+  if (typeof configured === 'string' && path.isAbsolute(configured)) {
+    return configured
+  }
+  return path.join(app.getPath('userData'), 'default-project')
 }
 
 function ensureRuntime(): { executor: PipelineExecutor; bus: DataBus } {

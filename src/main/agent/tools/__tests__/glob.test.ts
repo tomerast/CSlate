@@ -51,6 +51,12 @@ describe('glob tool', () => {
     expect(data.files.every((f: string) => !f.startsWith('/'))).toBe(true)
   })
 
+  it('rejects cwd traversal scopes', async () => {
+    const tool = createGlobCSTool(tmpDir)
+    const result = await tool.call({ pattern: '**/*', cwd: '../' })
+    expect(result.data).toEqual({ error: 'Invalid cwd: ../' })
+  })
+
   it('is read-only and concurrency-safe', () => {
     const tool = createGlobCSTool(tmpDir)
     expect(tool.isReadOnly({ pattern: '**' })).toBe(true)

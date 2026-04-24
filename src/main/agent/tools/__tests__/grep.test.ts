@@ -54,6 +54,12 @@ describe('grep tool', () => {
     expect(match.content).toContain('foo')
   })
 
+  it('rejects path traversal scopes', async () => {
+    const tool = createGrepCSTool(tmpDir)
+    const result = await tool.call({ pattern: 'anything', path: '../' })
+    expect(result.data).toEqual({ error: 'Invalid path: ../' })
+  })
+
   it('is read-only and concurrency-safe', () => {
     const tool = createGrepCSTool(tmpDir)
     expect(tool.isReadOnly({ pattern: 'x' })).toBe(true)

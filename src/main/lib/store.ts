@@ -6,6 +6,7 @@ export interface ConfigStore {
   llmBaseUrl?: string
   gatewayUrl: string
   serverUrl: string
+  projectDir?: string
   theme: 'dark' | 'light' | 'midnight'
   recentProjects: unknown[]
   _secure_llmApiKey?: string

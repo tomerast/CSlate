@@ -1,4 +1,5 @@
-import type { IpcMain, WebContents } from 'electron'
+import { app, type IpcMain, type WebContents } from 'electron'
+import path from 'path'
 import { AgentEngine } from './engine'
 import { getConfigValue } from '../ipc/config'
 import type { LLMConfig } from '@cslate/shared/agent'
@@ -33,6 +34,11 @@ function parseModelId(llmModel: string): { provider: LLMConfig['provider']; mode
     return { provider: 'google', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('google/'.length) }
   }
   return { provider: 'local', model: llmModel }
+}
+
+function resolveProjectDir(projectDir: string): string {
+  if (projectDir && path.isAbsolute(projectDir)) return projectDir
+  return path.join(app.getPath('userData'), 'default-project')
 }
 
 export function register(ipcMain: IpcMain): void {
@@ -77,7 +83,9 @@ export function register(ipcMain: IpcMain): void {
     const sender: WebContents = event.sender
     const log = agentLog.child({ tabId })
 
-    log.info({ message, historyLength: conversationHistory.length }, 'agent:run received')
+    const resolvedProjectDir = resolveProjectDir(projectDir)
+
+    log.info({ message, historyLength: conversationHistory.length, projectDir: resolvedProjectDir }, 'agent:run received')
 
     // Cancel any in-progress run from the same renderer window
     const senderId = String(sender.id)
@@ -140,7 +148,7 @@ export function register(ipcMain: IpcMain): void {
 
     const config: LLMConfig = { provider, model, apiKey, baseUrl }
 
-    const engine = new AgentEngine(config, projectDir, {
+    const engine = new AgentEngine(config, resolvedProjectDir, {
       serverUrl,
       serverApiKey,
       sender,
@@ -150,7 +158,12 @@ export function register(ipcMain: IpcMain): void {
 
     log.debug('engine created, starting stream')
     try {
-      for await (const part of engine.stream({ message, conversationHistory, targetComponentId })) {
+      for await (const part of engine.stream({
+        message,
+        conversationHistory,
+        targetComponentId,
+        abortSignal: abortController.signal,
+      })) {
         const p = part as Record<string, unknown>
         switch (p['type']) {
           case 'text-delta':

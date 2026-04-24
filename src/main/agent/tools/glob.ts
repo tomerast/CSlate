@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { readdir } from 'fs/promises'
 import { join, relative } from 'path'
 import { buildTool, type CSTool } from './types'
+import { safePath } from '../../lib/paths'
 
 type GlobInput = { pattern: string; cwd?: string }
 type GlobOutput = { files: string[] } | { error: string }
@@ -33,7 +34,12 @@ export function createGlobCSTool(projectDir: string): CSTool<GlobInput, GlobOutp
       cwd: z.string().optional().describe('Subdirectory to search from (relative to project root). Defaults to project root.'),
     }),
     call: async (input: GlobInput): Promise<{ data: GlobOutput }> => {
-      const searchRoot = input.cwd ? join(projectDir, input.cwd) : projectDir
+      let searchRoot: string
+      try {
+        searchRoot = input.cwd ? safePath(projectDir, input.cwd) : projectDir
+      } catch {
+        return { data: { error: `Invalid cwd: ${input.cwd}` } }
+      }
       const regex = globToRegex(input.pattern)
 
       let allFiles: string[]
