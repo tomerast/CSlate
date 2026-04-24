@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { useChatStore } from '../store/chatStore'
+import { useAppStore } from '../store/appStore'
 import { DynamicComponent } from '../sandbox/DynamicComponent'
 import { OrchestratorProgress } from './OrchestratorProgress'
 import type { AgentMessage, MessageCard } from '@shared/agentTypes'
@@ -15,25 +16,40 @@ export function MessageList({ onRegenerate, onFork }: MessageListProps) {
   const status = useChatStore((s) => s.status)
   const error = useChatStore((s) => s.error)
   const orchestrator = useChatStore((s) => s.orchestrator)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const shouldAutoScroll = useRef(true)
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+    shouldAutoScroll.current = nearBottom
+  }, [])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (shouldAutoScroll.current) {
+      const el = containerRef.current
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    }
   }, [messages, status, orchestrator])
-
-  if (messages.length === 0) {
-    return <EmptyState />
-  }
 
   const lastAssistantIdx = findLastAssistantIdx(messages)
   const showOrchestrator = status === 'generating' && orchestrator.currentPhase !== null
   const showErrorInline = error && status !== 'generating'
 
+  if (messages.length === 0 && !showOrchestrator) {
+    return <EmptyState />
+  }
+
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl px-6 py-10 space-y-8">
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth"
+    >
+      <div className="mx-auto max-w-3xl px-6 py-10 space-y-10">
         {messages.map((msg, idx) => (
-          <MessageBubble
+          <MessageBlock
             key={msg.id}
             message={msg}
             isLatestAssistant={idx === lastAssistantIdx}
@@ -43,57 +59,78 @@ export function MessageList({ onRegenerate, onFork }: MessageListProps) {
             onFork={onFork}
           />
         ))}
-        {showOrchestrator && <OrchestratorProgress status={orchestrator} />}
+
+        {showOrchestrator && (
+          <div className="py-4">
+            <OrchestratorProgress status={orchestrator} />
+          </div>
+        )}
+
         {status === 'generating' && !showOrchestrator && <TypingIndicator />}
-        {!showErrorInline && error && <ErrorBubble message={error} />}
-        <div ref={bottomRef} />
+
+        {!showErrorInline && error && (
+          <div className="py-4">
+            <ErrorBubble message={error} />
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function findLastAssistantIdx(messages: AgentMessage[]): number {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    if (messages[i].role === 'assistant') return i
-  }
-  return -1
-}
-
-interface MessageBubbleProps {
+function MessageBlock({
+  message,
+  isLatestAssistant,
+  showError,
+  error,
+  onRegenerate,
+  onFork,
+}: {
   message: AgentMessage
   isLatestAssistant: boolean
   showError?: boolean
   error?: string | null
   onRegenerate?: () => void | Promise<void>
   onFork?: (messageId: string) => void | Promise<void>
-}
+}) {
+  const isUser = message.role === 'user'
+  const time = new Date(message.createdAt).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 
-function MessageBubble({ message, isLatestAssistant, showError, error, onRegenerate, onFork }: MessageBubbleProps) {
-  if (message.role === 'user') {
+  if (isUser) {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-2xl bg-primary/10 border border-primary/20 px-4 py-2.5 text-sm text-text whitespace-pre-wrap">
+      <div className="space-y-1 pt-2">
+        <h2 className="text-xl font-medium text-text leading-snug tracking-tight"
+        >
           {message.content}
+        </h2>
+        <div className="flex items-center gap-2 text-[11px] text-muted/40">
+          <span>{time}</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {message.content && (
-        <div className="prose prose-invert max-w-none text-sm leading-relaxed text-text">
+        <div className="prose prose-invert max-w-none text-[15px] leading-[1.7] text-text/90">
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
       )}
+
       {message.cards.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {message.cards.map((card, i) => (
             <InlineCard key={`${message.id}-card-${i}`} card={card} />
           ))}
         </div>
       )}
+
       {showError && error && <ErrorBubble message={error} />}
+
       <MessageActions
         message={message}
         canRegenerate={isLatestAssistant}
@@ -113,7 +150,8 @@ interface MessageActionsProps {
 
 function MessageActions({ message, canRegenerate, onRegenerate, onFork }: MessageActionsProps) {
   return (
-    <div className="flex items-center gap-3 pt-1 text-muted/50">
+    <div className="flex items-center gap-3 pt-1 opacity-0 hover:opacity-100 transition-opacity duration-200"
+    >
       <ActionButton
         title="Copy"
         onClick={() => navigator.clipboard.writeText(message.content)}
@@ -147,7 +185,7 @@ function ActionButton({
     <button
       onClick={onClick}
       title={title}
-      className="hover:text-text transition-colors"
+      className="hover:text-text transition-colors text-muted/40 hover:text-muted"
     >
       {children}
     </button>
@@ -180,7 +218,7 @@ function RefreshIcon() {
 
 function InlineCard({ card }: { card: MessageCard }) {
   return (
-    <div>
+    <div className="card-enter my-4">
       <DynamicComponent bundle={card.bundle} manifest={card.manifest} variant="inline" />
       <CardFooter card={card} />
     </div>
@@ -190,11 +228,11 @@ function InlineCard({ card }: { card: MessageCard }) {
 function CardFooter({ card }: { card: MessageCard }) {
   const tag = card.source === 'server' ? 'from library' : 'generated just now'
   return (
-    <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted/50">
-      <span className="inline-block h-1 w-1 rounded-full bg-primary/50" />
+    <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted/40">
+      <span className="inline-block h-1 w-1 rounded-full bg-primary/30" />
       {tag}
       {typeof card.score === 'number' && (
-        <span className="text-muted/40">· {(card.score * 100).toFixed(0)}% match</span>
+        <span className="text-muted/30">· {(card.score * 100).toFixed(0)}% match</span>
       )}
     </div>
   )
@@ -202,30 +240,30 @@ function CardFooter({ card }: { card: MessageCard }) {
 
 function TypingIndicator() {
   return (
-    <div className="flex items-center gap-2 text-muted/60 text-xs">
+    <div className="flex items-center gap-2 text-muted/40 text-xs py-2">
       <span className="flex gap-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
-        <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse [animation-delay:150ms]" />
-        <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse [animation-delay:300ms]" />
+        <span className="w-1 h-1 rounded-full bg-primary/40 animate-pulse" />
+        <span className="w-1 h-1 rounded-full bg-primary/40 animate-pulse [animation-delay:150ms]" />
+        <span className="w-1 h-1 rounded-full bg-primary/40 animate-pulse [animation-delay:300ms]" />
       </span>
-      thinking
+      <span className="text-muted/30">thinking</span>
     </div>
   )
 }
 
 function ErrorBubble({ message }: { message: string }) {
   return (
-    <div className="msg-enter rounded-lg border border-error/30 bg-error/5 px-4 py-3"
+    <div className="msg-enter rounded-xl border border-error/20 bg-error/[0.03] px-4 py-3"
     >
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-error/15 flex items-center justify-center">
+        <div className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-error/10 flex items-center justify-center">
           <svg className="w-3 h-3 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
           </svg>
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-medium text-error">Something went wrong</div>
-          <div className="text-xs text-error/70 mt-0.5">{message}</div>
+          <div className="text-sm font-medium text-error/80">Something went wrong</div>
+          <div className="text-xs text-error/50 mt-0.5">{message}</div>
         </div>
       </div>
     </div>
@@ -246,4 +284,11 @@ function EmptyState() {
       </p>
     </div>
   )
+}
+
+function findLastAssistantIdx(messages: AgentMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === 'assistant') return i
+  }
+  return -1
 }

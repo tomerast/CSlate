@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useAppStore, getProviderMeta } from '../store/appStore'
 import type { OrchestratorPhase, OrchestratorStatus } from '../store/chatStore'
 
 type UserPhase = 'thinking' | 'building' | 'finishing'
@@ -39,18 +40,18 @@ export function OrchestratorProgress({ status }: { status: OrchestratorStatus })
   const phase = status.currentPhase
   if (!phase) return null
 
+  const activeProvider = useAppStore((s) => s.activeProvider)
+  const providerColor = getProviderMeta(activeProvider).color
+
   const userPhase = mapPhase(phase)
   const info = PHASE_INFO[userPhase]
 
-  // Only show a determinate bar while workers are actively finishing up.
-  // Otherwise keep it indeterminate — simpler and less jittery.
   const showDeterminate =
     phase === 'worker' && status.workerTotal > 0 && status.workerDone > 0
   const progress = showDeterminate
     ? Math.round((status.workerDone / status.workerTotal) * 100)
     : null
 
-  // Rough overall progress across the 3 conceptual phases
   const overallPct = useMemo(() => {
     if (userPhase === 'thinking') return 15
     if (userPhase === 'finishing') return 95
@@ -59,13 +60,26 @@ export function OrchestratorProgress({ status }: { status: OrchestratorStatus })
   }, [userPhase, progress])
 
   return (
-    <div className="msg-enter w-full max-w-md">
-      <div className="rounded-xl border border-border/30 bg-surface/50 backdrop-blur-sm p-4">
-        <div className="flex items-center gap-3">
-          {/* Clean spinner */}
+    <div className="msg-enter w-full max-w-md mx-auto">
+      <div
+        className="
+          rounded-xl border border-white/[0.06] bg-surface/60 backdrop-blur-sm p-4
+          relative overflow-hidden
+        "
+      >
+        {/* Subtle provider glow */}
+        <div
+          className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-20 rounded-full blur-2xl opacity-20 pointer-events-none"
+          style={{ backgroundColor: providerColor }}
+        />
+
+        <div className="relative flex items-center gap-3">
           <div className="relative w-5 h-5 shrink-0">
-            <div className="absolute inset-0 rounded-full border-2 border-primary/20" />
-            <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
+            <div className="absolute inset-0 rounded-full border-2" style={{ borderColor: `${providerColor}25` }} />
+            <div
+              className="absolute inset-0 rounded-full border-2 animate-spin"
+              style={{ borderColor: 'transparent', borderTopColor: providerColor }}
+            />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-text">{info.title}</div>
@@ -73,11 +87,11 @@ export function OrchestratorProgress({ status }: { status: OrchestratorStatus })
           </div>
         </div>
 
-        {/* Smooth progress bar */}
-        <div className="mt-3 h-1.5 rounded-full bg-border/30 overflow-hidden">
+        <div className="mt-3 h-1 rounded-full bg-white/[0.04] overflow-hidden"
+        >
           <div
-            className="h-full rounded-full bg-primary/70 transition-all duration-700 ease-out"
-            style={{ width: `${overallPct}%` }}
+            className="h-full rounded-full transition-all duration-700 ease-out"
+            style={{ width: `${overallPct}%`, backgroundColor: providerColor }}
           />
         </div>
       </div>

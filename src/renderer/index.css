@@ -2,28 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Dark Theme (default) ─────────────────────────────────── */
+/* ── Dark Theme (default) Deep Space ────────────────────── */
 :root {
-  --slate-primary: #6366f1;
-  --slate-secondary: #8b5cf6;
-  --slate-accent: #a78bfa;
-  --slate-bg: #0f0f13;
-  --slate-surface: #1a1a23;
-  --slate-text: #e4e4ec;
-  --slate-text-muted: #71717a;
-  --slate-border: #27272f;
-  --slate-error: #f87171;
-  --slate-success: #34d399;
-  --slate-warning: #fbbf24;
+  /* Brand */
+  --slate-primary: #7C6CFF;
+  --slate-secondary: #9B8AF7;
+  --slate-accent: #7C6CFF;
 
-  --slate-radius-sm: 4px;
-  --slate-radius-md: 8px;
-  --slate-radius-lg: 12px;
+  /* Surfaces */
+  --slate-bg: #0A0A0F;
+  --slate-surface: #14141B;
+  --slate-overlay: #1E1E28;
+
+  /* Text */
+  --slate-text: #F0F0F5;
+  --slate-text-muted: #8A8AA0;
+  --slate-text-tertiary: #5A5A70;
+
+  /* Borders */
+  --slate-border: rgba(255, 255, 255, 0.08);
+
+  /* Semantic */
+  --slate-error: #FF7B7B;
+  --slate-success: #6BE6A0;
+  --slate-warning: #FFD166;
+
+  /* Provider identities */
+  --provider-anthropic: #D4A574;
+  --provider-openai: #7CCF8F;
+  --provider-google: #7BB4F0;
+  --provider-local: #B8A0E0;
+
+  /* Glows */
+  --accent-glow: rgba(124, 108, 255, 0.15);
+
+  /* Shape */
+  --slate-radius-sm: 8px;
+  --slate-radius-md: 12px;
+  --slate-radius-lg: 16px;
   --slate-radius-full: 9999px;
 
-  --slate-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --slate-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --slate-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  /* Depth */
+  --slate-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --slate-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --slate-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --slate-shadow-glow: 0 0 40px var(--accent-glow);
+
+  /* Motion */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-micro: 120ms;
+  --duration-standard: 240ms;
+  --duration-card: 400ms;
+  --duration-gentle: 600ms;
 }
 
 /* ── Light Theme ──────────────────────────────────────────── */
@@ -74,9 +106,11 @@ html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   background: var(--slate-bg);
   color: var(--slate-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .app-drag-region {
@@ -90,5 +124,67 @@ html, body, #root {
 }
 
 .msg-enter {
-  animation: msg-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: msg-in var(--duration-standard) var(--ease-enter) both;
+}
+
+/* ── Card birth animation ────────────────────────────────── */
+@keyframes card-birth {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.card-enter {
+  animation: card-birth var(--duration-card) var(--ease-spring) both;
+}
+
+/* ── Thinking pulse ─────────────────────────────────────── */
+@keyframes thinking-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.03); opacity: 1; }
+}
+
+.thinking-pulse {
+  animation: thinking-pulse 3s ease-in-out infinite;
+}
+
+/* ── Glow orb ───────────────────────────────────────────── */
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.15); opacity: 0.7; }
+}
+
+.orb-breathe {
+  animation: orb-breathe 3s ease-in-out infinite;
+}
+
+/* ── Smooth scrollbar ───────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Reduced motion ─────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
