@@ -9,7 +9,7 @@ vi.mock('@cslate/shared/agent', async (importOriginal) => {
 })
 
 import { runSubAgent } from '@cslate/shared/agent'
-import { spawnBuildAgent, spawnFixAgent, buildSubAgentPrompt } from '../orchestrator/sub-agent'
+import { spawnBuildAgent, spawnFixAgent, buildSubAgentPrompt, getBuildAgentBudget } from '../orchestrator/sub-agent'
 import type { BuildTask } from '../orchestrator/types'
 import { PLATFORM_KNOWLEDGE } from '../prompts/fragments'
 
@@ -75,6 +75,13 @@ describe('buildSubAgentPrompt', () => {
 })
 
 describe('spawnBuildAgent', () => {
+  it('uses tight file-specific generation budgets', () => {
+    expect(getBuildAgentBudget('ui.tsx')).toEqual({ maxOutputTokens: 9000, timeoutMs: 30000 })
+    expect(getBuildAgentBudget('manifest.json')).toEqual({ maxOutputTokens: 3000, timeoutMs: 14000 })
+    expect(getBuildAgentBudget('context.md')).toEqual({ maxOutputTokens: 1200, timeoutMs: 10000 })
+    expect(getBuildAgentBudget('custom-helper.ts')).toEqual({ maxOutputTokens: 5000, timeoutMs: 18000 })
+  })
+
   it('returns SubAgentResult on success', async () => {
     vi.mocked(runSubAgent).mockResolvedValue({
       text: 'function Component(props) { return <div>kanban</div> }',
@@ -121,7 +128,7 @@ describe('spawnBuildAgent', () => {
       aiTools: fakeTools,
     })
     expect(mockRunSubAgent).toHaveBeenCalledWith(
-      expect.objectContaining({ tools: fakeTools, maxOutputTokens: 12000 })
+      expect.objectContaining({ tools: fakeTools, maxOutputTokens: 9000 })
     )
   })
 })

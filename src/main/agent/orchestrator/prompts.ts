@@ -62,7 +62,7 @@ ${resumeBlock}${resumePlanBlock}${modifyBlock}## Tool Order
    - Top result similarity >= 0.82: adapt the blueprint and pass the actual blueprint source in task.blueprint.
    - Lower similarity: use it only as a reference if it clearly helps.
    - No useful server result: call scanLocalComponents once, then build from scratch.
-   - Do not use bash, lsp, readFile, grep, glob, or webFetch unless the current component is being modified or required context is missing.
+   - Planning-time coding tools are not available. Put live data needs in manifest dataSources and use bridge.fetch in ui.tsx.
 3. Plan with planComponent.
 4. Dispatch with dispatchSubAgents.
 5. Immediately call assembleAndValidate.
@@ -73,6 +73,7 @@ ${resumeBlock}${resumePlanBlock}${modifyBlock}## Tool Order
 - requirements: concise description of exactly what the card must do.
 - contract: only shared props/types used by more than one file. Leave empty or very small for simple cards.
 - tasks: default to ui.tsx and manifest.json only. Add logic.ts or types.ts only when the card truly needs shared logic/types.
+- data: prefer manifest dataSources + bridge.fetch for live/current data. Use seed data so the card renders immediately without bridge.
 - pipelines: [] by default. Add a pipeline only for explicit background, streaming, or reusable server-side data work.
 - wiring: [] unless a pipeline is planned.
 - manifest.json assignment must require valid JSON and these fields: name, description, tags, inputs, outputs, events, actions, files, defaultSize.

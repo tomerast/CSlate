@@ -2,7 +2,7 @@
 import { tool as defineTool } from 'ai'
 import { runAgentStream } from '@cslate/shared/agent'
 import { z } from 'zod'
-import type { BuildTask, OrchestratorContext, PipelinePlan, SubAgentResult } from './types'
+import type { BuildTask, OrchestratorContext, SubAgentResult } from './types'
 import { ComponentPlanSchema, PipelinePlanSchema, WiringPlanSchema } from './types'
 import { buildOrchestratorSystemPrompt } from './prompts'
 import { spawnBuildAgent, spawnFixAgent, spawnPipelineBuildAgent } from './sub-agent'
@@ -177,7 +177,7 @@ export class Orchestrator {
     const toolDeps = {
       projectDir: ctx.projectDir,
       registry: ctx.registry,
-      fastModelId: fastModelId(ctx.config),
+      fastModelId: fastModel,
       serverClient: ctx.serverClient,
       permissionBroker: ctx.permissionBroker,
     }
@@ -198,7 +198,6 @@ export class Orchestrator {
     let lastBuildResults: SubAgentResult[] = []
     let lastBuildTasks: BuildTask[] = []
     let lastPlan: StagedBuildPlan | null = null
-    let lastPipelinePlan: PipelinePlan | null = null
     let componentShipped = false
     let stagedComponentId: string | null = null
 
@@ -249,7 +248,6 @@ export class Orchestrator {
       lastBuildResults = resumeFrom.buildResults
       lastPlan = resumeFrom.plan ?? null
       lastBuildTasks = resumeFrom.plan?.tasks ?? []
-      lastPipelinePlan = resumeFrom.plan?.pipelines[0] ?? null
       stagedComponentId = resumeFrom.componentId
       ctx.sender.send('agent:orchestrator:status', { phase: 'validate' })
     }
@@ -347,11 +345,6 @@ export class Orchestrator {
             phase: 'dispatch',
             workerCount: input.tasks.length,
           })
-
-          // Store pipeline plan for potential use later
-          if (input.pipelines.length > 0) {
-            lastPipelinePlan = input.pipelines[0]
-          }
 
           // Dispatch component and pipeline agents in parallel.
           // Build agents run single-shot (no tools) for speed — the blueprint
@@ -539,7 +532,6 @@ export class Orchestrator {
     const t0 = Date.now()
 
     const SEARCH_TOOLS = ['searchBlueprints', 'scanLocalComponents', 'readProjectContext', 'readManifest'] as const
-    const CODING_TOOLS = ['readFile', 'grep', 'glob', 'bash', 'lsp', 'webFetch'] as const
     type ToolName = keyof typeof tools
 
     const result = runAgentStream({
@@ -552,8 +544,8 @@ export class Orchestrator {
         ...(accumulatedMessages as any[]),
       ],
       tools,
-      maxSteps: 15,
-      maxOutputTokens: 16000,
+      maxSteps: 10,
+      maxOutputTokens: 8000,
       temperature: 0.2,
       abortSignal: ctx.abortSignal,
       onStepFinish: async ({ toolCalls, response }) => {
@@ -645,6 +637,9 @@ export class Orchestrator {
           return { toolChoice: 'auto' as const, activeTools }
         }
 
+        const uniqueTools = (activeTools: ToolName[]): ToolName[] => [...new Set(activeTools)]
+        const hasSearchContext = SEARCH_TOOLS.some(t => called.has(t))
+
         // Phase 5: second validate done (fix cycle complete) — stop
         if (validateCount >= 2) {
           return { toolChoice: 'none' as const }
@@ -668,13 +663,32 @@ export class Orchestrator {
         if (called.has('planComponent')) {
           return forceTool('dispatchSubAgents')
         }
-        // Phase 1: after first search — allow remaining search tools + coding tools + plan (model decides when ready)
-        if (SEARCH_TOOLS.some(t => called.has(t))) {
-          const remainingSearch = SEARCH_TOOLS.filter(t => !called.has(t)) as ToolName[]
-          return requireTool([...remainingSearch, ...CODING_TOOLS, 'planComponent' as ToolName])
+
+        // Phase 1: after remote search/context read, keep the model on the
+        // shortest path: one optional local scan, then plan. Full coding tools
+        // are intentionally reserved for the fix phase and sub-agents.
+        if (hasSearchContext) {
+          const active: ToolName[] = ['planComponent' as ToolName]
+          if (!called.has('scanLocalComponents')) {
+            active.push('scanLocalComponents' as ToolName)
+          }
+          if (ctx.targetComponentId) {
+            if (!called.has('readManifest')) active.push('readManifest' as ToolName)
+            if (!called.has('readProjectContext')) active.push('readProjectContext' as ToolName)
+          }
+          return requireTool(uniqueTools(active))
         }
-        // Phase 0: no tools called yet — must search first (coding tools also available for project exploration)
-        return requireTool([...SEARCH_TOOLS, ...CODING_TOOLS] as ToolName[])
+
+        // Phase 0: start with only the context needed for the request. New
+        // builds search the shared library first; edits read the existing card.
+        if (ctx.targetComponentId) {
+          return requireTool([
+            'readManifest' as ToolName,
+            'readProjectContext' as ToolName,
+            'searchBlueprints' as ToolName,
+          ])
+        }
+        return forceTool('searchBlueprints' as ToolName)
       },
     })
 

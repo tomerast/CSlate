@@ -60,7 +60,20 @@ ${blueprintSection}
 ${task.assignment}`
 }
 
-const SUB_AGENT_TIMEOUT_MS = 45_000
+const DEFAULT_BUILD_AGENT_BUDGET = { maxOutputTokens: 5000, timeoutMs: 18_000 }
+const BUILD_AGENT_BUDGETS: Record<string, { maxOutputTokens: number; timeoutMs: number }> = {
+  'ui.tsx': { maxOutputTokens: 9000, timeoutMs: 30_000 },
+  'manifest.json': { maxOutputTokens: 3000, timeoutMs: 14_000 },
+  'context.md': { maxOutputTokens: 1200, timeoutMs: 10_000 },
+  'types.ts': { maxOutputTokens: 3500, timeoutMs: 14_000 },
+  'logic.ts': { maxOutputTokens: 5000, timeoutMs: 18_000 },
+}
+const PIPELINE_AGENT_BUDGET = { maxOutputTokens: 6000, timeoutMs: 25_000 }
+const FIX_AGENT_BUDGET = { maxOutputTokens: 9000, timeoutMs: 25_000 }
+
+export function getBuildAgentBudget(file: string): { maxOutputTokens: number; timeoutMs: number } {
+  return BUILD_AGENT_BUDGETS[file] ?? DEFAULT_BUILD_AGENT_BUDGET
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -84,9 +97,10 @@ export async function spawnBuildAgent(params: {
 
   try {
     const prompt = buildSubAgentPrompt({ task, contract })
+    const budget = getBuildAgentBudget(task.file)
     const { text } = await withTimeout(
-      runSubAgent({ modelId, registry, system: BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 }),
-      SUB_AGENT_TIMEOUT_MS,
+      runSubAgent({ modelId, registry, system: BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: budget.maxOutputTokens }),
+      budget.timeoutMs,
       `build agent (${task.file})`
     )
 
@@ -150,8 +164,8 @@ ${task.assignment}`
 
       try {
         const { text } = await withTimeout(
-          runSubAgent({ modelId, registry, system: PIPELINE_BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 }),
-          SUB_AGENT_TIMEOUT_MS,
+          runSubAgent({ modelId, registry, system: PIPELINE_BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: PIPELINE_AGENT_BUDGET.maxOutputTokens }),
+          PIPELINE_AGENT_BUDGET.timeoutMs,
           `pipeline build agent (${task.file})`
         )
         const code = stripFences(text)
@@ -203,8 +217,8 @@ ${error}
 Fix the code. Return only the corrected ${file} content.`
 
     const { text } = await withTimeout(
-      runSubAgent({ modelId, registry, system: FIX_SYSTEM, prompt, tools: aiTools, maxOutputTokens: 12000 }),
-      SUB_AGENT_TIMEOUT_MS,
+      runSubAgent({ modelId, registry, system: FIX_SYSTEM, prompt, tools: aiTools, maxOutputTokens: FIX_AGENT_BUDGET.maxOutputTokens }),
+      FIX_AGENT_BUDGET.timeoutMs,
       `fix agent (${file})`
     )
 
