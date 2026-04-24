@@ -1,9 +1,7 @@
-import type { MemoryFiles } from '../memory/index'
-
 export interface AgentContext {
   projectDir: string
   tabId: string
-  memory: MemoryFiles
+  userMemory: string
   activeComponents: Array<{ componentId: string; manifest: unknown }>
   targetComponentId?: string
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>

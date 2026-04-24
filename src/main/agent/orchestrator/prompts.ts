@@ -2,11 +2,11 @@ import { PLATFORM_KNOWLEDGE, BEHAVIORAL_GUIDELINES, OUTPUT_STYLE } from '../prom
 
 export function buildOrchestratorSystemPrompt(params: {
   memoryContext: string
-  canvasContext: string
+  cardContext: string
   targetComponentId?: string
   resumePhase?: 'planned' | 'dispatched'
 }): string {
-  const { memoryContext, canvasContext, targetComponentId, resumePhase } = params
+  const { memoryContext, cardContext, targetComponentId, resumePhase } = params
 
   const resumeBlock = resumePhase === 'dispatched'
     ? `## RESUMING INCOMPLETE BUILD
@@ -67,6 +67,6 @@ ${resumeBlock}${modifyBlock}## Workflow
 ${PLATFORM_KNOWLEDGE}
 ${BEHAVIORAL_GUIDELINES}
 ${OUTPUT_STYLE}
-${memoryContext ? `\n## Project Memory\n${memoryContext}` : ''}
-${canvasContext ? `\n## Components on Canvas\n${canvasContext}` : ''}`
+${memoryContext ? `\n## User Memory\n${memoryContext}` : ''}
+${cardContext ? `\n## Cards rendered in this conversation\n${cardContext}` : ''}`
 }

@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain, nativeImage, session } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'path'
 import { register as registerConfig } from './ipc/config'
-import { register as registerProject } from './ipc/project'
 import { register as registerFile } from './ipc/file'
 import { register as registerWindow } from './ipc/window'
 import { register as registerAgent } from './agent/ipc'
@@ -10,7 +9,8 @@ import { register as registerServer } from './ipc/server'
 import { register as registerShell } from './ipc/shell'
 import { register as registerModels } from './ipc/models'
 import { register as registerPipeline } from './ipc/pipeline'
-import { register as registerSessions } from './ipc/sessions'
+import { register as registerSession } from './ipc/session'
+import { register as registerMemory } from './ipc/memory'
 import { createWindow } from './windowManager'
 
 function installCSP(): void {
@@ -46,7 +46,6 @@ app.whenReady().then(() => {
 
   installCSP()
   registerConfig(ipcMain)
-  registerProject(ipcMain)
   registerFile(ipcMain)
   registerWindow(ipcMain)
   registerAgent(ipcMain)
@@ -54,7 +53,8 @@ app.whenReady().then(() => {
   registerShell(ipcMain)
   registerModels(ipcMain)
   registerPipeline(ipcMain)
-  registerSessions(ipcMain)
+  registerSession(ipcMain)
+  registerMemory(ipcMain)
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

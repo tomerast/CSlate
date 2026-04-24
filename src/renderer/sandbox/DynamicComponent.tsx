@@ -1,9 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
 import { ComponentError } from './ComponentError'
+import { useAppStore, type UserPreferences } from '../store/appStore'
+
+type Variant = 'inline' | 'fullscreen'
 
 interface Props {
   bundle: string
+  variant?: Variant
 }
 
 interface EvalResult {
@@ -11,33 +15,67 @@ interface EvalResult {
   error: string | null
 }
 
-function createBridge() {
+interface UserBridge {
+  theme: UserPreferences['theme']
+  density: UserPreferences['density']
+  preferences: Record<string, unknown>
+}
+
+interface Bridge {
+  user: UserBridge
+  fetch: (sourceId: string, endpointId: string, params?: Record<string, unknown>) => Promise<unknown>
+  subscribe: (
+    sourceId: string,
+    endpointId: string,
+    params: Record<string, unknown>,
+    callback: (data: unknown) => void,
+  ) => () => void
+  getConfig: (key: string) => unknown
+  pipeline: (pipelineId: string) => Promise<unknown>
+  pipelineSubscribe: (pipelineId: string, callback: (data: unknown) => void) => () => void
+}
+
+function createBridge(preferences: UserPreferences): Bridge {
   return {
-    fetch: async (sourceId: string, endpointId: string, _params?: Record<string, unknown>) => {
-      console.warn(`[bridge.fetch] "${sourceId}/${endpointId}" — data source registry not yet available, returning null`)
+    user: {
+      theme: preferences.theme,
+      density: preferences.density,
+      preferences: preferences.extras,
+    },
+
+    fetch: async (sourceId, endpointId) => {
+      console.warn(
+        `[bridge.fetch] "${sourceId}/${endpointId}" — data source registry not yet available, returning null`,
+      )
       return null
     },
 
-    subscribe: (sourceId: string, endpointId: string, _params: Record<string, unknown>, _callback: (data: unknown) => void) => {
-      console.warn(`[bridge.subscribe] "${sourceId}/${endpointId}" — data source registry not yet available`)
+    subscribe: (sourceId, endpointId) => {
+      console.warn(
+        `[bridge.subscribe] "${sourceId}/${endpointId}" — data source registry not yet available`,
+      )
       return () => {}
     },
 
-    getConfig: (key: string) => {
+    getConfig: (key) => {
       console.warn(`[bridge.getConfig] "${key}" — config not yet available`)
       return undefined
     },
 
-    pipeline: async (pipelineId: string) => {
+    pipeline: async (pipelineId) => {
       try {
         return await window.electron.invoke('pipeline:get-data', { pipelineId })
       } catch (err) {
         console.error('[bridge] pipeline fetch failed:', err)
-        return { data: null, metadata: { fetchedAt: 0, source: 'error', cached: false }, error: String(err) }
+        return {
+          data: null,
+          metadata: { fetchedAt: 0, source: 'error', cached: false },
+          error: String(err),
+        }
       }
     },
 
-    pipelineSubscribe: (pipelineId: string, callback: (data: unknown) => void) => {
+    pipelineSubscribe: (pipelineId, callback) => {
       try {
         window.electron.send('pipeline:subscribe', { pipelineId })
       } catch (err) {
@@ -60,14 +98,12 @@ function createBridge() {
   }
 }
 
-function evalBundle(bundle: string, bridge: ReturnType<typeof createBridge>): EvalResult {
+function evalBundle(bundle: string, bridge: Bridge): EvalResult {
   try {
     const _module = { exports: {} as Record<string, unknown> }
     const _require = (mod: string): unknown => {
       if (mod === 'react') return React
       if (mod === 'react-dom') return ReactDOM
-      // Support automatic JSX transform — esbuild may emit require('react/jsx-runtime')
-      // even with jsx:'transform' if source code imports it explicitly
       if (mod === 'react/jsx-runtime' || mod === 'react/jsx-dev-runtime') {
         return {
           jsx: React.createElement,
@@ -79,7 +115,7 @@ function evalBundle(bundle: string, bridge: ReturnType<typeof createBridge>): Ev
       if (mod === 'bridge') return bridge
       throw new Error(
         `Module "${mod}" is not available in the CSlate sandbox. ` +
-        `Use bridge.pipeline() for pipeline data, or bridge.fetch() for external data.`
+          `Use bridge.pipeline() for pipeline data, or bridge.fetch() for external data.`,
       )
     }
 
@@ -107,16 +143,21 @@ class ErrorBoundary extends React.Component<
   { caught: boolean }
 > {
   state = { caught: false }
-  static getDerivedStateFromError() { return { caught: true } }
-  componentDidCatch(e: Error) { this.props.onError(e) }
-  render() { return this.state.caught ? null : this.props.children }
+  static getDerivedStateFromError() {
+    return { caught: true }
+  }
+  componentDidCatch(e: Error) {
+    this.props.onError(e)
+  }
+  render() {
+    return this.state.caught ? null : this.props.children
+  }
 }
 
 function createComponentStore() {
   const state: Record<string, unknown> = {}
   return {
     getState: (key: string) => state[key],
-    // Supports both: setState(patch) and setState(key, value)
     setState: (keyOrPatch: string | Record<string, unknown>, value?: unknown) => {
       if (typeof keyOrPatch === 'string') {
         state[keyOrPatch] = value
@@ -129,16 +170,14 @@ function createComponentStore() {
 }
 
 // Module-level cache: same bundle string → same Component reference.
-// Prevents re-evaluation on parent re-renders and preserves React state trees.
 const bundleCache = new Map<string, EvalResult>()
 const MAX_CACHE_SIZE = 50
 
-function evalBundleCached(bundle: string, bridge: ReturnType<typeof createBridge>): EvalResult {
+function evalBundleCached(bundle: string, bridge: Bridge): EvalResult {
   const cached = bundleCache.get(bundle)
   if (cached) return cached
   const result = evalBundle(bundle, bridge)
   if (bundleCache.size >= MAX_CACHE_SIZE) {
-    // Evict oldest entry
     const first = bundleCache.keys().next().value
     if (first !== undefined) bundleCache.delete(first)
   }
@@ -146,11 +185,26 @@ function evalBundleCached(bundle: string, bridge: ReturnType<typeof createBridge
   return result
 }
 
-export function DynamicComponent({ bundle }: Props) {
+/**
+ * Render a component bundle inline in the chat (default) or as a fullscreen
+ * embed. The inline variant is constrained to the message bubble width and
+ * has internal scroll if content overflows.
+ */
+export function DynamicComponent({ bundle, variant = 'inline' }: Props) {
+  const preferences = useAppStore((s) => s.preferences)
   const [result, setResult] = React.useState<EvalResult>({ Component: null, error: null })
   const [runtimeError, setRuntimeError] = React.useState<string | null>(null)
-  const bridgeRef = React.useRef(createBridge())
+  const bridgeRef = React.useRef<Bridge>(createBridge(preferences))
   const storeRef = React.useRef(createComponentStore())
+
+  // Keep bridge.user fresh as preferences change without breaking cached bundles.
+  React.useEffect(() => {
+    bridgeRef.current.user = {
+      theme: preferences.theme,
+      density: preferences.density,
+      preferences: preferences.extras,
+    }
+  }, [preferences])
 
   React.useEffect(() => {
     setRuntimeError(null)
@@ -163,8 +217,13 @@ export function DynamicComponent({ bundle }: Props) {
 
   const Comp = result.Component as React.ComponentType<{ bridge?: unknown; store?: unknown }>
 
+  const wrapperClass =
+    variant === 'inline'
+      ? 'w-full max-h-[480px] overflow-auto rounded-xl border border-border bg-surface/60 shadow-sm'
+      : 'relative w-full h-full'
+
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div className={wrapperClass}>
       <ErrorBoundary key={bundle} onError={(e) => setRuntimeError(e.message)}>
         <Comp bridge={bridgeRef.current} store={storeRef.current} />
       </ErrorBoundary>
