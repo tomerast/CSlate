@@ -56,7 +56,7 @@ export function AppLayout({ onOpenConfig }: AppLayoutProps) {
   useEffect(() => {
     window.electron.invoke('canvas:load', { projectDir: '' }).then((result: unknown) => {
       const r = result as { components?: CanvasComponent[] } | null
-      if (Array.isArray(r?.components) && r.components.length > 0) {
+      if (Array.isArray(r?.components)) {
         useCanvasStore.getState().hydrate(r.components)
       }
     }).catch(() => {})
