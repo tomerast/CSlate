@@ -1,5 +1,7 @@
 # CSlate — Product & Architecture Specification
 
+> Current implementation continuity lives in `docs/continuity.md`. This spec is useful product context, but any implementation detail that conflicts with `docs/continuity.md` or the code should be treated as historical and corrected.
+
 **Version:** 1.0  
 **Date:** 2026-04-24  
 **Status:** Living document — source of truth for all three repos

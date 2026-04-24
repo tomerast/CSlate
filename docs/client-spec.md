@@ -1,5 +1,7 @@
 # CSlate Client — Implementation Spec
 
+> Current implementation continuity lives in `docs/continuity.md`. This file contains historical migration-era details; prefer `docs/continuity.md` when planning new work, and update both docs when changing architecture.
+
 **Repo:** `CSlate` (Electron + React + TypeScript)  
 **Date:** 2026-04-24
 
