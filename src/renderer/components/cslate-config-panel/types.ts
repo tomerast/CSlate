@@ -1,9 +1,12 @@
 export type Theme = 'dark' | 'light' | 'midnight'
 
 export type ConfigTab = 'theme' | 'models' | 'settings'
+export type LLMProvider = 'anthropic' | 'openai' | 'google' | 'local' | 'gateway'
 
 export interface ConfigValues {
+  llmProvider: LLMProvider
   llmModel: string
+  llmFastModel: string
   llmApiKey: string
   gatewayUrl: string
   theme: Theme
@@ -11,7 +14,9 @@ export interface ConfigValues {
 }
 
 export interface ConfigPanelProps {
+  llmProvider?: LLMProvider
   llmModel?: string
+  llmFastModel?: string
   llmApiKey?: string
   gatewayUrl?: string
   theme?: Theme
@@ -24,18 +29,64 @@ export interface ConfigPanelProps {
 }
 
 export interface ProviderPreset {
-  id: string
+  id: LLMProvider
   label: string
-  url: string
+  defaultModel: string
+  defaultFastModel: string
+  setupLabel: string
+  description: string
+  needsKey: boolean
+  baseUrl?: string
 }
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
-  { id: 'openrouter', label: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
-  { id: 'vercel',     label: 'Vercel',     url: 'https://ai-gateway.vercel.sh/v1' },
-  { id: 'anthropic',  label: 'Anthropic',  url: 'https://api.anthropic.com/v1' },
-  { id: 'openai',     label: 'OpenAI',     url: 'https://api.openai.com/v1' },
-  { id: 'google',     label: 'Google',     url: 'https://generativelanguage.googleapis.com/v1beta/openai' },
-  { id: 'ollama',     label: 'Ollama',     url: 'http://localhost:11434/v1' },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    defaultModel: 'openai/gpt-4o-mini',
+    defaultFastModel: 'openai/gpt-4o-mini',
+    setupLabel: 'Get OpenAI key',
+    description: 'Best default for GPT models and OpenAI-compatible workflows.',
+    needsKey: true,
+  },
+  {
+    id: 'anthropic',
+    label: 'Claude',
+    defaultModel: 'anthropic/claude-sonnet-4-6',
+    defaultFastModel: 'anthropic/claude-haiku-4-5',
+    setupLabel: 'Get Claude key',
+    description: 'Strong assistant and coding models through the Claude API.',
+    needsKey: true,
+  },
+  {
+    id: 'google',
+    label: 'Gemini',
+    defaultModel: 'google/gemini-2.5-pro',
+    defaultFastModel: 'google/gemini-2.5-flash',
+    setupLabel: 'Get Gemini key',
+    description: 'Google AI Studio keys with Gemini models.',
+    needsKey: true,
+  },
+  {
+    id: 'local',
+    label: 'Ollama',
+    defaultModel: 'llama3.2',
+    defaultFastModel: 'llama3.2',
+    setupLabel: 'Install Ollama',
+    description: 'Local models on your machine. No cloud API key needed.',
+    needsKey: false,
+    baseUrl: 'http://localhost:11434',
+  },
+  {
+    id: 'gateway',
+    label: 'Gateway',
+    defaultModel: 'openai/gpt-4o-mini',
+    defaultFastModel: 'openai/gpt-4o-mini',
+    setupLabel: 'Gateway docs',
+    description: 'Advanced OpenAI-compatible endpoint for one key across providers.',
+    needsKey: true,
+    baseUrl: 'https://ai-gateway.vercel.sh/v1',
+  },
 ]
 
 export const MODEL_SUGGESTIONS: { id: string; label: string; note?: string }[] = [
@@ -46,6 +97,7 @@ export const MODEL_SUGGESTIONS: { id: string; label: string; note?: string }[] =
   { id: 'openai/gpt-4o-mini',                      label: 'GPT-4o Mini',                note: 'fast' },
   { id: 'google/gemini-3.1-pro-preview',           label: 'Gemini 3.1 Pro' },
   { id: 'google/gemini-3-flash',                   label: 'Gemini 3 Flash',             note: 'fast' },
+  { id: 'google/gemini-2.5-flash',                 label: 'Gemini 2.5 Flash',           note: 'fast' },
   { id: 'google/gemini-2.5-pro',                   label: 'Gemini 2.5 Pro' },
   { id: 'deepseek/deepseek-r1',                    label: 'DeepSeek R1',                note: 'reasoning' },
   { id: 'deepseek/deepseek-chat',                  label: 'DeepSeek V3' },
@@ -65,9 +117,11 @@ export const THEME_OPTIONS: { value: Theme; label: string; description: string }
 ]
 
 export const DEFAULT_CONFIG: ConfigValues = {
+  llmProvider: 'anthropic',
   llmModel: 'anthropic/claude-sonnet-4-6',
+  llmFastModel: 'anthropic/claude-haiku-4-5',
   llmApiKey: '',
-  gatewayUrl: 'https://openrouter.ai/api/v1',
+  gatewayUrl: '',
   theme: 'dark',
   serverUrl: 'https://api.cslate.app',
 }

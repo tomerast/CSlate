@@ -57,6 +57,11 @@ describe('setConfigValue + getConfigValue (non-sensitive)', () => {
     expect(getConfigValue('llmModel')).toBe('gpt-4o')
   })
 
+  it('round-trips llmFastModel', () => {
+    setConfigValue('llmFastModel', 'gpt-4o-mini')
+    expect(getConfigValue('llmFastModel')).toBe('gpt-4o-mini')
+  })
+
   it('does NOT call safeStorage for non-sensitive keys', () => {
     setConfigValue('theme', 'light')
     expect(mockEncrypt).not.toHaveBeenCalled()

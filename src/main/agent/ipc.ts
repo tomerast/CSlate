@@ -2,41 +2,18 @@ import { app, type IpcMain, type WebContents } from 'electron'
 import path from 'path'
 import { AgentEngine } from './engine'
 import { getConfigValue } from '../ipc/config'
-import { buildRegistry, type LLMConfig } from '@cslate/shared/agent'
+import { buildRegistry } from '@cslate/shared/agent'
+import { resolveLLMConfig } from './config-resolver'
 import type { PermissionBroker } from './tools/bash/permissions'
 import { loadUserMemory } from '../memory/context'
 import { extractAndStoreUiMemories } from '../memory/auto-extract'
 import { agentLog, logFile } from '../lib/logger'
-
-const DIRECT_MODEL_IDS: Record<string, string> = {
-  'anthropic/claude-sonnet-4-6': 'claude-sonnet-4-6',
-  'anthropic/claude-haiku-4-5': 'claude-haiku-4-5',
-  'anthropic/claude-opus-4-6': 'claude-opus-4-6',
-  'openai/gpt-4o': 'gpt-4o',
-  'openai/gpt-4o-mini': 'gpt-4o-mini',
-  'google/gemini-2.5-pro': 'gemini-2.5-pro-preview',
-  'google/gemini-2.5-flash': 'gemini-2.5-flash-preview',
-  'google/gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
-}
 
 // Module-level permission registry (shared across all agent:run sessions)
 const pendingPermissions = new Map<string, (approved: boolean) => void>()
 
 // Track active runs so a new request cancels the previous one
 const activeRuns = new Map<string, AbortController>()
-
-function parseModelId(llmModel: string): { provider: LLMConfig['provider']; model: string } {
-  if (llmModel.startsWith('anthropic/')) {
-    return { provider: 'anthropic', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('anthropic/'.length) }
-  }
-  if (llmModel.startsWith('openai/')) {
-    return { provider: 'openai', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('openai/'.length) }
-  }
-  if (llmModel.startsWith('google/')) {
-    return { provider: 'google', model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('google/'.length) }
-  }
-  return { provider: 'local', model: llmModel }
-}
 
 function resolveProjectDir(projectDir: string): string {
   if (projectDir && path.isAbsolute(projectDir)) return projectDir
@@ -118,37 +95,25 @@ export function register(ipcMain: IpcMain): void {
     }
 
     // Load LLM config from secure storage
-    const gatewayUrl = (getConfigValue('gatewayUrl') as string) ?? ''
-    const llmModel = (getConfigValue('llmModel') as string) ?? 'anthropic/claude-sonnet-4-6'
-    const apiKey = (getConfigValue('llmApiKey') as string | null) ?? undefined
     const serverUrl = (getConfigValue('serverUrl') as string) ?? 'http://localhost:3000'
     const serverApiKey = (getConfigValue('serverApiKey') as string | null) ?? ''
+    const config = resolveLLMConfig()
 
-    let provider: LLMConfig['provider']
-    let model: string
-    let baseUrl: string | undefined
+    log.debug({
+      provider: config?.provider ?? '(none)',
+      model: config?.model ?? '(none)',
+      baseUrl: config?.baseUrl ?? '(direct)',
+      hasApiKey: !!config?.apiKey,
+    }, 'config resolved')
 
-    if (gatewayUrl) {
-      provider = 'openai'
-      model = llmModel
-      baseUrl = gatewayUrl
-    } else {
-      ({ provider, model } = parseModelId(llmModel))
-    }
-
-    log.debug({ provider, model, baseUrl: baseUrl ?? '(direct)', hasApiKey: !!apiKey }, 'config resolved')
-
-    const isLocal = provider === 'local'
-    if (!apiKey && !isLocal) {
-      log.warn({ provider, model }, 'no API key configured')
+    if (!config) {
+      log.warn('no API key configured')
       sender.send('agent:error', {
         message: 'No API key configured. Open Settings (⌘,) to set up your provider.',
         code: 'UNCONFIGURED_LLM'
       })
       return { ok: true }
     }
-
-    const config: LLMConfig = { provider, model, apiKey, baseUrl }
 
     const engine = new AgentEngine(config, resolvedProjectDir, {
       serverUrl,

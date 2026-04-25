@@ -1,14 +1,28 @@
 {
   "name": "CSlate Config Panel",
-  "description": "System configuration panel for CSlate. Configures the LLM model routed through Vercel AI Gateway (BYOK), visual theme, and server connection. This is a protected system component — users cannot modify it through the AI chat.",
-  "tags": ["system", "config", "settings", "llm", "theme", "gateway"],
+  "description": "System configuration panel for CSlate. Configures direct LLM providers, local Ollama, advanced gateways, visual theme, and server connection. This is a protected system component — users cannot modify it through the AI chat.",
+  "tags": ["system", "config", "settings", "llm", "theme", "providers"],
   "inputs": {
+    "llmProvider": {
+      "type": "string",
+      "description": "Selected LLM provider: 'openai', 'anthropic', 'google', 'local', or 'gateway'",
+      "required": false,
+      "default": "anthropic",
+      "stateKey": "config.llmProvider"
+    },
     "llmModel": {
       "type": "string",
-      "description": "Current LLM model ID in gateway format (e.g. 'anthropic/claude-sonnet-4.6', 'minimax/minimax-m2.5')",
+      "description": "Current main LLM model ID for the selected provider",
       "required": false,
       "default": "anthropic/claude-sonnet-4.6",
       "stateKey": "config.llmModel"
+    },
+    "llmFastModel": {
+      "type": "string",
+      "description": "Current fast/worker LLM model ID for routing, auto-title, memory extraction, review helpers, pipeline workers, and lighter build files",
+      "required": false,
+      "default": "anthropic/claude-haiku-4-5",
+      "stateKey": "config.llmFastModel"
     },
     "llmApiKey": {
       "type": "string",
@@ -18,9 +32,9 @@
     },
     "gatewayUrl": {
       "type": "string",
-      "description": "Vercel AI Gateway URL. Defaults to hosted gateway.",
+      "description": "Advanced gateway URL or local Ollama URL when relevant.",
       "required": false,
-      "default": "https://ai-gateway.vercel.sh",
+      "default": "",
       "stateKey": "config.gatewayUrl"
     },
     "theme": {
@@ -46,10 +60,20 @@
     }
   },
   "outputs": {
+    "llmProvider": {
+      "type": "string",
+      "description": "Updated LLM provider after save",
+      "stateKey": "config.llmProvider"
+    },
     "llmModel": {
       "type": "string",
-      "description": "Updated LLM model ID after save",
+      "description": "Updated main LLM model ID after save",
       "stateKey": "config.llmModel"
+    },
+    "llmFastModel": {
+      "type": "string",
+      "description": "Updated fast/worker LLM model ID after save",
+      "stateKey": "config.llmFastModel"
     },
     "llmApiKey": {
       "type": "string",
@@ -58,7 +82,7 @@
     },
     "gatewayUrl": {
       "type": "string",
-      "description": "Updated gateway URL after save",
+      "description": "Updated gateway or local provider URL after save",
       "stateKey": "config.gatewayUrl"
     },
     "theme": {

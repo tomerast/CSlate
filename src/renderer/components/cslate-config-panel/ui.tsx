@@ -1,7 +1,14 @@
 import React, { useState } from 'react'
-import type { ConfigPanelProps, ConfigTab } from './types'
+import type { ConfigPanelProps, ConfigTab, LLMProvider } from './types'
 import { THEME_OPTIONS, PROVIDER_PRESETS, MODEL_SUGGESTIONS } from './types'
 import { useConfigForm } from './logic'
+
+interface ProviderModel {
+  id: string
+  label: string
+}
+
+type ProviderStatus = 'idle' | 'checking' | 'connected' | 'error'
 
 export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactElement | null {
   if (!props.isOpen) return null
@@ -28,7 +35,13 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
   const [connectEmail, setConnectEmail] = useState('')
   const [connectStatus, setConnectStatus] = useState<'idle' | 'connecting' | 'pending_email' | 'error'>('idle')
   const [connectError, setConnectError] = useState('')
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus>('idle')
+  const [providerMessage, setProviderMessage] = useState('')
+  const [availableModels, setAvailableModels] = useState<ProviderModel[]>([])
+  const [modelField, setModelField] = useState<'llmModel' | 'llmFastModel'>('llmModel')
   const isConnected = !!props.serverEmail
+  const selectedProvider = activeProvider ?? PROVIDER_PRESETS[0]
+  const modelOptions = availableModels.length > 0 ? availableModels : MODEL_SUGGESTIONS
 
   async function handleConnect() {
     if (!connectEmail || !values.serverUrl) return
@@ -60,6 +73,61 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
   async function handleDisconnect() {
     await window.electron.invoke('server:disconnect')
     window.location.reload()
+  }
+
+  function pickProvider(provider: LLMProvider) {
+    selectProvider(provider)
+    setProviderStatus('idle')
+    setProviderMessage('')
+    setAvailableModels([])
+    setShowSuggestions(false)
+  }
+
+  async function openProviderSetup(provider: LLMProvider) {
+    await window.electron.invoke('providers:open-setup', provider)
+  }
+
+  async function validateProvider() {
+    if (!selectedProvider) return
+    setProviderStatus('checking')
+    setProviderMessage('')
+    try {
+      const result = await window.electron.invoke('providers:validate', {
+        provider: values.llmProvider,
+        apiKey: values.llmApiKey,
+        baseUrl: values.gatewayUrl,
+      }) as { ok: boolean; message?: string; models?: ProviderModel[] }
+
+      if (!result.ok) {
+        setProviderStatus('error')
+        setProviderMessage(result.message ?? 'Could not connect.')
+        return
+      }
+
+      const models = result.models ?? []
+      setAvailableModels(models)
+      setProviderStatus('connected')
+      setProviderMessage(models.length > 0 ? 'Connected. Choose a model and save.' : 'Connected. Save to use this provider.')
+
+      if (models.length > 0 && values.llmProvider === 'local') {
+        updateField('llmModel', models[0].id)
+        updateField('llmFastModel', models[0].id)
+      } else if (models.length > 0 && values.llmProvider === 'gateway') {
+        updateField('llmModel', models[0].id)
+      }
+    } catch (err) {
+      setProviderStatus('error')
+      setProviderMessage(err instanceof Error ? err.message : 'Could not connect.')
+    }
+  }
+
+  function visibleModelOptions(field: 'llmModel' | 'llmFastModel') {
+    const query = values[field].toLowerCase()
+    return modelOptions.filter(m =>
+      !query ||
+      m.id.toLowerCase().includes(query) ||
+      m.label.toLowerCase().includes(query)
+    )
   }
 
   return (
@@ -130,74 +198,166 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
 
           {/* ── Models tab ────────────────────────────────── */}
           {activeTab === 'models' && (
-            <section>
-              {/* Provider pills */}
-              <div className="mb-4">
-                <p className="text-xs text-muted mb-2">Quick connect</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {PROVIDER_PRESETS.map(p => (
-                    <button key={p.id} onClick={() => selectProvider(p.url)}
-                      className={`px-3 py-1 text-xs font-medium rounded-full border transition-all
-                        ${activeProvider?.id === p.id
-                          ? 'bg-primary text-white border-primary'
-                          : 'border-border text-muted hover:border-primary/40 hover:text-text'}`}>
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
+            <section className="space-y-4">
+              <SectionHeader title="Model Provider" subtitle="Connect a model service" />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {PROVIDER_PRESETS.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => pickProvider(p.id)}
+                    className={`min-h-[88px] px-3 py-3 rounded-lg border text-left transition-all ${
+                      values.llmProvider === p.id
+                        ? 'border-primary bg-primary/8 ring-1 ring-primary/25'
+                        : 'border-border hover:border-primary/35'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-text">{p.label}</span>
+                      {values.llmProvider === p.id && <CheckIcon />}
+                    </div>
+                    <p className="text-[11px] leading-4 text-muted mt-1">{p.description}</p>
+                  </button>
+                ))}
               </div>
 
-              {/* Base URL */}
-              <div className="mb-3">
-                <label className="block text-xs font-medium text-muted mb-1.5">Base URL</label>
-                <input type="text" value={values.gatewayUrl}
-                  onChange={e => updateField('gatewayUrl', e.target.value)}
-                  placeholder="https://openrouter.ai/api/v1"
-                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono" />
-              </div>
-
-              {/* API Key */}
-              <div className="mb-3">
-                <label className="block text-xs font-medium text-muted mb-1.5">API Key</label>
-                <div className="relative">
-                  <input type={showApiKey ? 'text' : 'password'}
-                    value={showApiKey ? values.llmApiKey : maskApiKey(values.llmApiKey)}
-                    onChange={e => updateField('llmApiKey', e.target.value)}
-                    onFocus={() => setShowApiKey(true)}
-                    placeholder="sk-..."
-                    className="w-full px-3 py-2.5 pr-10 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono" />
-                  <button onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-text">
-                    {showApiKey ? <EyeOffIcon /> : <EyeIcon />}
+              <div className="rounded-lg border border-border bg-background/40 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-text">{selectedProvider.label}</p>
+                    <p className="text-[11px] text-muted">
+                      {selectedProvider.needsKey ? 'Open the provider page, paste your key, then validate.' : 'Start Ollama locally, then detect installed models.'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openProviderSetup(selectedProvider.id)}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted hover:text-text hover:border-primary/40 transition-colors"
+                  >
+                    {selectedProvider.setupLabel}
                   </button>
                 </div>
-                <p className="text-[11px] text-muted/50 mt-1">Encrypted via OS keychain. Never leaves your machine.</p>
+
+                {(selectedProvider.id === 'gateway' || selectedProvider.id === 'local') && (
+                  <div>
+                    <label className="block text-xs font-medium text-muted mb-1.5">
+                      {selectedProvider.id === 'local' ? 'Ollama URL' : 'Gateway URL'}
+                    </label>
+                    <input
+                      type="text"
+                      value={values.gatewayUrl}
+                      onChange={e => updateField('gatewayUrl', e.target.value)}
+                      placeholder={selectedProvider.baseUrl}
+                      className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
+                    />
+                  </div>
+                )}
+
+                {selectedProvider.needsKey && (
+                  <div>
+                    <label className="block text-xs font-medium text-muted mb-1.5">API Key</label>
+                    <div className="relative">
+                      <input
+                        type={showApiKey ? 'text' : 'password'}
+                        value={showApiKey ? values.llmApiKey : maskApiKey(values.llmApiKey)}
+                        onChange={e => updateField('llmApiKey', e.target.value)}
+                        onFocus={() => setShowApiKey(true)}
+                        placeholder={selectedProvider.id === 'google' ? 'AIza...' : 'sk-...'}
+                        className="w-full px-3 py-2.5 pr-10 text-sm bg-surface border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
+                      />
+                      <button
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-text"
+                      >
+                        {showApiKey ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-muted/50 mt-1">Encrypted via OS keychain. Never leaves your machine.</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={validateProvider}
+                  disabled={providerStatus === 'checking' || (selectedProvider.needsKey && !values.llmApiKey)}
+                  className="w-full px-3 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {providerStatus === 'checking'
+                    ? 'Checking...'
+                    : selectedProvider.id === 'local'
+                      ? 'Detect Ollama'
+                      : 'Validate Connection'}
+                </button>
+
+                {providerMessage && (
+                  <p className={`text-[11px] ${providerStatus === 'error' ? 'text-red-400' : 'text-muted'}`}>
+                    {providerMessage}
+                  </p>
+                )}
               </div>
 
-              {/* Model */}
               <div className="relative">
-                <label className="block text-xs font-medium text-muted mb-1.5">Model</label>
-                <input type="text"
+                <label className="block text-xs font-medium text-muted mb-1.5">Main model</label>
+                <input
+                  type="text"
                   value={values.llmModel}
-                  onChange={e => { updateField('llmModel', e.target.value); setShowSuggestions(true) }}
-                  onFocus={() => setShowSuggestions(true)}
+                  onChange={e => { updateField('llmModel', e.target.value); setModelField('llmModel'); setShowSuggestions(true) }}
+                  onFocus={() => { setModelField('llmModel'); setShowSuggestions(true) }}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                  placeholder="anthropic/claude-sonnet-4-6"
-                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono" />
+                  placeholder={selectedProvider.defaultModel}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
+                />
+                <p className="text-[11px] text-muted/60 mt-1">Used for normal chat, planning, UI builds, and fixes.</p>
 
-                {showSuggestions && (
+                {showSuggestions && modelField === 'llmModel' && (
                   <div className="absolute z-10 left-0 right-0 mt-1 bg-surface border border-border rounded-lg shadow-lg overflow-hidden max-h-52 overflow-y-auto">
-                    {MODEL_SUGGESTIONS
-                      .filter(m => !values.llmModel || m.id.includes(values.llmModel) || m.label.toLowerCase().includes(values.llmModel.toLowerCase()))
+                    {visibleModelOptions('llmModel')
                       .map(m => (
-                        <button key={m.id}
-                          onMouseDown={() => selectModel(m.id)}
-                          className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-background/60 transition-colors">
+                        <button
+                          key={m.id}
+                          onMouseDown={() => selectModel(m.id, 'llmModel')}
+                          className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-background/60 transition-colors"
+                        >
                           <div>
                             <span className="text-sm font-mono text-text">{m.id}</span>
-                            {m.note && <span className="ml-2 text-[10px] text-muted">{m.note}</span>}
+                            {'note' in m && typeof m.note === 'string' && (
+                              <span className="ml-2 text-[10px] text-muted">{m.note}</span>
+                            )}
                           </div>
                           {values.llmModel === m.id && <CheckIcon />}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="relative">
+                <label className="block text-xs font-medium text-muted mb-1.5">Fast / worker model</label>
+                <input
+                  type="text"
+                  value={values.llmFastModel}
+                  onChange={e => { updateField('llmFastModel', e.target.value); setModelField('llmFastModel'); setShowSuggestions(true) }}
+                  onFocus={() => { setModelField('llmFastModel'); setShowSuggestions(true) }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  placeholder={selectedProvider.defaultFastModel}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
+                />
+                <p className="text-[11px] text-muted/60 mt-1">Used for routing, auto-title, memory extraction, review helpers, pipeline workers, and lighter build files.</p>
+
+                {showSuggestions && modelField === 'llmFastModel' && (
+                  <div className="absolute z-10 left-0 right-0 mt-1 bg-surface border border-border rounded-lg shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+                    {visibleModelOptions('llmFastModel')
+                      .map(m => (
+                        <button
+                          key={m.id}
+                          onMouseDown={() => selectModel(m.id, 'llmFastModel')}
+                          className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-background/60 transition-colors"
+                        >
+                          <div>
+                            <span className="text-sm font-mono text-text">{m.id}</span>
+                            {'note' in m && typeof m.note === 'string' && (
+                              <span className="ml-2 text-[10px] text-muted">{m.note}</span>
+                            )}
+                          </div>
+                          {values.llmFastModel === m.id && <CheckIcon />}
                         </button>
                       ))}
                   </div>
