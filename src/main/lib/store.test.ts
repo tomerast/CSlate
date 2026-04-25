@@ -58,7 +58,7 @@ describe('configStore', () => {
   })
 
   it('returns default serverUrl', () => {
-    expect(configStore.get('serverUrl')).toBe('https://api.cslate.app')
+    expect(configStore.get('serverUrl')).toBe('http://localhost:3000')
   })
 
   it('returns default empty recentProjects', () => {

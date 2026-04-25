@@ -123,5 +123,5 @@ export const DEFAULT_CONFIG: ConfigValues = {
   llmApiKey: '',
   gatewayUrl: '',
   theme: 'dark',
-  serverUrl: 'https://api.cslate.app',
+  serverUrl: 'http://localhost:3000',
 }

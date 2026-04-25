@@ -31,7 +31,7 @@ export const configStore = new Store<ConfigStore>({
     llmModel: 'anthropic/claude-sonnet-4-6',
     llmFastModel: 'anthropic/claude-haiku-4-5',
     gatewayUrl: '',
-    serverUrl: 'https://api.cslate.app',
+    serverUrl: 'http://localhost:3000',
     theme: 'dark',
     recentProjects: [],
   }

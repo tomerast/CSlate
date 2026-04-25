@@ -19,6 +19,17 @@ type SearchResponse = {
   error?: string
 }
 
+type HealthResponse = {
+  ok: boolean
+  service?: string
+  version?: string
+  capabilities?: {
+    upload?: boolean
+    download?: boolean
+    search?: boolean
+  }
+}
+
 type FetchSourceResponse = {
   /** File contents keyed by path, e.g. `{ 'bundle.js': '...', 'ui.tsx': '...' }`. */
   source?: Record<string, string>
@@ -44,6 +55,45 @@ export class CSlateServerClient {
 
   private authHeaders(): HeadersInit {
     return { Authorization: `ApiKey ${this.apiKey}` }
+  }
+
+  /**
+   * Handshake — verify the remote server is a genuine CSlate server and
+   * discover its capabilities (upload / download / search).
+   * No API key required; the endpoint is public.
+   */
+  async health(): Promise<{
+    ok: boolean
+    valid: boolean
+    service?: string
+    version?: string
+    capabilities?: Record<string, boolean>
+    error?: string
+  }> {
+    try {
+      const url = new URL('/api/v1/health', this.serverUrl)
+      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
+      if (!res.ok) {
+        return { ok: false, valid: false, error: `Server returned ${res.status}` }
+      }
+      const data = (await res.json()) as HealthResponse
+      if (!data.ok || data.service !== 'cslate-server') {
+        return { ok: true, valid: false, error: 'Not a CSlate server' }
+      }
+      return {
+        ok: true,
+        valid: true,
+        service: data.service,
+        version: data.version,
+        capabilities: data.capabilities,
+      }
+    } catch (e) {
+      return {
+        ok: false,
+        valid: false,
+        error: e instanceof Error ? e.message : 'Could not reach CSlate server',
+      }
+    }
   }
 
   async search(query: string, limit: number): Promise<SearchResponse> {
