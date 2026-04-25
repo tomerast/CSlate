@@ -261,7 +261,7 @@ export function DynamicComponent({ bundle, manifest, variant = 'inline' }: Props
 
   const wrapperClass =
     variant === 'inline'
-      ? 'w-full max-h-[480px] overflow-auto rounded-xl border border-border bg-surface/60 shadow-sm'
+      ? 'w-full max-h-[520px] overflow-auto rounded-2xl border border-white/[0.065] bg-surface/70 shadow-[0_16px_48px_rgba(0,0,0,0.22)]'
       : 'relative w-full h-full'
 
   return (

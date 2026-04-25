@@ -21,6 +21,13 @@ export const SubAgentResultSchema = z.object({
   code: z.string(),
   status: z.enum(['success', 'error']),
   error: z.string().nullable(),
+  telemetry: z.object({
+    modelId: z.string(),
+    durationMs: z.number(),
+    outputTokens: z.number(),
+    tokPerSec: z.number(),
+    status: z.enum(['success', 'timeout', 'error']),
+  }).optional(),
 })
 
 export const ComponentPlanSchema = z.object({

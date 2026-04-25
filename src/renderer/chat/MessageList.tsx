@@ -1,17 +1,18 @@
 import React, { useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { useChatStore } from '../store/chatStore'
-import { useAppStore } from '../store/appStore'
+import { useChatStore, type OrchestratorPhase } from '../store/chatStore'
 import { DynamicComponent } from '../sandbox/DynamicComponent'
 import { OrchestratorProgress } from './OrchestratorProgress'
+import { parseModelId } from '../lib/modelParser'
 import type { AgentMessage, MessageCard } from '@shared/agentTypes'
 
 interface MessageListProps {
   onRegenerate?: () => void | Promise<void>
   onFork?: (messageId: string) => void | Promise<void>
+  modelId?: string
 }
 
-export function MessageList({ onRegenerate, onFork }: MessageListProps) {
+export function MessageList({ onRegenerate, onFork, modelId = '' }: MessageListProps) {
   const messages = useChatStore((s) => s.messages)
   const status = useChatStore((s) => s.status)
   const error = useChatStore((s) => s.error)
@@ -34,7 +35,15 @@ export function MessageList({ onRegenerate, onFork }: MessageListProps) {
   }, [messages, status, orchestrator])
 
   const lastAssistantIdx = findLastAssistantIdx(messages)
-  const showOrchestrator = status === 'generating' && orchestrator.currentPhase !== null
+
+  // Only show the progress bar during the actual component build phases.
+  // The initial understand/search/plan steps are fast; the progress bar
+  // only makes sense when we're dispatching workers and assembling the result.
+  const BUILD_PHASES: OrchestratorPhase[] = ['dispatch', 'worker', 'validate', 'ship', 'fix']
+  const isBuildPhase = orchestrator.currentPhase
+    ? BUILD_PHASES.includes(orchestrator.currentPhase)
+    : false
+  const showOrchestrator = status === 'generating' && isBuildPhase
   const showErrorInline = error && status !== 'generating'
 
   if (messages.length === 0 && !showOrchestrator) {
@@ -47,7 +56,7 @@ export function MessageList({ onRegenerate, onFork }: MessageListProps) {
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth"
     >
-      <div className="mx-auto max-w-3xl px-6 py-10 space-y-10">
+      <div className="mx-auto max-w-3xl px-6 py-12 space-y-12">
         {messages.map((msg, idx) => (
           <MessageBlock
             key={msg.id}
@@ -61,12 +70,12 @@ export function MessageList({ onRegenerate, onFork }: MessageListProps) {
         ))}
 
         {showOrchestrator && (
-          <div className="py-4">
-            <OrchestratorProgress status={orchestrator} />
+          <div className="py-2">
+            <OrchestratorProgress status={orchestrator} modelId={modelId} />
           </div>
         )}
 
-        {status === 'generating' && !showOrchestrator && <TypingIndicator />}
+        {status === 'generating' && !showOrchestrator && <ThinkingIndicator modelId={modelId} />}
 
         {!showErrorInline && error && (
           <div className="py-4">
@@ -101,22 +110,21 @@ function MessageBlock({
 
   if (isUser) {
     return (
-      <div className="space-y-1 pt-2">
-        <h2 className="text-xl font-medium text-text leading-snug tracking-tight"
-        >
+      <article className="group space-y-2 pt-2">
+        <h2 className="max-w-2xl text-[22px] font-medium text-text leading-snug tracking-normal">
           {message.content}
         </h2>
         <div className="flex items-center gap-2 text-[11px] text-muted/40">
           <span>{time}</span>
         </div>
-      </div>
+      </article>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <article className="group space-y-5">
       {message.content && (
-        <div className="prose prose-invert max-w-none text-[15px] leading-[1.7] text-text/90">
+        <div className="prose prose-invert max-w-none text-[15px] leading-[1.78] text-text/90 prose-p:my-3 prose-a:text-primary prose-strong:text-text prose-code:text-text prose-code:bg-white/[0.05] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md">
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
       )}
@@ -137,7 +145,7 @@ function MessageBlock({
         onRegenerate={onRegenerate}
         onFork={onFork}
       />
-    </div>
+    </article>
   )
 }
 
@@ -150,8 +158,7 @@ interface MessageActionsProps {
 
 function MessageActions({ message, canRegenerate, onRegenerate, onFork }: MessageActionsProps) {
   return (
-    <div className="flex items-center gap-3 pt-1 opacity-0 hover:opacity-100 transition-opacity duration-200"
-    >
+    <div className="flex items-center gap-3 pt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
       <ActionButton
         title="Copy"
         onClick={() => navigator.clipboard.writeText(message.content)}
@@ -185,7 +192,7 @@ function ActionButton({
     <button
       onClick={onClick}
       title={title}
-      className="hover:text-text transition-colors text-muted/40 hover:text-muted"
+      className="grid h-7 w-7 place-items-center rounded-lg text-muted/40 hover:text-text hover:bg-white/[0.055] transition-colors"
     >
       {children}
     </button>
@@ -218,7 +225,7 @@ function RefreshIcon() {
 
 function InlineCard({ card }: { card: MessageCard }) {
   return (
-    <div className="card-enter my-4">
+    <div className="card-enter my-6">
       <DynamicComponent bundle={card.bundle} manifest={card.manifest} variant="inline" />
       <CardFooter card={card} />
     </div>
@@ -232,29 +239,39 @@ function CardFooter({ card }: { card: MessageCard }) {
       <span className="inline-block h-1 w-1 rounded-full bg-primary/30" />
       {tag}
       {typeof card.score === 'number' && (
-        <span className="text-muted/30">· {(card.score * 100).toFixed(0)}% match</span>
+        <span className="text-muted/30">- {(card.score * 100).toFixed(0)}% match</span>
       )}
     </div>
   )
 }
 
-function TypingIndicator() {
+function ThinkingIndicator({ modelId }: { modelId: string }) {
+  const meta = parseModelId(modelId)
+
   return (
-    <div className="flex items-center gap-2 text-muted/40 text-xs py-2">
-      <span className="flex gap-1">
-        <span className="w-1 h-1 rounded-full bg-primary/40 animate-pulse" />
-        <span className="w-1 h-1 rounded-full bg-primary/40 animate-pulse [animation-delay:150ms]" />
-        <span className="w-1 h-1 rounded-full bg-primary/40 animate-pulse [animation-delay:300ms]" />
-      </span>
-      <span className="text-muted/30">thinking</span>
+    <div className="msg-enter py-2">
+      <div className="inline-flex items-center gap-3 rounded-full border border-white/[0.045] bg-white/[0.022] px-3 py-2 text-xs text-muted/62">
+        <span className="relative flex h-2.5 w-2.5">
+          <span
+            className="absolute inline-flex h-full w-full rounded-full opacity-25 animate-ping"
+            style={{ backgroundColor: meta.color }}
+          />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ backgroundColor: meta.color }} />
+        </span>
+        <span>Thinking with {meta.displayName}</span>
+        <span className="flex items-center gap-1" aria-hidden="true">
+          <span className="h-1 w-1 rounded-full bg-current opacity-30 animate-pulse" />
+          <span className="h-1 w-1 rounded-full bg-current opacity-30 animate-pulse [animation-delay:140ms]" />
+          <span className="h-1 w-1 rounded-full bg-current opacity-30 animate-pulse [animation-delay:280ms]" />
+        </span>
+      </div>
     </div>
   )
 }
 
 function ErrorBubble({ message }: { message: string }) {
   return (
-    <div className="msg-enter rounded-xl border border-error/20 bg-error/[0.03] px-4 py-3"
-    >
+    <div className="msg-enter rounded-xl border border-error/20 bg-error/[0.04] px-4 py-3">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-error/10 flex items-center justify-center">
           <svg className="w-3 h-3 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -273,15 +290,13 @@ function ErrorBubble({ message }: { message: string }) {
 function EmptyState() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center px-6 py-16">
-      <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
+      <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 shadow-[0_0_36px_rgba(124,108,255,0.16)]">
         <svg className="w-6 h-6 text-primary/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
         </svg>
       </div>
       <h2 className="text-lg font-medium text-text mb-2">Ask anything</h2>
-      <p className="text-sm text-muted max-w-sm">
-        Answers that belong as charts, tables, or compact visuals render right here in the conversation.
-      </p>
+      <p className="text-sm text-muted max-w-sm">Start with the thing you want to understand.</p>
     </div>
   )
 }

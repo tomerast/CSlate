@@ -70,7 +70,7 @@ The empty state is not "no messages yet." The empty state is a **stage**.
 When the agent is "thinking" or "building," the user should feel anticipation, not impatience.
 
 - No progress bars with technical labels
-- A soft orb that pulses in the provider's color
+- A soft provider-colored pulse in the surface
 - Phase words that feel human: "Considering..." → "Shaping..." → "Almost there..."
 - The thinking state is a **show**, not a **wait**
 
@@ -93,7 +93,7 @@ Cards should have weight. They should feel **earned**.
 |---|---|---|
 | Empty / Ready | Potential, calm | Deep black, barely-there violet glow |
 | User typing | Agency, power | Cursor lights up, surface lifts |
-| Agent thinking | Anticipation, wonder | Provider-colored pulse, soft orb |
+| Agent thinking | Anticipation, wonder | Provider-colored pulse, soft edge light |
 | Response arriving | Revelation, arrival | Content fades in word by word |
 | Card born | Satisfaction, delight | Spring animation, provider glow shadow |
 | Interactive | Flow, playfulness | Hover states, micro-interactions |
@@ -149,10 +149,23 @@ Cards should have weight. They should feel **earned**.
 - ❌ Don't expose model parameters (temperature, tokens)
 - ❌ Don't show raw system prompts or tool call logs
 - ❌ Don't use generic blue/indigo "AI app" gradients
+- ❌ Don't decorate the app with isolated gradient blobs or ornamental effects that compete with the conversation
 - ❌ Don't feel like a Slack clone or a generic chat app
 - ❌ Don't make the user feel like they're "managing" agents
 
 **Instead:** Make them feel like they're **collaborating with an intelligence that paints**.
+
+---
+
+## Implementation Notes
+
+The magic surface should be calm before it is dramatic. Prefer ambient depth, soft glass, readable typography, and provider-colored accents over literal sci-fi decoration. The app should feel inviting to a first-time user and durable for daily work.
+
+- The empty state is a warm invitation: one clear question, a beautiful composer, and a few useful sparks.
+- The conversation is a reading surface: user turns feel like headings; assistant turns feel like calm editorial text.
+- The sidebar is visual memory: softer rows, color chips, and dates instead of dense file-list energy.
+- Thinking states are human and quiet. Show progress and pace without exposing implementation detail.
+- Cards are the visual reward. Frame them lightly, give them room, and let the card content carry the moment.
 
 ---
 

@@ -11,6 +11,7 @@
 
   /* Surfaces */
   --slate-bg: #0A0A0F;
+  --slate-bg-soft: #101018;
   --slate-surface: #14141B;
   --slate-overlay: #1E1E28;
 
@@ -35,6 +36,8 @@
 
   /* Glows */
   --accent-glow: rgba(124, 108, 255, 0.15);
+  --surface-glass: rgba(20, 20, 27, 0.72);
+  --surface-hairline: rgba(255, 255, 255, 0.055);
 
   /* Shape */
   --slate-radius-sm: 8px;
@@ -64,10 +67,14 @@
   --slate-secondary: #7c3aed;
   --slate-accent: #8b5cf6;
   --slate-bg: #f8f8fc;
+  --slate-bg-soft: #eef0f7;
   --slate-surface: #ffffff;
+  --slate-overlay: #f0f1f7;
   --slate-text: #18181b;
   --slate-text-muted: #71717a;
   --slate-border: #e4e4e7;
+  --surface-glass: rgba(255, 255, 255, 0.78);
+  --surface-hairline: rgba(24, 24, 27, 0.08);
   --slate-error: #ef4444;
   --slate-success: #10b981;
   --slate-warning: #f59e0b;
@@ -83,10 +90,14 @@
   --slate-secondary: #a78bfa;
   --slate-accent: #c4b5fd;
   --slate-bg: #020617;
+  --slate-bg-soft: #071022;
   --slate-surface: #0f172a;
+  --slate-overlay: #172033;
   --slate-text: #e2e8f0;
   --slate-text-muted: #64748b;
   --slate-border: #1e293b;
+  --surface-glass: rgba(15, 23, 42, 0.74);
+  --surface-hairline: rgba(226, 232, 240, 0.07);
   --slate-error: #fb7185;
   --slate-success: #2dd4bf;
   --slate-warning: #fbbf24;
@@ -111,6 +122,30 @@ html, body, #root {
   color: var(--slate-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.app-shell {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 32%),
+    linear-gradient(135deg, var(--slate-bg) 0%, var(--slate-bg-soft) 52%, var(--slate-bg) 100%);
+}
+
+.app-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.01) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.38), transparent 70%);
+}
+
+.glass-surface {
+  background: var(--surface-glass);
+  border: 1px solid var(--surface-hairline);
+  backdrop-filter: blur(22px);
 }
 
 .app-drag-region {
@@ -151,16 +186,6 @@ html, body, #root {
 
 .thinking-pulse {
   animation: thinking-pulse 3s ease-in-out infinite;
-}
-
-/* ── Glow orb ───────────────────────────────────────────── */
-@keyframes orb-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.4; }
-  50% { transform: scale(1.15); opacity: 0.7; }
-}
-
-.orb-breathe {
-  animation: orb-breathe 3s ease-in-out infinite;
 }
 
 /* ── Smooth scrollbar ───────────────────────────────────── */

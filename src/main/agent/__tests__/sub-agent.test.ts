@@ -76,10 +76,11 @@ describe('buildSubAgentPrompt', () => {
 
 describe('spawnBuildAgent', () => {
   it('uses tight file-specific generation budgets', () => {
-    expect(getBuildAgentBudget('ui.tsx')).toEqual({ maxOutputTokens: 9000, timeoutMs: 30000 })
-    expect(getBuildAgentBudget('manifest.json')).toEqual({ maxOutputTokens: 3000, timeoutMs: 14000 })
-    expect(getBuildAgentBudget('context.md')).toEqual({ maxOutputTokens: 1200, timeoutMs: 10000 })
-    expect(getBuildAgentBudget('custom-helper.ts')).toEqual({ maxOutputTokens: 5000, timeoutMs: 18000 })
+    expect(getBuildAgentBudget('ui.tsx')).toEqual({ maxOutputTokens: 9000, timeoutMs: 45_000 })
+    expect(getBuildAgentBudget('components/StockHeader.tsx')).toEqual({ maxOutputTokens: 6000, timeoutMs: 20_000 })
+    expect(getBuildAgentBudget('manifest.json')).toEqual({ maxOutputTokens: 3000, timeoutMs: 14_000 })
+    expect(getBuildAgentBudget('context.md')).toEqual({ maxOutputTokens: 1200, timeoutMs: 10_000 })
+    expect(getBuildAgentBudget('custom-helper.ts')).toEqual({ maxOutputTokens: 5000, timeoutMs: 18_000 })
   })
 
   it('returns SubAgentResult on success', async () => {

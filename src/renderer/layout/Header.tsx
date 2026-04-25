@@ -10,12 +10,9 @@ interface HeaderProps {
 
 export function Header({ modelId, onOpenConfig, onOpenMemory }: HeaderProps) {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
-  const activeProvider = useAppStore((s) => s.activeProvider)
-  const setActiveProvider = useAppStore((s) => s.setActiveProvider)
 
   return (
-    <header className="h-12 flex-shrink-0 flex items-center px-4 app-drag-region"
-    >
+    <header className="h-14 flex-shrink-0 flex items-center px-4 app-drag-region">
       <div
         className="flex items-center gap-3 flex-1"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
@@ -23,22 +20,23 @@ export function Header({ modelId, onOpenConfig, onOpenMemory }: HeaderProps) {
         <button
           onClick={toggleSidebar}
           title="Toggle sidebar (⌘B)"
-          className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:text-text hover:bg-white/[0.04] transition-colors"
+          className="grid h-8 w-8 place-items-center rounded-lg text-muted/68 hover:text-text hover:bg-white/[0.045] transition-colors"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
             <path d="M3 6h18M3 12h18M3 18h18" />
           </svg>
         </button>
 
-        <span className="text-[11px] font-semibold text-muted/30 tracking-widest uppercase">
-          CSlate
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary/55" />
+          <span className="text-[12px] font-semibold text-text/78 tracking-normal">CSlate</span>
+        </div>
       </div>
 
       <div className="hidden md:flex items-center justify-center flex-1"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        <span className="text-[11px] text-muted/20 tracking-wider">
+        <span className="rounded-full border border-white/[0.055] bg-white/[0.02] px-3 py-1 text-[11px] text-muted/48">
           The Visual Bridge
         </span>
       </div>
@@ -47,11 +45,7 @@ export function Header({ modelId, onOpenConfig, onOpenMemory }: HeaderProps) {
         className="flex items-center gap-2 flex-1 justify-end"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        <ProviderLens
-          activeProvider={activeProvider}
-          onChange={setActiveProvider}
-          size="sm"
-        />
+        <ProviderLens modelId={modelId} size="sm" />
 
         <HeaderButton onClick={onOpenMemory} title="Memory (⌘M)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -89,7 +83,7 @@ function HeaderButton({
     <button
       onClick={onClick}
       title={title}
-      className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:text-text hover:bg-white/[0.04] transition-colors"
+      className="grid h-8 w-8 place-items-center rounded-lg text-muted/68 hover:text-text hover:bg-white/[0.045] transition-colors"
     >
       {children}
     </button>

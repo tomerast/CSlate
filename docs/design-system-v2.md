@@ -57,8 +57,8 @@ A pairing of a clean geometric sans for UI with a reading-optimized monospace fo
 
 | Role | Font | Weight | Size | Tracking |
 |---|---|---|---|---|
-| Display | Inter | 500 | 28–32px | -0.02em |
-| Title | Inter | 500 | 18px | -0.01em |
+| Display | Inter | 500 | 28–32px | 0 |
+| Title | Inter | 500 | 18px | 0 |
 | Body | Inter | 400 | 15px | 0 |
 | Caption | Inter | 400 | 13px | 0.01em |
 | Monospace | JetBrains Mono | 400 | 14px | 0 |
@@ -88,7 +88,7 @@ A pairing of a clean geometric sans for UI with a reading-optimized monospace fo
 The empty state or bottom-of-conversation state shows a **large, centered, floating input** — not a text field anchored to the bottom. It feels like you're addressing the room.
 
 **States:**
-1. **Idle:** Placeholder text gently pulses. A subtle gradient orb floats behind the input
+1. **Idle:** Placeholder text gently pulses. The input sits on a subtle ambient surface
 2. **Typing:** The input expands slightly. Provider badge lights up
 3. **Submitting:** Input compresses, sends a ripple outward, and scrolls up to become part of the stream
 
@@ -287,6 +287,17 @@ Rendered components should feel like **native citizens** of the conversation:
 - The user's question is the headline
 - The input is the centerpiece
 - Suggestion chips are horizontal scrollable or stacked vertically
+
+### Current App Shell Direction
+
+The production shell should interpret the manifesto through quiet, friendly surfaces:
+
+- **Ambient background, not decoration:** use deep layered surfaces and subtle edge light. Avoid standalone decorative blobs.
+- **Warm empty state:** headline, short subline, composer, and useful prompt sparks. No onboarding wall.
+- **Soft chrome:** header and sidebar should feel translucent and native, with clear hit targets and low visual noise.
+- **Readable stream:** keep the center column calm. User messages are prominent; assistant responses are open text with generous line-height.
+- **Cards breathe:** inline cards get a light frame, comfortable margin, and tiny source attribution only when it helps trust.
+- **Provider as accent:** model color should tint active controls and progress, but the app must not become a single-hue theme.
 
 ### State: Active Conversation
 

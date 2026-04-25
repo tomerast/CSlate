@@ -247,6 +247,10 @@ Provider registry construction, AI SDK wrappers, structured generation, sub-agen
 
 Every renderer-visible channel must be added to `channels.ts`. This is deliberate friction: it prevents accidental expansion of the preload surface.
 
+### ADR-C8: The app shell is an ambient reading surface
+
+The main UI should follow `docs/design-manifesto-v2.md` and `docs/design-system-v2.md` without becoming decorative. CSlate should feel friendly, calm, and visually alive: a soft app shell, a generous composer, readable message typography, provider-colored accents, and lightly framed cards. Avoid bringing back dashboard density, canvas controls, exposed agent internals, or ornamental effects that distract from the conversation.
+
 ---
 
 ## Development Rules

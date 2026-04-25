@@ -347,31 +347,37 @@ export class Orchestrator {
           })
 
           // Dispatch component and pipeline agents in parallel.
-          // Build agents run single-shot (no tools) for speed — the blueprint
+          // Build agents run single-shot (no tools) for speed; the blueprint
           // and contract give them enough context to generate in one turn.
+          const siblingFiles = input.tasks.map((t) => t.file)
+
           const [componentResults, pipelineResultsNested] = await Promise.all([
             Promise.all(
               input.tasks.map((task, i) => {
+                // Thin entry point (ui.tsx) uses the main model for composition quality.
+                // Sub-components and boilerplate use the fast model for speed and cost.
+                const isEntry = task.file === 'ui.tsx'
+                const taskModelId = isEntry ? modelId : fastModel
                 ctx.sender.send('agent:orchestrator:status', {
                   phase: 'worker',
                   workerId: i,
                   file: task.file,
                   status: 'building',
+                  modelId: taskModelId,
                 })
-                // Heavier files (ui.tsx) use the main model; boilerplate
-                // files (manifest, types, context) use the fast/cheap model.
-                const taskModelId = task.file === 'ui.tsx' ? modelId : fastModel
                 return spawnBuildAgent({
                   task,
                   contract: input.contract,
                   modelId: taskModelId,
                   registry: ctx.registry,
+                  siblingFiles,
                 }).then(async (result) => {
                   ctx.sender.send('agent:orchestrator:status', {
                     phase: 'worker',
                     workerId: i,
                     file: task.file,
-                    status: 'done',
+                    status: result.status === 'success' ? 'done' : 'error',
+                    telemetry: result.telemetry,
                   })
                   return result
                 })
@@ -489,13 +495,33 @@ export class Orchestrator {
               if (needsRebuild && task) {
                 this.log.info({ file: fix.file }, 'rebuilding from scratch instead of fixing')
                 const taskModelId = task.file === 'ui.tsx' ? modelId : fastModel
+                ctx.sender.send('agent:orchestrator:status', {
+                  phase: 'fix',
+                  file: fix.file,
+                  status: 'building',
+                  modelId: taskModelId,
+                })
                 return spawnBuildAgent({
                   task,
                   contract: input.contract,
                   modelId: taskModelId,
                   registry: ctx.registry,
+                }).then((result) => {
+                  ctx.sender.send('agent:orchestrator:status', {
+                    phase: 'fix',
+                    file: fix.file,
+                    status: result.status === 'success' ? 'done' : 'error',
+                    telemetry: result.telemetry,
+                  })
+                  return result
                 })
               }
+              ctx.sender.send('agent:orchestrator:status', {
+                phase: 'fix',
+                file: fix.file,
+                status: 'building',
+                modelId,
+              })
               return spawnFixAgent({
                 file: fix.file,
                 brokenCode: stored?.code ?? '',
@@ -504,6 +530,14 @@ export class Orchestrator {
                 modelId,
                 registry: ctx.registry,
                 aiTools: fixAgentTools,
+              }).then((result) => {
+                ctx.sender.send('agent:orchestrator:status', {
+                  phase: 'fix',
+                  file: fix.file,
+                  status: result.status === 'success' ? 'done' : 'error',
+                  telemetry: result.telemetry,
+                })
+                return result
               })
             })
           )

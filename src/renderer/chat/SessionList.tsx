@@ -67,7 +67,7 @@ export function SessionList({ onNewSession, onLoadSession }: SessionListProps) {
 
   const handleDelete = async (id: string, title: string) => {
     const confirmed = window.confirm(
-      `Delete “${title}”?\n\nThis can’t be undone. The cards in this conversation stay in your component library.`,
+      `Delete "${title}"?\n\nThis can't be undone. The cards in this conversation stay in your component library.`,
     )
     if (!confirmed) return
     await sessionsApi.delete(id)
@@ -78,7 +78,7 @@ export function SessionList({ onNewSession, onLoadSession }: SessionListProps) {
 
   if (sidebarCollapsed) {
     return (
-      <div className="w-10 flex-shrink-0 border-r border-border bg-surface/40 flex flex-col items-center py-3 gap-2">
+      <div className="w-12 flex-shrink-0 border-r border-white/[0.045] bg-background/80 backdrop-blur-xl flex flex-col items-center pt-12 pb-3 gap-2 relative z-10">
         <IconButton onClick={toggleSidebar} title="Expand sidebar (⌘B)">
           <ChevronRightIcon />
         </IconButton>
@@ -90,11 +90,11 @@ export function SessionList({ onNewSession, onLoadSession }: SessionListProps) {
   }
 
   return (
-    <aside className="w-72 flex-shrink-0 border-r border-border bg-surface/40 flex flex-col">
-      <div className="flex items-center gap-1 p-3 border-b border-border">
+    <aside className="w-72 flex-shrink-0 border-r border-white/[0.045] bg-background/82 backdrop-blur-xl flex flex-col relative z-10">
+      <div className="flex items-center gap-1 px-3 pb-3 pt-12 border-b border-white/[0.045]">
         <button
           onClick={onNewSession}
-          className="flex-1 flex items-center gap-2 rounded-lg border border-border bg-surface hover:bg-surface/80 px-3 py-2 text-sm text-text transition-colors"
+          className="flex-1 flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-sm text-text/88 hover:bg-white/[0.045] transition-colors"
         >
           <PlusIcon />
           <span>New conversation</span>
@@ -104,12 +104,12 @@ export function SessionList({ onNewSession, onLoadSession }: SessionListProps) {
         </IconButton>
       </div>
 
-      <div className="p-3 border-b border-border">
+      <div className="p-3 border-b border-white/[0.045]">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search conversations…"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-text placeholder:text-muted/60 focus:border-primary/40 focus:outline-none"
+          placeholder="Search conversations"
+          className="w-full rounded-lg border border-white/[0.045] bg-white/[0.025] px-3 py-2 text-xs text-text placeholder:text-muted/48 focus:border-white/[0.10] focus:outline-none focus:bg-white/[0.04] transition-colors"
         />
       </div>
 
@@ -119,7 +119,7 @@ export function SessionList({ onNewSession, onLoadSession }: SessionListProps) {
         )}
         {groups.map((group) => (
           <div key={group.label} className="py-2">
-            <div className="px-4 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted/50">
+            <div className="px-4 pb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted/45">
               {group.label}
             </div>
             <ul>
@@ -148,22 +148,36 @@ interface SessionRowProps {
 }
 
 function SessionRow({ session, active, onClick, onDelete }: SessionRowProps) {
+  const date = new Date(session.updatedAt).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+
   return (
     <li>
       <div
         className={[
-          'group mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer transition-colors',
-          active ? 'bg-primary/10 text-text' : 'hover:bg-surface text-muted hover:text-text',
+          'group mx-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer transition-all duration-150',
+          active ? 'bg-white/[0.055] text-text' : 'text-muted/78 hover:text-text hover:bg-white/[0.032]',
         ].join(' ')}
         onClick={onClick}
       >
-        <span className="flex-1 truncate text-xs">{session.title}</span>
+        <span
+          className={[
+            'h-7 w-px rounded-full shrink-0 transition-colors',
+            active ? 'bg-text/70' : 'bg-white/[0.10] group-hover:bg-white/[0.20]',
+          ].join(' ')}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-medium text-current">{session.title}</div>
+          <div className="mt-0.5 text-[10px] text-muted/40">{date}</div>
+        </div>
         <button
           onClick={(e) => {
             e.stopPropagation()
             onDelete()
           }}
-          className="opacity-0 group-hover:opacity-100 text-muted/60 hover:text-error transition-opacity"
+          className="grid h-7 w-7 place-items-center rounded-lg opacity-0 group-hover:opacity-100 text-muted/55 hover:text-error hover:bg-error/[0.08] transition-all"
           title="Delete"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -188,7 +202,7 @@ function IconButton({
     <button
       onClick={onClick}
       title={title}
-      className="grid h-8 w-8 place-items-center rounded-md text-muted hover:bg-surface hover:text-text transition-colors"
+      className="grid h-8 w-8 place-items-center rounded-lg text-muted/72 hover:bg-white/[0.045] hover:text-text transition-colors"
     >
       {children}
     </button>

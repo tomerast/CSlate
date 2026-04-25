@@ -72,12 +72,19 @@ ${resumeBlock}${resumePlanBlock}${modifyBlock}## Tool Order
 - componentId: short snake_case, stable for modifications.
 - requirements: concise description of exactly what the card must do.
 - contract: only shared props/types used by more than one file. Leave empty or very small for simple cards.
-- tasks: default to ui.tsx and manifest.json only. Add logic.ts or types.ts only when the card truly needs shared logic/types.
+- **MANDATORY DECOMPOSITION**: ui.tsx is ONLY a thin composition shell (import + render). It must NOT contain hooks, data fetching, or complex markup.
+  - Any card that fetches data, keeps state, has multiple visual zones, or exceeds ~50 lines of UI code MUST be split into focused sub-components.
+  - Example decomposition: ui.tsx -> \`components/Header.tsx\`, \`components/DataGrid.tsx\`, \`components/Filters.tsx\`, \`logic.ts\`.
+  - ui.tsx gets a task with file \`"ui.tsx"\` and assignment "Import and render Header, DataGrid, Filters. Pass bridge and data as props. Keep under 30 lines."
+  - Each sub-component gets its own task with file like \`"components/DataGrid.tsx"\`.
+  - Do not over-split: 1-4 sub-components max plus optional logic/types.
 - data: prefer manifest dataSources + bridge.fetch for live/current data. Use seed data so the card renders immediately without bridge.
 - pipelines: [] by default. Add a pipeline only for explicit background, streaming, or reusable server-side data work.
 - wiring: [] unless a pipeline is planned.
 - manifest.json assignment must require valid JSON and these fields: name, description, tags, inputs, outputs, events, actions, files, defaultSize.
 - contextMd is passed to assembleAndValidate. Keep it to 2-4 sentences.
+- manifest.json "files" array must list ALL produced files: ui.tsx, any components/*.tsx, logic.ts, types.ts, context.md.
+- **CRITICAL**: If ui.tsx would contain more than 50 lines of actual code, you are planning wrong. Extract sub-components.
 
 ## Dispatch Rules
 - Pass the same contract and tasks from planComponent into dispatchSubAgents.

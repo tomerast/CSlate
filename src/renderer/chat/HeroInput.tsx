@@ -1,40 +1,41 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { getProviderMeta, type ProviderId } from '../store/appStore'
-import { ProviderLens } from '../components/ProviderLens'
+import { parseModelId } from '../lib/modelParser'
 
 interface HeroInputProps {
   onSubmit: (text: string) => void | Promise<void>
-  activeProvider: ProviderId
-  onProviderChange: (provider: ProviderId) => void
+  modelId: string | undefined
   isGenerating?: boolean
   suggestions?: string[]
 }
 
 const defaultSuggestions = [
-  'Build me a stock screener',
-  'Visualize my calendar',
-  "What's happening in tech today?",
+  'Compare today\'s market movers',
+  'Plan a calm week',
+  'Map the decision in front of me',
 ]
 
 export function HeroInput({
   onSubmit,
-  activeProvider,
-  onProviderChange,
+  modelId,
   isGenerating,
   suggestions = defaultSuggestions,
 }: HeroInputProps) {
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const providerMeta = getProviderMeta(activeProvider)
+  const meta = parseModelId(modelId)
 
-  const handleSend = useCallback(async () => {
-    const trimmed = text.trim()
+  const sendText = useCallback(async (value: string) => {
+    const trimmed = value.trim()
     if (!trimmed || isGenerating) return
     await onSubmit(trimmed)
     setText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-  }, [text, isGenerating, onSubmit])
+  }, [isGenerating, onSubmit])
+
+  const handleSend = useCallback(async () => {
+    await sendText(text)
+  }, [sendText, text])
 
   useEffect(() => {
     const el = textareaRef.current
@@ -56,15 +57,20 @@ export function HeroInput({
   }, [focused, handleSend])
 
   return (
-    <div className="w-full flex flex-col items-center gap-5">
+    <div className="w-full flex flex-col items-center gap-4">
       <div
         className={`
-          w-full rounded-[20px] bg-surface border transition-all duration-300 ease-out
+          w-full rounded-2xl border border-white/[0.065] bg-white/[0.026] backdrop-blur-xl transition-all duration-300 ease-out
           ${focused
-            ? 'border-white/10 shadow-lg'
-            : 'border-white/[0.06] shadow-md'
+            ? 'border-white/[0.12] -translate-y-0.5'
+            : ''
           }
         `}
+        style={{
+          boxShadow: focused
+            ? `0 16px 48px rgba(0,0,0,0.26), 0 0 26px ${meta.color}12`
+            : '0 12px 36px rgba(0,0,0,0.20)',
+        }}
       >
         <div className="px-4 pt-3.5 pb-1">
           <textarea
@@ -75,7 +81,7 @@ export function HeroInput({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="Ask anything..."
-            className="w-full bg-transparent text-[15px] text-text placeholder:text-muted/40 outline-none resize-none leading-relaxed"
+            className="w-full bg-transparent text-[15px] text-text placeholder:text-muted/42 outline-none resize-none leading-relaxed"
             disabled={isGenerating}
           />
         </div>
@@ -85,12 +91,12 @@ export function HeroInput({
             {suggestions.map((s, i) => (
               <button
                 key={i}
-                onMouseDown={() => { setText(s); void handleSend() }}
+                onMouseDown={(e) => { e.preventDefault(); void sendText(s) }}
                 className="
-                  text-[11px] text-muted/60 hover:text-text
-                  px-2 py-1 rounded-md bg-white/[0.03] hover:bg-white/[0.06]
-                  border border-transparent hover:border-white/[0.06]
-                  transition-all duration-150 cursor-pointer
+                  text-[11px] text-muted/66 hover:text-text
+                  px-2.5 py-1 rounded-full bg-white/[0.026] hover:bg-white/[0.055]
+                  border border-white/[0.045] hover:border-white/[0.08]
+                  transition-all duration-150 cursor-pointer max-w-full truncate
                 "
               >
                 {s}
@@ -103,7 +109,7 @@ export function HeroInput({
           <div className="flex items-center gap-2">
             <button
               title="Attach file"
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted/50 hover:text-muted hover:bg-white/[0.04] transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted/55 hover:text-text hover:bg-white/[0.045] transition-colors"
               onMouseDown={(e) => e.preventDefault()}
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -113,11 +119,16 @@ export function HeroInput({
           </div>
 
           <div className="flex items-center gap-2">
-            <ProviderLens
-              activeProvider={activeProvider}
-              onChange={onProviderChange}
-              size="sm"
-            />
+            <div
+              className="inline-flex items-center rounded-full border border-white/[0.06] bg-white/[0.025] text-[11px] px-2 py-0.5 h-6 gap-1"
+              title={`${meta.displayName} (${meta.fullId})`}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: meta.color }}
+              />
+              <span className="font-medium text-text truncate max-w-[120px]">{meta.displayName}</span>
+            </div>
 
             <button
               onMouseDown={(e) => { e.preventDefault(); void handleSend() }}
@@ -126,12 +137,12 @@ export function HeroInput({
                 w-8 h-8 rounded-full flex items-center justify-center
                 transition-all duration-200
                 ${text.trim() && !isGenerating
-                  ? 'opacity-100 scale-100'
+                  ? 'opacity-100 scale-100 hover:scale-105'
                   : 'opacity-40 scale-90'
                 }
               `}
               style={{
-                backgroundColor: text.trim() && !isGenerating ? providerMeta.color : undefined,
+                backgroundColor: text.trim() && !isGenerating ? meta.color : undefined,
               }}
             >
               <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { sessionsApi } from './sessions-api'
+import { parseModelId } from '../lib/modelParser'
 import type { AgentMessage, MessageCard } from '@shared/agentTypes'
 
 /**
@@ -26,6 +27,8 @@ export function useChat(modelId: string) {
   const setWorkerDone = useChatStore((s) => s.setWorkerDone)
   const addToolCall = useChatStore((s) => s.addToolCall)
   const updateToolCall = useChatStore((s) => s.updateToolCall)
+  const addTelemetry = useChatStore((s) => s.addTelemetry)
+  const updateTelemetry = useChatStore((s) => s.updateTelemetry)
   const clearOrchestrator = useChatStore((s) => s.clearOrchestrator)
 
   const resetOrchestrator = useCallback(() => {
@@ -33,6 +36,11 @@ export function useChat(modelId: string) {
   }, [clearOrchestrator])
 
   const tabIdRef = useRef<string>(crypto.randomUUID())
+  const modelIdRef = useRef(modelId)
+
+  useEffect(() => {
+    modelIdRef.current = modelId
+  }, [modelId])
 
   // Attach lifetime IPC listeners once per hook instance
   useEffect(() => {
@@ -53,14 +61,42 @@ export function useChat(modelId: string) {
       endStream()
     })
     const offStatus = window.electron.on('agent:orchestrator:status', (payload: unknown) => {
-      const p = payload as { phase: string; workerCount?: number; workerId?: number; file?: string; status?: string }
+      const p = payload as {
+        phase: string; workerCount?: number; workerId?: number; file?: string; status?: string; modelId?: string
+        telemetry?: { modelId: string; durationMs: number; outputTokens: number; tokPerSec: number; status: 'success' | 'timeout' | 'error' }
+      }
       if (p.phase) {
         setOrchestratorPhase(p.phase as import('../store/chatStore').OrchestratorPhase)
       }
       if (p.workerCount !== undefined) {
         setWorkerTotal(p.workerCount)
       }
-      if (p.status === 'done') {
+      if (p.status === 'building' && p.file) {
+        const meta = parseModelId(p.modelId ?? modelIdRef.current)
+        addTelemetry({
+          file: p.file,
+          modelId: meta.fullId,
+          displayModel: meta.displayName,
+          status: 'running',
+          durationMs: 0,
+          outputTokens: 0,
+          tokPerSec: 0,
+          startedAt: Date.now(),
+        })
+      }
+      if ((p.status === 'done' || p.status === 'error') && p.file && p.telemetry) {
+        const meta = parseModelId(p.telemetry.modelId)
+        updateTelemetry(p.file, {
+          modelId: meta.fullId,
+          displayModel: meta.displayName,
+          status: p.telemetry.status === 'success' ? 'success' : p.telemetry.status === 'timeout' ? 'timeout' : 'error',
+          durationMs: p.telemetry.durationMs,
+          outputTokens: p.telemetry.outputTokens,
+          tokPerSec: p.telemetry.tokPerSec,
+          endedAt: Date.now(),
+        })
+      }
+      if ((p.status === 'done' || p.status === 'error') && p.phase === 'worker') {
         const state = useChatStore.getState()
         setWorkerDone(Math.min(state.orchestrator.workerDone + 1, state.orchestrator.workerTotal || 1))
       }
