@@ -41,7 +41,6 @@ src/
     settings/       memory panel
     store/          Zustand app/chat stores
   shared/           local IPC/session message types pending shared package release
-apps/playground/    component playground
 docs/               architecture and migration docs
 ```
 
@@ -280,7 +279,6 @@ The main UI should follow `docs/design-manifesto-v2.md` and `docs/design-system-
 npm test
 npm run typecheck
 npm run build
-npm run playground
 ```
 
 Start with focused Vitest files near the code being changed, then run broader checks before release.

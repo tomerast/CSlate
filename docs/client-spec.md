@@ -210,8 +210,7 @@ npm run dev:full     # Full stack (Electron + Docker: postgres + minio + mailhog
 npm run dev:stop     # Stop docker compose + kill electron-vite
 npm run dev:logs     # Tail docker compose logs
 npm test             # Vitest run
-npm run typecheck    # TypeScript check (client + playground)
-npm run playground   # Component playground at localhost:5174
+npm run typecheck    # TypeScript check
 npm run db:reset     # Via docker exec → server's db:reset
 npm run db:migrate   # Via docker exec → server's db:migrate
 npm run db:studio    # Via docker exec → Drizzle Studio

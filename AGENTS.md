@@ -61,7 +61,6 @@ npm run dev:stop     # Stop everything
 npm test             # Vitest unit tests (41 files · 293 tests)
 npm run typecheck    # tsc --noEmit
 npm run build        # electron-vite build
-npm run playground   # Component playground at localhost:5174
 ```
 
 ## Keyboard
