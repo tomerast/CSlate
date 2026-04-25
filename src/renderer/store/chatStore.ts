@@ -20,12 +20,25 @@ export interface ToolCallEntry {
   detail?: string
 }
 
+export interface BuildTelemetry {
+  file: string
+  modelId: string
+  displayModel: string
+  status: 'running' | 'success' | 'timeout' | 'error'
+  durationMs: number
+  outputTokens: number
+  tokPerSec: number
+  startedAt: number
+  endedAt?: number
+}
+
 export interface OrchestratorStatus {
   currentPhase: OrchestratorPhase | null
   phaseHistory: OrchestratorPhase[]
   toolCalls: ToolCallEntry[]
   workerTotal: number
   workerDone: number
+  telemetry: BuildTelemetry[]
 }
 
 interface ChatState {
@@ -51,6 +64,8 @@ interface ChatState {
   setWorkerDone(done: number): void
   addToolCall(call: ToolCallEntry): void
   updateToolCall(name: string, status: ToolCallEntry['status'], detail?: string): void
+  addTelemetry(entry: BuildTelemetry): void
+  updateTelemetry(file: string, patch: Partial<BuildTelemetry>): void
   clearOrchestrator(): void
   clear(): void
 }
@@ -68,12 +83,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     toolCalls: [],
     workerTotal: 0,
     workerDone: 0,
+    telemetry: [],
   },
 
   setSessions: (sessions) => set({ sessions }),
 
   setActiveSession: (sessionId, messages) =>
-    set({ activeSessionId: sessionId, messages, streamingMessageId: null, status: 'idle', error: null, orchestrator: { currentPhase: null, phaseHistory: [], toolCalls: [], workerTotal: 0, workerDone: 0 } }),
+    set({ activeSessionId: sessionId, messages, streamingMessageId: null, status: 'idle', error: null, orchestrator: { currentPhase: null, phaseHistory: [], toolCalls: [], workerTotal: 0, workerDone: 0, telemetry: [] } }),
 
   appendMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
@@ -90,7 +106,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...state.messages, draft],
       streamingMessageId: messageId,
       status: 'generating',
-      orchestrator: { currentPhase: null, phaseHistory: [], toolCalls: [], workerTotal: 0, workerDone: 0 },
+      orchestrator: { currentPhase: null, phaseHistory: [], toolCalls: [], workerTotal: 0, workerDone: 0, telemetry: [] },
     }))
   },
 
@@ -167,7 +183,47 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearOrchestrator: () =>
     set({
-      orchestrator: { currentPhase: null, phaseHistory: [], toolCalls: [], workerTotal: 0, workerDone: 0 },
+      orchestrator: { currentPhase: null, phaseHistory: [], toolCalls: [], workerTotal: 0, workerDone: 0, telemetry: [] },
+    }),
+
+  addTelemetry: (entry) =>
+    set((state) => ({
+      orchestrator: { ...state.orchestrator, telemetry: [...state.orchestrator.telemetry, entry] },
+    })),
+
+  updateTelemetry: (file, patch) =>
+    set((state) => {
+      let idx = -1
+      for (let i = state.orchestrator.telemetry.length - 1; i >= 0; i -= 1) {
+        const t = state.orchestrator.telemetry[i]
+        if (t.file === file && t.status === 'running') {
+          idx = i
+          break
+        }
+      }
+      if (idx < 0) {
+        const now = Date.now()
+        const fallback: BuildTelemetry = {
+          file,
+          modelId: patch.modelId ?? 'unknown',
+          displayModel: patch.displayModel ?? patch.modelId ?? 'Unknown Model',
+          status: patch.status ?? 'running',
+          durationMs: patch.durationMs ?? 0,
+          outputTokens: patch.outputTokens ?? 0,
+          tokPerSec: patch.tokPerSec ?? 0,
+          startedAt: patch.startedAt ?? now,
+          endedAt: patch.endedAt,
+        }
+        return {
+          orchestrator: {
+            ...state.orchestrator,
+            telemetry: [...state.orchestrator.telemetry, fallback],
+          },
+        }
+      }
+      const updated = [...state.orchestrator.telemetry]
+      updated[idx] = { ...updated[idx], ...patch }
+      return { orchestrator: { ...state.orchestrator, telemetry: updated } }
     }),
 
   clear: () =>
@@ -178,6 +234,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingMessageId: null,
       status: 'idle',
       error: null,
-      orchestrator: { currentPhase: null, phaseHistory: [], toolCalls: [], workerTotal: 0, workerDone: 0 },
+      orchestrator: { currentPhase: null, phaseHistory: [], toolCalls: [], workerTotal: 0, workerDone: 0, telemetry: [] },
     }),
 }))

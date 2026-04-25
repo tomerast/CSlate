@@ -29,7 +29,7 @@ function installCSP(): void {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; connect-src ${connectSrc}; img-src 'self' data:; font-src 'self' data:`
+          `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src ${connectSrc}; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com`
         ]
       }
     })

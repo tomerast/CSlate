@@ -16,6 +16,8 @@ The CSlate client is the desktop app. Its job is to:
 3. Manage component fetching, local generation, and upload to the server
 4. Persist user memory and preferences across sessions and provider switches
 
+The current UI posture is documented in `docs/design-manifesto-v2.md` and `docs/design-system-v2.md`: CSlate is an ambient reading surface for intelligence, not a dashboard. The renderer should prioritize a warm empty state, readable message typography, soft native chrome, provider-colored accents, and lightly framed inline cards.
+
 ---
 
 ## Tech Stack
