@@ -94,13 +94,55 @@ export function getBuildAgentBudget(file: string): { maxOutputTokens: number; ti
   return BUILD_AGENT_BUDGETS[file] ?? DEFAULT_BUILD_AGENT_BUDGET
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
-    ),
-  ])
+/**
+ * Run an async operation with both a timeout and a parent abort signal.
+ * Internally creates a child AbortController so when the timeout fires
+ * (or the parent aborts) the underlying request is genuinely cancelled
+ * instead of leaking a hot promise that keeps streaming tokens.
+ */
+function withTimeout<T>(
+  factory: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  label: string,
+  parentSignal?: AbortSignal,
+): Promise<T> {
+  const controller = new AbortController()
+  if (parentSignal?.aborted) {
+    controller.abort(parentSignal.reason)
+  } else if (parentSignal) {
+    parentSignal.addEventListener(
+      'abort',
+      () => controller.abort(parentSignal.reason),
+      { once: true },
+    )
+  }
+
+  const timer = setTimeout(
+    () => controller.abort(new Error(`${label} timed out after ${ms}ms`)),
+    ms,
+  )
+
+  return factory(controller.signal).finally(() => clearTimeout(timer))
+}
+
+function isAbortError(err: unknown): boolean {
+  if (!err) return false
+  if (err instanceof Error) {
+    if (err.name === 'AbortError') return true
+    if (err.message.toLowerCase().includes('aborted')) return true
+  }
+  return false
+}
+
+function abortedResult(file: string, modelId: string, reason: string): SubAgentResult {
+  log.warn({ file, modelId, reason }, 'sub-agent skipped — already aborted')
+  return {
+    file,
+    code: '',
+    status: 'error',
+    error: `Sub-agent for ${file} skipped: ${reason}`,
+    telemetry: { modelId, durationMs: 0, outputTokens: 0, tokPerSec: 0, status: 'error' },
+  }
 }
 
 export async function spawnBuildAgent(params: {
@@ -110,8 +152,12 @@ export async function spawnBuildAgent(params: {
   registry: { languageModel: (id: string) => any }
   aiTools?: Record<string, any>
   siblingFiles?: string[]
+  abortSignal?: AbortSignal
 }): Promise<SubAgentResult> {
-  const { task, contract, modelId, registry, aiTools, siblingFiles } = params
+  const { task, contract, modelId, registry, aiTools, siblingFiles, abortSignal } = params
+  if (abortSignal?.aborted) {
+    return abortedResult(task.file, modelId, 'parent run aborted')
+  }
   const budget = getBuildAgentBudget(task.file)
   log.info({ file: task.file, modelId, budgetMaxTokens: budget.maxOutputTokens, budgetTimeoutMs: budget.timeoutMs, hasBlueprint: !!task.blueprint }, 'build agent spawned')
   const t0 = Date.now()
@@ -119,9 +165,10 @@ export async function spawnBuildAgent(params: {
   try {
     const prompt = buildSubAgentPrompt({ task, contract, siblingFiles })
     const result = await withTimeout(
-      runSubAgent({ modelId, registry, system: BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: budget.maxOutputTokens }),
+      (signal) => runSubAgent({ modelId, registry, system: BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: budget.maxOutputTokens, abortSignal: signal }),
       budget.timeoutMs,
-      `build agent (${task.file})`
+      `build agent (${task.file})`,
+      abortSignal,
     )
 
     const durationMs = Date.now() - t0
@@ -155,14 +202,15 @@ export async function spawnBuildAgent(params: {
   } catch (err) {
     const durationMs = Date.now() - t0
     const rawMsg = err instanceof Error ? err.message : String(err)
-
-    // Enrich timeout errors with actionable diagnostics.
     const isTimeout = rawMsg.toLowerCase().includes('timed out')
+    const aborted = !isTimeout && (abortSignal?.aborted || isAbortError(err))
     const friendlyMsg = isTimeout
       ? `Build agent (${task.file}) timed out after ${budget.timeoutMs}ms using model "${modelId}". `
         + `This model may be slow for ${task.file} generation (${budget.maxOutputTokens} tokens budget). `
         + `Consider switching to a faster model or increasing the timeout budget.`
-      : rawMsg
+      : aborted
+        ? `Build agent (${task.file}) cancelled.`
+        : rawMsg
 
     log.error({
       file: task.file,
@@ -172,6 +220,7 @@ export async function spawnBuildAgent(params: {
       budgetMaxTokens: budget.maxOutputTokens,
       err: rawMsg,
       isTimeout,
+      aborted,
     }, 'build agent failed')
 
     return {
@@ -200,12 +249,14 @@ export async function spawnPipelineBuildAgent(params: {
   modelId: string
   registry: { languageModel: (id: string) => any }
   aiTools?: Record<string, any>
+  abortSignal?: AbortSignal
 }): Promise<SubAgentResult[]> {
-  const { pipelinePlan, modelId, registry, aiTools } = params
+  const { pipelinePlan, modelId, registry, aiTools, abortSignal } = params
   log.info({ pipelineId: pipelinePlan.pipelineId, taskCount: pipelinePlan.tasks.length }, 'pipeline build agents spawned')
 
   const results = await Promise.all(
     pipelinePlan.tasks.map(async (task): Promise<SubAgentResult> => {
+      if (abortSignal?.aborted) return abortedResult(task.file, modelId, 'parent run aborted')
       log.info({ pipelineId: pipelinePlan.pipelineId, file: task.file }, 'pipeline sub-agent spawned')
       const t0 = Date.now()
 
@@ -230,9 +281,10 @@ ${task.assignment}`
 
       try {
         const result = await withTimeout(
-          runSubAgent({ modelId, registry, system: PIPELINE_BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: PIPELINE_AGENT_BUDGET.maxOutputTokens }),
+          (signal) => runSubAgent({ modelId, registry, system: PIPELINE_BUILD_SYSTEM, prompt, tools: aiTools, maxOutputTokens: PIPELINE_AGENT_BUDGET.maxOutputTokens, abortSignal: signal }),
           PIPELINE_AGENT_BUDGET.timeoutMs,
-          `pipeline build agent (${task.file})`
+          `pipeline build agent (${task.file})`,
+          abortSignal,
         )
         const durationMs = Date.now() - t0
         const outputTokens = result.usage?.outputTokens ?? 0
@@ -256,10 +308,13 @@ ${task.assignment}`
         const durationMs = Date.now() - t0
         const rawMsg = err instanceof Error ? err.message : String(err)
         const isTimeout = rawMsg.toLowerCase().includes('timed out')
+        const aborted = !isTimeout && (abortSignal?.aborted || isAbortError(err))
         const friendlyMsg = isTimeout
           ? `Pipeline agent (${task.file}) timed out after ${PIPELINE_AGENT_BUDGET.timeoutMs}ms using model "${modelId}". Consider using a faster model.`
-          : rawMsg
-        log.error({ pipelineId: pipelinePlan.pipelineId, file: task.file, modelId, durationMs, budgetTimeoutMs: PIPELINE_AGENT_BUDGET.timeoutMs, err: rawMsg, isTimeout }, 'pipeline sub-agent failed')
+          : aborted
+            ? `Pipeline agent (${task.file}) cancelled.`
+            : rawMsg
+        log.error({ pipelineId: pipelinePlan.pipelineId, file: task.file, modelId, durationMs, budgetTimeoutMs: PIPELINE_AGENT_BUDGET.timeoutMs, err: rawMsg, isTimeout, aborted }, 'pipeline sub-agent failed')
         return {
           file: task.file,
           code: '',
@@ -282,8 +337,10 @@ export async function spawnFixAgent(params: {
   modelId: string
   registry: { languageModel: (id: string) => any }
   aiTools?: Record<string, any>
+  abortSignal?: AbortSignal
 }): Promise<SubAgentResult> {
-  const { file, brokenCode, error, contract, modelId, registry, aiTools } = params
+  const { file, brokenCode, error, contract, modelId, registry, aiTools, abortSignal } = params
+  if (abortSignal?.aborted) return abortedResult(file, modelId, 'parent run aborted')
   log.info({ file, error }, 'fix agent spawned')
   const t0 = Date.now()
 
@@ -305,9 +362,10 @@ ${error}
 Fix the code. Return only the corrected ${file} content.`
 
     const result = await withTimeout(
-      runSubAgent({ modelId, registry, system: FIX_SYSTEM, prompt, tools: aiTools, maxOutputTokens: FIX_AGENT_BUDGET.maxOutputTokens }),
+      (signal) => runSubAgent({ modelId, registry, system: FIX_SYSTEM, prompt, tools: aiTools, maxOutputTokens: FIX_AGENT_BUDGET.maxOutputTokens, abortSignal: signal }),
       FIX_AGENT_BUDGET.timeoutMs,
-      `fix agent (${file})`
+      `fix agent (${file})`,
+      abortSignal,
     )
     const durationMs = Date.now() - t0
     const outputTokens = result.usage?.outputTokens ?? 0
@@ -332,10 +390,13 @@ Fix the code. Return only the corrected ${file} content.`
     const durationMs = Date.now() - t0
     const rawMsg = err instanceof Error ? err.message : String(err)
     const isTimeout = rawMsg.toLowerCase().includes('timed out')
+    const aborted = !isTimeout && (abortSignal?.aborted || isAbortError(err))
     const friendlyMsg = isTimeout
       ? `Fix agent (${file}) timed out after ${FIX_AGENT_BUDGET.timeoutMs}ms using model "${modelId}". Consider using a faster model.`
-      : rawMsg
-    log.error({ file, modelId, durationMs, budgetTimeoutMs: FIX_AGENT_BUDGET.timeoutMs, err: rawMsg, isTimeout }, 'fix agent failed')
+      : aborted
+        ? `Fix agent (${file}) cancelled.`
+        : rawMsg
+    log.error({ file, modelId, durationMs, budgetTimeoutMs: FIX_AGENT_BUDGET.timeoutMs, err: rawMsg, isTimeout, aborted }, 'fix agent failed')
     return {
       file,
       code: '',

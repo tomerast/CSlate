@@ -37,6 +37,25 @@ function parseModelId(llmModel: string): {
       model: DIRECT_MODEL_IDS[llmModel] ?? llmModel.slice('google/'.length),
     }
   }
+  // Colon format (e.g. openai:gpt-4o or openai:moonshotai/kimi-k2.6)
+  if (llmModel.startsWith('anthropic:')) {
+    return {
+      provider: 'anthropic',
+      model: DIRECT_MODEL_IDS[llmModel.replace(':', '/')] ?? llmModel.slice('anthropic:'.length),
+    }
+  }
+  if (llmModel.startsWith('openai:')) {
+    return {
+      provider: 'openai',
+      model: DIRECT_MODEL_IDS[llmModel.replace(':', '/')] ?? llmModel.slice('openai:'.length),
+    }
+  }
+  if (llmModel.startsWith('google:')) {
+    return {
+      provider: 'google',
+      model: DIRECT_MODEL_IDS[llmModel.replace(':', '/')] ?? llmModel.slice('google:'.length),
+    }
+  }
   return { provider: 'local', model: llmModel }
 }
 
@@ -48,7 +67,7 @@ function modelForProvider(modelId: string, provider: StoredProvider): string {
   const parsed = parseModelId(modelId)
   return parsed.provider === provider
     ? parsed.model
-    : DIRECT_MODEL_IDS[modelId] ?? modelId.replace(/^(anthropic|openai|google)\//, '')
+    : DIRECT_MODEL_IDS[modelId] ?? modelId.replace(/^(anthropic|openai|google)(\/|:)/, '')
 }
 
 /**

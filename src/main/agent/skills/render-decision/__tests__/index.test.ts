@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@cslate/shared/agent', () => ({
-  runStructuredAgent: vi.fn(),
   runAgentStream: vi.fn(() => ({
     fullStream: (async function* () {
       yield { type: 'text-delta', text: 'hello' }
@@ -10,6 +9,10 @@ vi.mock('@cslate/shared/agent', () => ({
   })),
   fastModelId: () => 'fast',
   mainModelId: () => 'main',
+}))
+
+vi.mock('../../../lib/structuredAgent', () => ({
+  runStructuredAgentSafe: vi.fn(),
 }))
 
 vi.mock('../../../orchestrator/index', () => ({
@@ -23,7 +26,7 @@ vi.mock('../../../orchestrator/index', () => ({
   },
 }))
 
-import { runStructuredAgent } from '@cslate/shared/agent'
+import { runStructuredAgentSafe } from '../../../lib/structuredAgent'
 import { runRenderSkill } from '../index'
 import { CSlateServerClient } from '../../../../server/CSlateServerClient'
 
@@ -58,11 +61,11 @@ async function drain(gen: AsyncGenerator<unknown>): Promise<unknown[]> {
 
 describe('runRenderSkill', () => {
   beforeEach(() => {
-    vi.mocked(runStructuredAgent).mockReset()
+    vi.mocked(runStructuredAgentSafe).mockReset()
   })
 
-  it('falls back to plain chat when classifier says shouldRender=false', async () => {
-    vi.mocked(runStructuredAgent).mockResolvedValueOnce({
+  it('uses the raw message and delegates when classifier says shouldRender=false', async () => {
+    vi.mocked(runStructuredAgentSafe).mockResolvedValueOnce({
       shouldRender: false,
       renderType: null,
       searchQuery: null,
@@ -72,12 +75,16 @@ describe('runRenderSkill', () => {
     const { sender, sent } = makeSender()
     const parts = await drain(runRenderSkill(makeCtx({ sender })))
 
-    expect(parts.length).toBeGreaterThan(0)
+    const deltas = parts.filter(
+      (p): p is { type: 'text-delta'; text: string } =>
+        (p as { type?: string }).type === 'text-delta',
+    )
+    expect(deltas.some((d) => d.text === 'orchestrator-output')).toBe(true)
     expect(sent.find((e) => e.channel === 'agent:card')).toBeUndefined()
   })
 
   it('emits agent:card when the library returns a confident hit', async () => {
-    vi.mocked(runStructuredAgent).mockResolvedValueOnce({
+    vi.mocked(runStructuredAgentSafe).mockResolvedValueOnce({
       shouldRender: true,
       renderType: 'price-chart',
       searchQuery: 'tesla stock price chart',
@@ -117,7 +124,7 @@ describe('runRenderSkill', () => {
   })
 
   it('uses server relevance_score fields when scoring library hits', async () => {
-    vi.mocked(runStructuredAgent).mockResolvedValueOnce({
+    vi.mocked(runStructuredAgentSafe).mockResolvedValueOnce({
       shouldRender: true,
       renderType: 'price-chart',
       searchQuery: 'tesla stock price chart',
@@ -153,7 +160,7 @@ describe('runRenderSkill', () => {
   })
 
   it('delegates to the orchestrator when no confident library hit exists', async () => {
-    vi.mocked(runStructuredAgent).mockResolvedValueOnce({
+    vi.mocked(runStructuredAgentSafe).mockResolvedValueOnce({
       shouldRender: true,
       renderType: 'dashboard',
       searchQuery: 'niche dashboard nobody has built',

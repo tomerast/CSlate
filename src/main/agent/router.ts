@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { runStructuredAgent, fastModelId, type LLMConfig } from '@cslate/shared/agent'
+import { fastModelId, type LLMConfig } from '@cslate/shared/agent'
+import { runStructuredAgentSafe } from './lib/structuredAgent'
 import { engineLog } from '../lib/logger'
 
 /**
@@ -17,11 +18,16 @@ import { engineLog } from '../lib/logger'
  *     - component-fix: "make that chart blue", "add a tooltip", "it crashed"
  *     - component-search: "find a timer component", "what components exist"
  */
+/**
+ * `route` is the only field we strictly need. The other three are best-effort
+ * context. Slow / weaker models routinely omit them, and a missing `summary`
+ * should not derail intent classification.
+ */
 const RouteSchema = z.object({
   route: z.enum(['render', 'build', 'chat', 'skill']),
-  skill: z.enum(['component-search', 'component-fix']).nullable(),
-  summary: z.string(),
-  targetComponentId: z.string().nullable(),
+  skill: z.enum(['component-search', 'component-fix']).nullable().default(null),
+  summary: z.string().default(''),
+  targetComponentId: z.string().nullable().default(null),
 })
 
 export type RouteResult = z.infer<typeof RouteSchema>
@@ -88,7 +94,7 @@ export async function classifyIntent(
   const t0 = Date.now()
 
   try {
-    const object = await runStructuredAgent({
+    const object = await runStructuredAgentSafe({
       modelId,
       registry,
       system: ROUTER_SYSTEM,
@@ -98,7 +104,13 @@ export async function classifyIntent(
     log.debug({ modelId, durationMs: Date.now() - t0, route: object.route }, 'classifyIntent done')
     return object
   } catch (err) {
-    log.warn({ modelId, err }, 'classifyIntent failed, defaulting to chat')
-    return { route: 'chat', skill: null, summary: message, targetComponentId: null }
+    const rawMsg = err instanceof Error ? err.message : String(err)
+    // CSlate is a chat-portal: cards are the point. When the classifier itself
+    // fails (slow / weaker models often skip structured output), defaulting to
+    // `chat` strands the user with a plain text reply. `render` lets the
+    // render-decision skill take over — its own classifier has a fence-tolerant
+    // path and falls back to the raw user message as a search query.
+    log.error({ modelId, durationMs: Date.now() - t0, err: rawMsg }, 'classifyIntent failed, defaulting to render')
+    return { route: 'render', skill: null, summary: message, targetComponentId: null }
   }
 }

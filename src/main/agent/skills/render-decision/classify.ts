@@ -1,6 +1,8 @@
 import { z } from 'zod'
-import { runStructuredAgent, fastModelId, type LLMConfig } from '@cslate/shared/agent'
+import { fastModelId, type LLMConfig } from '@cslate/shared/agent'
+import { runStructuredAgentSafe } from '../../lib/structuredAgent'
 import { classifySystem } from './prompts'
+import { engineLog } from '../../../lib/logger'
 
 const ClassifySchema = z.object({
   shouldRender: z.boolean(),
@@ -24,14 +26,18 @@ export async function classifyRenderType(
     : message
 
   try {
-    return await runStructuredAgent({
+    return await runStructuredAgentSafe({
       modelId: fastModelId(config),
       registry,
       system: classifySystem(userMemory),
       prompt,
       schema: ClassifySchema,
     })
-  } catch {
+  } catch (err) {
+    const rawMsg = err instanceof Error ? err.message : String(err)
+    engineLog
+      .child({ component: 'render-decision-classify' })
+      .error({ modelId: fastModelId(config), err: rawMsg }, 'render classifier failed')
     return {
       shouldRender: false,
       renderType: null,
