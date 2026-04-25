@@ -21,6 +21,10 @@ export const ALLOWED_INVOKE_CHANNELS = [
   'server:disconnect',
   'shell:openExternal',
   'models:fetch',
+  'providers:open-setup',
+  'providers:list-models',
+  'providers:validate',
+  'providers:detect-ollama',
   // Sessions (Phase 2 — conversation persistence)
   'session:list',
   'session:get',

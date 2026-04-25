@@ -4,7 +4,7 @@ import { useAppStore } from './store/appStore'
 import { AppLayout } from './layout/AppLayout'
 import CSlateConfigPanel from './components/cslate-config-panel/ui'
 import { MemoryPanel } from './settings/MemoryPanel'
-import type { ConfigValues, Theme } from './components/cslate-config-panel/types'
+import type { ConfigValues, Theme, LLMProvider } from './components/cslate-config-panel/types'
 
 interface ErrorBoundaryState {
   error: Error | null
@@ -55,7 +55,9 @@ export default function App() {
     setPreferences,
   } = useAppStore()
   const [config, setConfig] = useState({
+    llmProvider: 'anthropic' as LLMProvider,
     llmModel: 'anthropic/claude-sonnet-4-6',
+    llmFastModel: 'anthropic/claude-haiku-4-5',
     llmApiKey: '',
     gatewayUrl: 'https://openrouter.ai/api/v1',
     theme: 'dark' as Theme,
@@ -67,8 +69,10 @@ export default function App() {
     async function loadConfig() {
       if (!window.electron) return
       try {
-        const [llmModel, llmApiKey, gatewayUrl, theme, serverUrl, serverEmail] = await Promise.all([
+        const [llmProvider, llmModel, llmFastModel, llmApiKey, gatewayUrl, theme, serverUrl, serverEmail] = await Promise.all([
+          window.electron.invoke('config:get', 'llmProvider'),
           window.electron.invoke('config:get', 'llmModel'),
+          window.electron.invoke('config:get', 'llmFastModel'),
           window.electron.invoke('config:get', 'llmApiKey'),
           window.electron.invoke('config:get', 'gatewayUrl'),
           window.electron.invoke('config:get', 'theme'),
@@ -76,7 +80,9 @@ export default function App() {
           window.electron.invoke('config:get', 'serverEmail'),
         ])
         setConfig((prev) => ({
+          llmProvider: ((llmProvider as LLMProvider) || prev.llmProvider) as LLMProvider,
           llmModel: (llmModel as string) || prev.llmModel,
+          llmFastModel: (llmFastModel as string) || prev.llmFastModel,
           llmApiKey: (llmApiKey as string) || prev.llmApiKey,
           gatewayUrl: (gatewayUrl as string) || prev.gatewayUrl,
           theme: ((theme as Theme) || prev.theme) as Theme,
@@ -141,7 +147,9 @@ export default function App() {
         <CSlateConfigPanel
           isOpen={configOpen}
           focusTab={configFocusTab}
+          llmProvider={config.llmProvider}
           llmModel={config.llmModel}
+          llmFastModel={config.llmFastModel}
           llmApiKey={config.llmApiKey}
           gatewayUrl={config.gatewayUrl}
           theme={config.theme}

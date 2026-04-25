@@ -53,6 +53,10 @@ describe('configStore', () => {
     expect(configStore.get('theme')).toBe('dark')
   })
 
+  it('returns default fast model', () => {
+    expect(configStore.get('llmFastModel')).toBe('anthropic/claude-haiku-4-5')
+  })
+
   it('returns default serverUrl', () => {
     expect(configStore.get('serverUrl')).toBe('https://api.cslate.app')
   })

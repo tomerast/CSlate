@@ -8,6 +8,7 @@ import { register as registerAgent } from './agent/ipc'
 import { register as registerServer } from './ipc/server'
 import { register as registerShell } from './ipc/shell'
 import { register as registerModels } from './ipc/models'
+import { register as registerProviders } from './ipc/providers'
 import { register as registerPipeline } from './ipc/pipeline'
 import { register as registerSession } from './ipc/session'
 import { register as registerMemory } from './ipc/memory'
@@ -53,6 +54,7 @@ app.whenReady().then(() => {
   registerServer(ipcMain)
   registerShell(ipcMain)
   registerModels(ipcMain)
+  registerProviders(ipcMain)
   registerPipeline(ipcMain)
   registerSession(ipcMain)
   registerMemory(ipcMain)

@@ -1,10 +1,12 @@
 import { useState, useCallback, useMemo } from 'react'
-import type { ConfigValues, ConfigPanelProps, Theme, ConfigTab } from './types'
+import type { ConfigValues, ConfigPanelProps, Theme, ConfigTab, LLMProvider } from './types'
 import { DEFAULT_CONFIG, PROVIDER_PRESETS } from './types'
 
 export function useConfigForm(props: ConfigPanelProps) {
   const initialValues: ConfigValues = {
+    llmProvider: props.llmProvider ?? DEFAULT_CONFIG.llmProvider,
     llmModel: props.llmModel ?? DEFAULT_CONFIG.llmModel,
+    llmFastModel: props.llmFastModel ?? DEFAULT_CONFIG.llmFastModel,
     llmApiKey: props.llmApiKey ?? DEFAULT_CONFIG.llmApiKey,
     gatewayUrl: props.gatewayUrl ?? DEFAULT_CONFIG.gatewayUrl,
     theme: props.theme ?? DEFAULT_CONFIG.theme,
@@ -45,18 +47,25 @@ export function useConfigForm(props: ConfigPanelProps) {
     updateField('theme', theme)
   }, [updateField])
 
-  const selectProvider = useCallback((url: string) => {
-    updateField('gatewayUrl', url)
+  const selectProvider = useCallback((provider: LLMProvider) => {
+    const preset = PROVIDER_PRESETS.find(p => p.id === provider)
+    updateField('llmProvider', provider)
+    if (preset) {
+      updateField('llmModel', preset.defaultModel)
+      updateField('llmFastModel', preset.defaultFastModel)
+      updateField('gatewayUrl', preset.baseUrl ?? '')
+      if (!preset.needsKey) updateField('llmApiKey', '')
+    }
   }, [updateField])
 
-  const selectModel = useCallback((id: string) => {
-    updateField('llmModel', id)
+  const selectModel = useCallback((id: string, field: 'llmModel' | 'llmFastModel' = 'llmModel') => {
+    updateField(field, id)
     setShowSuggestions(false)
   }, [updateField])
 
   const activeProvider = useMemo(() => {
-    return PROVIDER_PRESETS.find(p => p.url === values.gatewayUrl)
-  }, [values.gatewayUrl])
+    return PROVIDER_PRESETS.find(p => p.id === values.llmProvider)
+  }, [values.llmProvider])
 
   const maskApiKey = useCallback((key: string) => {
     if (!key) return ''

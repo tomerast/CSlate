@@ -1,8 +1,9 @@
 import Store from 'electron-store'
 
 export interface ConfigStore {
-  llmProvider: 'anthropic' | 'openai' | 'google' | 'local'
+  llmProvider: 'anthropic' | 'openai' | 'google' | 'local' | 'gateway'
   llmModel: string
+  llmFastModel: string
   llmBaseUrl?: string
   gatewayUrl: string
   serverUrl: string
@@ -28,7 +29,8 @@ export const configStore = new Store<ConfigStore>({
   defaults: {
     llmProvider: 'anthropic',
     llmModel: 'anthropic/claude-sonnet-4-6',
-    gatewayUrl: 'https://openrouter.ai/api/v1',
+    llmFastModel: 'anthropic/claude-haiku-4-5',
+    gatewayUrl: '',
     serverUrl: 'https://api.cslate.app',
     theme: 'dark',
     recentProjects: [],
