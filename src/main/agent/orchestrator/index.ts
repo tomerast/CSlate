@@ -336,6 +336,18 @@ export class Orchestrator {
           pipelines: z.array(PipelinePlanSchema).default([]).describe('Pipeline plans to build in parallel'),
         }),
         execute: async (input) => {
+          if (ctx.abortSignal?.aborted) {
+            this.log.warn(
+              { componentId: input.componentId, taskCount: input.tasks.length },
+              'dispatchSubAgents skipped — run already aborted',
+            )
+            return {
+              succeeded: 0,
+              failed: input.tasks.length,
+              files: input.tasks.map((t) => ({ file: t.file, status: 'error', error: 'Run aborted before dispatch' })),
+              pipelines: [],
+            }
+          }
           lastBuildTasks = input.tasks
           this.log.info(
             { componentId: input.componentId, taskCount: input.tasks.length, pipelineCount: input.pipelines.length },
@@ -371,6 +383,7 @@ export class Orchestrator {
                   modelId: taskModelId,
                   registry: ctx.registry,
                   siblingFiles,
+                  abortSignal: ctx.abortSignal,
                 }).then(async (result) => {
                   ctx.sender.send('agent:orchestrator:status', {
                     phase: 'worker',
@@ -389,6 +402,7 @@ export class Orchestrator {
                   pipelinePlan,
                   modelId: fastModel,
                   registry: ctx.registry,
+                  abortSignal: ctx.abortSignal,
                 })
               )
             ),
@@ -420,6 +434,22 @@ export class Orchestrator {
             { succeeded: succeeded.length, failed: failed.length, pipelineSucceeded: pipelineSucceeded.length, pipelineFailed: pipelineFailed.length },
             'sub-agents done'
           )
+          if (componentResults.length > 0 && succeeded.length === 0) {
+            const allTimedOut = failed.every((r) => r.telemetry?.status === 'timeout')
+            this.log.error(
+              {
+                componentId: input.componentId,
+                modelId,
+                fastModel,
+                taskCount: componentResults.length,
+                allTimedOut,
+                files: failed.map((r) => ({ file: r.file, status: r.telemetry?.status, durationMs: r.telemetry?.durationMs })),
+              },
+              allTimedOut
+                ? 'all sub-agents timed out — model is too slow or unreachable for these budgets'
+                : 'all sub-agents failed — see per-file errors above',
+            )
+          }
           return {
             succeeded: succeeded.length,
             failed: failed.length,
@@ -480,6 +510,17 @@ export class Orchestrator {
           ),
         }),
         execute: async (input) => {
+          if (ctx.abortSignal?.aborted) {
+            this.log.warn(
+              { fixCount: input.fixes.length },
+              'dispatchFixAgents skipped — run already aborted',
+            )
+            return {
+              succeeded: 0,
+              failed: input.fixes.length,
+              files: input.fixes.map((f) => ({ file: f.file, status: 'error', error: 'Run aborted before fix dispatch' })),
+            }
+          }
           this.log.info(
             { fixCount: input.fixes.length },
             'dispatching fix agents'
@@ -506,6 +547,7 @@ export class Orchestrator {
                   contract: input.contract,
                   modelId: taskModelId,
                   registry: ctx.registry,
+                  abortSignal: ctx.abortSignal,
                 }).then((result) => {
                   ctx.sender.send('agent:orchestrator:status', {
                     phase: 'fix',
@@ -530,6 +572,7 @@ export class Orchestrator {
                 modelId,
                 registry: ctx.registry,
                 aiTools: fixAgentTools,
+                abortSignal: ctx.abortSignal,
               }).then((result) => {
                 ctx.sender.send('agent:orchestrator:status', {
                   phase: 'fix',

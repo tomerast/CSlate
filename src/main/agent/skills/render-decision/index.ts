@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { runAgentStream, mainModelId, type LLMConfig, type AgentRegistry } from '@cslate/shared/agent'
-import { classifyRenderType, type RenderDecision } from './classify'
+import { classifyRenderType } from './classify'
 import { findLibraryCard } from './search-server'
 import { directReplySystem } from './prompts'
 import { Orchestrator } from '../../orchestrator/index'
@@ -23,31 +23,38 @@ export interface RenderSkillContext {
 }
 
 /**
- * Render-decision loop:
- *   1. Ask a fast model whether a live card would help.
- *   2. If yes, search the server library. On confident hit, emit agent:card
- *      and stream a short intro paragraph.
+ * Render-decision loop. The router already chose `render`, so we always
+ * end up with a card — no plain-chat fallback.
+ *   1. Refine the search query via the classifier (or use raw message on failure).
+ *   2. Search the server library. On confident hit, emit agent:card and
+ *      stream a short intro paragraph.
  *   3. On miss, delegate to the orchestrator which builds the component,
- *      emits its own agent:card, and uploads for next time.
- *   4. If the classifier says no, fall back to a plain chat reply.
+ *      emits its own agent:card, and uploads it for next time.
  */
 export async function* runRenderSkill(
   ctx: RenderSkillContext,
 ): AsyncGenerator<unknown> {
   const log = engineLog.child({ component: 'render-decision', tabId: ctx.tabId })
 
-  const decision: RenderDecision = await classifyRenderType(
-    ctx.message,
-    ctx.conversationHistory,
-    ctx.config,
-    ctx.registry,
-    ctx.userMemory,
-  )
-  log.info({ decision }, 'render classification')
-
-  if (!decision.shouldRender || !decision.searchQuery || !decision.renderType) {
-    yield* plainChat(ctx)
-    return
+  // Try to get a refined search query from the classifier. On failure, use the
+  // raw user message — the router already validated this should render.
+  let searchQuery = ctx.message
+  let renderType = 'card'
+  try {
+    const decision = await classifyRenderType(
+      ctx.message,
+      ctx.conversationHistory,
+      ctx.config,
+      ctx.registry,
+      ctx.userMemory,
+    )
+    log.info({ decision }, 'render classification')
+    if (decision.shouldRender && decision.searchQuery) {
+      searchQuery = decision.searchQuery
+      renderType = decision.renderType ?? 'card'
+    }
+  } catch (err) {
+    log.warn({ err }, 'classifyRenderType failed, using raw message as search query')
   }
 
   const serverClient =
@@ -55,12 +62,12 @@ export async function* runRenderSkill(
       ? new CSlateServerClient(ctx.serverUrl, ctx.serverApiKey)
       : null
 
-  const libraryCard = await findLibraryCard(serverClient, decision.searchQuery)
+  const libraryCard = await findLibraryCard(serverClient, searchQuery)
 
   if (libraryCard) {
     log.info({ componentId: libraryCard.componentId, score: libraryCard.score }, 'library hit')
     ctx.sender.send('agent:card', { card: libraryCard })
-    yield* streamIntro(ctx, decision.renderType, decision.searchQuery)
+    yield* streamIntro(ctx, renderType, searchQuery)
     return
   }
 
@@ -68,32 +75,9 @@ export async function* runRenderSkill(
   yield* delegateToOrchestrator(ctx, serverClient)
 }
 
-async function* plainChat(ctx: RenderSkillContext): AsyncGenerator<unknown> {
-  const userMemory = ctx.userMemory
-  const base =
-    "You are the CSlate assistant. Answer the user's question helpfully and concisely."
-  const system = userMemory.trim()
-    ? `${base}\n\nUser preferences (adapt accordingly):\n${userMemory.trim()}`
-    : base
-
-  const result = runAgentStream({
-    modelId: mainModelId(ctx.config),
-    registry: ctx.registry,
-    system,
-    messages: [
-      ...ctx.conversationHistory,
-      { role: 'user' as const, content: ctx.message },
-    ],
-    tools: {},
-    maxOutputTokens: 1000,
-    abortSignal: ctx.abortSignal,
-  })
-
-  for await (const part of result.fullStream) {
-    yield part
-  }
-}
-
+/**
+ * Stream a brief 1-sentence intro for a library card. Never asks permission.
+ */
 async function* streamIntro(
   ctx: RenderSkillContext,
   renderType: string,

@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { fastModelId, runStructuredAgent, type AgentRegistry, type LLMConfig } from '@cslate/shared/agent'
+import { fastModelId, type AgentRegistry, type LLMConfig } from '@cslate/shared/agent'
+import { runStructuredAgentSafe } from '../agent/lib/structuredAgent'
 import { memoryStore } from './store'
 import { engineLog } from '../lib/logger'
 
@@ -63,7 +64,7 @@ export async function extractAndStoreUiMemories(params: {
   if (!params.message.trim()) return
 
   try {
-    const result = await runStructuredAgent({
+    const result = await runStructuredAgentSafe({
       modelId: fastModelId(params.config),
       registry: params.registry,
       system: UI_MEMORY_SYSTEM,
@@ -86,6 +87,10 @@ export async function extractAndStoreUiMemories(params: {
     await memoryStore.addAutoUiPreferences(preferences)
     log.info({ count: preferences.length }, 'stored auto UI memories')
   } catch (err) {
-    log.warn({ err }, 'UI memory extraction failed')
+    // Memory extraction is best-effort. Models routinely return prose like
+    // "No preferences detected." instead of the structured object. That's not
+    // an error in the user-visible sense — log at debug to avoid log noise.
+    const rawMsg = err instanceof Error ? err.message : String(err)
+    log.debug({ err: rawMsg }, 'UI memory extraction skipped (non-structured response)')
   }
 }

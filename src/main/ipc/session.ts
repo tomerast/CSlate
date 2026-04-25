@@ -1,6 +1,7 @@
 import type { IpcMain } from 'electron'
 import { z } from 'zod'
-import { buildRegistry, fastModelId, runStructuredAgent } from '@cslate/shared/agent'
+import { buildRegistry, fastModelId } from '@cslate/shared/agent'
+import { runStructuredAgentSafe } from '../agent/lib/structuredAgent'
 import { SessionStore } from '../sessions/store'
 import { resolveLLMConfig } from '../agent/config-resolver'
 import type { AgentMessage } from '../../shared/agentTypes'
@@ -9,8 +10,23 @@ import { agentLog } from '../lib/logger'
 const store = new SessionStore()
 
 const TitleSchema = z.object({
-  title: z.string().min(1).max(80),
+  title: z.string().max(80),
 })
+
+const TITLE_STOP_WORDS = new Set([
+  'the', 'and', 'for', 'with', 'was', 'are', 'how', 'what', 'when',
+  'where', 'why', 'can', 'you', 'build', 'make', 'create', 'show', 'tell',
+])
+
+function fallbackTitleFromPrompt(prompt: string): string {
+  const words = prompt
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !TITLE_STOP_WORDS.has(w.toLowerCase()))
+    .slice(0, 5)
+  if (words.length === 0) return 'New Chat'
+  return words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+}
 
 const TITLE_SYSTEM = `You name conversations. Given the user's first message, produce a short, specific title (2-6 words, Title Case, no trailing punctuation). Describe the topic, not the action. Examples:
 - "what's the capital of Peru" -> "Capital of Peru"
@@ -96,14 +112,18 @@ export function register(ipcMain: IpcMain): void {
       }
       return safeCall(async () => {
         const registry = buildRegistry(config)
-        const result = await runStructuredAgent({
+        const result = await runStructuredAgentSafe({
           modelId: fastModelId(config),
           registry,
           system: TITLE_SYSTEM,
           prompt: prompt.slice(0, 4000),
           schema: TitleSchema,
         })
-        const cleaned = result.title.replace(/["'.]+$/g, '').trim()
+        let cleaned = result.title?.replace(/["'.]+$/g, '').trim() ?? ''
+        if (!cleaned) {
+          cleaned = fallbackTitleFromPrompt(prompt)
+          log.info({ fallback: true, title: cleaned }, 'auto-title empty — used fallback')
+        }
         log.info({ title: cleaned }, 'title generated')
         return store.renameIfDefault(id, cleaned)
       }, null)
