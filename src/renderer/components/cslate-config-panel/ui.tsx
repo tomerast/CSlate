@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { ConfigPanelProps, ConfigTab, LLMProvider } from './types'
 import { THEME_OPTIONS, PROVIDER_PRESETS, MODEL_SUGGESTIONS } from './types'
 import { useConfigForm } from './logic'
@@ -6,6 +6,11 @@ import { useConfigForm } from './logic'
 interface ProviderModel {
   id: string
   label: string
+}
+
+interface HealthInfo {
+  version?: string
+  capabilities?: Record<string, boolean>
 }
 
 type ProviderStatus = 'idle' | 'checking' | 'connected' | 'error'
@@ -39,9 +44,55 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
   const [providerMessage, setProviderMessage] = useState('')
   const [availableModels, setAvailableModels] = useState<ProviderModel[]>([])
   const [modelField, setModelField] = useState<'llmModel' | 'llmFastModel'>('llmModel')
+
+  // ── Server health handshake ──────────────────────────────
+  const [healthStatus, setHealthStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle')
+  const [healthInfo, setHealthInfo] = useState<HealthInfo | null>(null)
+  const [healthError, setHealthError] = useState('')
+
   const isConnected = !!props.serverEmail
   const selectedProvider = activeProvider ?? PROVIDER_PRESETS[0]
   const modelOptions = availableModels.length > 0 ? availableModels : MODEL_SUGGESTIONS
+
+  async function checkHealth(url?: string) {
+    const serverUrl = url ?? values.serverUrl
+    if (!serverUrl || !serverUrl.startsWith('http')) {
+      setHealthStatus('idle')
+      setHealthError('')
+      setHealthInfo(null)
+      return
+    }
+    setHealthStatus('checking')
+    setHealthError('')
+    try {
+      const result = await window.electron.invoke('server:health', { serverUrl }) as {
+        ok: boolean
+        valid: boolean
+        version?: string
+        capabilities?: Record<string, boolean>
+        error?: string
+      }
+      if (result.ok && result.valid) {
+        setHealthStatus('valid')
+        setHealthInfo({ version: result.version, capabilities: result.capabilities })
+      } else {
+        setHealthStatus('invalid')
+        setHealthError(result.error ?? 'Not a CSlate server')
+        setHealthInfo(null)
+      }
+    } catch {
+      setHealthStatus('invalid')
+      setHealthError('Could not reach server')
+      setHealthInfo(null)
+    }
+  }
+
+  // Auto-check health when settings tab opens and a URL is already present
+  useEffect(() => {
+    if (activeTab === 'settings' && values.serverUrl && !isConnected) {
+      checkHealth()
+    }
+  }, [activeTab])
 
   async function handleConnect() {
     if (!connectEmail || !values.serverUrl) return
@@ -372,29 +423,83 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
               <SectionHeader title="Community Server" subtitle="Share components and discover blueprints" />
 
               {/* Server URL */}
-              <div>
+              <div className="space-y-1.5">
                 <input
                   type="text"
                   value={values.serverUrl}
                   onChange={e => updateField('serverUrl', e.target.value)}
+                  onBlur={() => checkHealth()}
                   placeholder="https://api.cslate.app"
                   className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-text placeholder:text-muted/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 font-mono"
                 />
+                {healthStatus === 'checking' && (
+                  <p className="text-[11px] text-muted flex items-center gap-1.5">
+                    <span className="inline-block w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    Checking server…
+                  </p>
+                )}
+                {healthStatus === 'valid' && healthInfo && (
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                    <span className="text-text font-medium">CSlate server</span>
+                    {healthInfo.version && (
+                      <span className="text-muted">v{healthInfo.version}</span>
+                    )}
+                    <span className="text-muted">•</span>
+                    {healthInfo.capabilities?.upload && (
+                      <span className="text-muted">Upload ✓</span>
+                    )}
+                    {healthInfo.capabilities?.download && (
+                      <span className="text-muted">Download ✓</span>
+                    )}
+                    {healthInfo.capabilities?.search && (
+                      <span className="text-muted">Search ✓</span>
+                    )}
+                  </div>
+                )}
+                {healthStatus === 'invalid' && (
+                  <p className="text-[11px] text-red-400 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                    {healthError || 'Not a CSlate server'}
+                  </p>
+                )}
               </div>
 
               {/* Connection status */}
               {isConnected ? (
-                <div className="flex items-center justify-between px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                    <span className="text-sm text-text">Connected as <span className="font-medium">{props.serverEmail}</span></span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                      <span className="text-sm text-text">Connected as <span className="font-medium">{props.serverEmail}</span></span>
+                    </div>
+                    <button
+                      onClick={handleDisconnect}
+                      className="text-xs text-muted hover:text-text transition-colors"
+                    >
+                      Disconnect
+                    </button>
                   </div>
-                  <button
-                    onClick={handleDisconnect}
-                    className="text-xs text-muted hover:text-text transition-colors"
-                  >
-                    Disconnect
-                  </button>
+                  {healthInfo && (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 bg-surface border border-border rounded-lg text-[11px] text-muted">
+                      <span className="font-medium text-text">Capabilities:</span>
+                      {healthInfo.capabilities?.upload !== undefined && (
+                        <span className={healthInfo.capabilities.upload ? 'text-green-400' : 'text-red-400'}>
+                          Upload {healthInfo.capabilities.upload ? '✓' : '✗'}
+                        </span>
+                      )}
+                      {healthInfo.capabilities?.download !== undefined && (
+                        <span className={healthInfo.capabilities.download ? 'text-green-400' : 'text-red-400'}>
+                          Download {healthInfo.capabilities.download ? '✓' : '✗'}
+                        </span>
+                      )}
+                      {healthInfo.capabilities?.search !== undefined && (
+                        <span className={healthInfo.capabilities.search ? 'text-green-400' : 'text-red-400'}>
+                          Search {healthInfo.capabilities.search ? '✓' : '✗'}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : connectStatus === 'pending_email' ? (
                 <div className="px-3 py-2.5 bg-surface border border-border rounded-lg">
@@ -416,7 +521,7 @@ export default function CSlateConfigPanel(props: ConfigPanelProps): React.ReactE
                   )}
                   <button
                     onClick={handleConnect}
-                    disabled={!connectEmail || connectStatus === 'connecting'}
+                    disabled={!connectEmail || connectStatus === 'connecting' || healthStatus !== 'valid'}
                     className="w-full px-3 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {connectStatus === 'connecting' ? 'Connecting…' : 'Connect'}

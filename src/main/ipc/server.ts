@@ -21,9 +21,29 @@ export function register(ipcMain: IpcMain): void {
     return client.search(args.query, args.limit ?? 5)
   })
 
+  ipcMain.handle('server:health', async (_event: IpcMainInvokeEvent, args: { serverUrl: string }) => {
+    try {
+      const base = args.serverUrl.replace(/\/$/, '')
+      const probe = new CSlateServerClient(base, '')
+      const result = await probe.health()
+      return result
+    } catch (err) {
+      return { ok: false, valid: false, error: err instanceof Error ? err.message : 'Health check failed' }
+    }
+  })
+
   ipcMain.handle('server:connect', async (_event: IpcMainInvokeEvent, args: { email: string; serverUrl: string }) => {
     try {
       const base = args.serverUrl.replace(/\/$/, '')
+
+      // 1. Handshake — verify this is actually a CSlate server
+      const probe = new CSlateServerClient(base, '')
+      const health = await probe.health()
+      if (!health.ok || !health.valid) {
+        return { ok: false, message: health.error ?? 'Server did not respond to handshake' }
+      }
+
+      // 2. Register
       const res = await fetch(`${base}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -15,6 +15,63 @@ describe('CSlateServerClient', () => {
     vi.restoreAllMocks()
   })
 
+  describe('health', () => {
+    it('returns valid=true when the server identifies as cslate-server', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            ok: true,
+            service: 'cslate-server',
+            version: '0.1.0',
+            capabilities: { upload: true, download: true, search: true },
+          }),
+        }),
+      )
+
+      const result = await client.health()
+
+      expect(result.ok).toBe(true)
+      expect(result.valid).toBe(true)
+      expect(result.service).toBe('cslate-server')
+      expect(result.version).toBe('0.1.0')
+      expect(result.capabilities).toEqual({ upload: true, download: true, search: true })
+    })
+
+    it('returns valid=false when service field is missing', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ ok: true, service: 'other-service' }),
+        }),
+      )
+
+      const result = await client.health()
+
+      expect(result.ok).toBe(true)
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Not a CSlate server')
+    })
+
+    it('returns an error envelope on non-OK', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
+      const result = await client.health()
+      expect(result.ok).toBe(false)
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Server returned 503')
+    })
+
+    it('returns an error envelope on network failure', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Connection refused')))
+      const result = await client.health()
+      expect(result.ok).toBe(false)
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Connection refused')
+    })
+  })
+
   describe('search', () => {
     it('constructs the correct URL and sends the ApiKey header', async () => {
       const mockFetch = vi.fn().mockResolvedValue({

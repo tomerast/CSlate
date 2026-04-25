@@ -10,6 +10,9 @@ vi.mock('electron-store', () => ({
     set(key: string, val: unknown) {
       storeData.set(key, val)
     }
+    delete(key: string) {
+      storeData.delete(key)
+    }
   },
 }))
 
@@ -25,10 +28,12 @@ vi.mock('electron', () => ({
 }))
 
 const mockSearch = vi.fn()
+const mockHealth = vi.fn()
 vi.mock('../../server/CSlateServerClient', () => ({
   CSlateServerClient: class {
     constructor(public serverUrl: string, public apiKey: string) {}
     search = mockSearch
+    health = mockHealth
   },
 }))
 
@@ -116,5 +121,107 @@ describe('server IPC — server:search', () => {
     const result = await (ipc as any)._invoke('server:search', { query: 'test' })
 
     expect(result).toEqual({ results: [], total: 0, error: 'Server not configured' })
+  })
+})
+
+describe('server IPC — server:health', () => {
+  it('returns valid=true when the server responds with a cslate-server identity', async () => {
+    mockHealth.mockResolvedValue({
+      ok: true,
+      valid: true,
+      service: 'cslate-server',
+      version: '0.1.0',
+      capabilities: { upload: true, download: true },
+    })
+
+    const ipc = createMockIpcMain()
+    register(ipc)
+
+    const result = await (ipc as any)._invoke('server:health', { serverUrl: 'http://localhost:3000' })
+
+    expect(result.valid).toBe(true)
+    expect(result.service).toBe('cslate-server')
+    expect(result.capabilities).toEqual({ upload: true, download: true })
+  })
+
+  it('returns valid=false when health probe reports an error', async () => {
+    mockHealth.mockResolvedValue({
+      ok: false,
+      valid: false,
+      error: 'Connection refused',
+    })
+
+    const ipc = createMockIpcMain()
+    register(ipc)
+
+    const result = await (ipc as any)._invoke('server:health', { serverUrl: 'http://offline:3000' })
+
+    expect(result.ok).toBe(false)
+    expect(result.valid).toBe(false)
+    expect(result.error).toBe('Connection refused')
+  })
+})
+
+describe('server IPC — server:connect', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ apiKey: 'new-api-key' }),
+      }),
+    )
+  })
+
+  it('registers after a successful handshake and stores the apiKey + email', async () => {
+    mockHealth.mockResolvedValue({ ok: true, valid: true })
+
+    const ipc = createMockIpcMain()
+    register(ipc)
+
+    const result = await (ipc as any)._invoke('server:connect', {
+      email: 'dev@cslate.com',
+      serverUrl: 'http://localhost:3000',
+    })
+
+    expect(result).toEqual({ ok: true, connected: true })
+    expect(storeData.get('serverEmail')).toBe('dev@cslate.com')
+    expect(mockEncrypt).toHaveBeenCalledWith('new-api-key')
+  })
+
+  it('blocks registration when the handshake fails', async () => {
+    mockHealth.mockResolvedValue({ ok: false, valid: false, error: 'Not a CSlate server' })
+
+    const ipc = createMockIpcMain()
+    register(ipc)
+
+    const result = await (ipc as any)._invoke('server:connect', {
+      email: 'dev@cslate.com',
+      serverUrl: 'http://evil.com',
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.message).toBe('Not a CSlate server')
+  })
+
+  it('returns pending_email when the key is not returned immediately', async () => {
+    mockHealth.mockResolvedValue({ ok: true, valid: true })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ message: 'Check your email' }),
+      }),
+    )
+
+    const ipc = createMockIpcMain()
+    register(ipc)
+
+    const result = await (ipc as any)._invoke('server:connect', {
+      email: 'dev@cslate.com',
+      serverUrl: 'http://localhost:3000',
+    })
+
+    expect(result).toEqual({ ok: true, connected: false, message: 'Check your email' })
   })
 })

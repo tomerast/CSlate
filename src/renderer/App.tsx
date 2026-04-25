@@ -61,7 +61,7 @@ export default function App() {
     llmApiKey: '',
     gatewayUrl: 'https://openrouter.ai/api/v1',
     theme: 'dark' as Theme,
-    serverUrl: 'https://api.cslate.app',
+    serverUrl: 'http://localhost:3000',
     serverEmail: '',
   })
 
