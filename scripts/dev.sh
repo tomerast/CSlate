@@ -46,13 +46,7 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-# ── Start Playground + Electron in parallel ──────────────────────────────────
-log "Starting Component Playground on :5174..."
-(cd "$REPO_ROOT/apps/playground" && npm run dev 2>&1 | \
-  sed "s/^/${MAGENTA}[playground]${NC} /") &
-PLAYGROUND_PID=$!
-PLAYGROUND_PGID=$(ps -o pgid= -p $PLAYGROUND_PID 2>/dev/null | tr -d ' ' || echo $PLAYGROUND_PID)
-
+# ── Start Electron ────────────────────────────────────────────────────────
 log "Starting Electron..."
 (npm run dev 2>&1 | \
   sed "s/^/${BLUE}[electron]${NC} /") &
@@ -60,7 +54,6 @@ ELECTRON_PID=$!
 ELECTRON_PGID=$(ps -o pgid= -p $ELECTRON_PID 2>/dev/null | tr -d ' ' || echo $ELECTRON_PID)
 
 ok "All services started"
-log "  Playground  → http://localhost:5174"
 log "  Server API  → http://localhost:3000"
 log "  DB (pg)     → localhost:5432"
 log "  Inspector   → chrome://inspect (port 9229)"
@@ -70,8 +63,8 @@ log "Press Ctrl+C to stop all services"
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
 cleanup() {
   log "Shutting down..."
-  # Kill entire process groups so npm/electron children are also terminated
-  kill -- -$PLAYGROUND_PGID -$ELECTRON_PGID 2>/dev/null || true
+  # Kill entire process group so npm/electron children are also terminated
+  kill -- -$ELECTRON_PGID 2>/dev/null || true
   docker compose -f docker-compose.dev.yml down
   ok "All services stopped"
 }

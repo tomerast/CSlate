@@ -3,9 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "main": "out/main/index.js",
-  "workspaces": [
-    "apps/*"
-  ],
   "build": {
     "appId": "com.cslate.app",
     "icon": "build/icon.icns",
@@ -25,9 +22,8 @@
     "dev:full": "bash scripts/dev.sh",
     "dev:stop": "docker compose -f docker-compose.dev.yml down && pkill -f electron-vite || true",
     "dev:logs": "docker compose -f docker-compose.dev.yml logs -f",
-    "playground": "npm run dev --workspace=apps/playground",
     "build": "electron-vite build",
-    "typecheck": "tsc --noEmit && npm run typecheck --workspace=apps/playground",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:reset": "docker compose -f docker-compose.dev.yml exec cslate-server npm run db:reset",
